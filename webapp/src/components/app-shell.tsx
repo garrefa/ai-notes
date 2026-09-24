@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CalendarDays, FlaskConical, FolderOpen, FolderSearch, GitPullRequest, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, StickyNote, Trash2, X } from "lucide-react"
+import { AlertTriangle, CalendarDays, FlaskConical, FolderOpen, FolderSearch, GitPullRequest, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, Sparkles, StickyNote, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -42,6 +42,16 @@ import {
 } from "@/lib/task-status"
 
 const JIRA_TICKET_RE = /^[A-Za-z]{3}-\d{4}$/
+const PROJECT_REPO_URL = "https://github.com/garrefa/ai-notes"
+
+// lucide-react dropped brand icons, so the GitHub mark is drawn inline.
+function GitHubMark() {
+  return (
+    <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+      <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0 0 16 8c0-4.42-3.58-8-8-8Z" />
+    </svg>
+  )
+}
 
 type View = "all" | "notes" | "plans" | "daily" | "tasks" | "prs"
 
@@ -443,6 +453,11 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             <kbd className="rounded border border-border px-1 font-mono text-[10px]">⌘K</kbd>
           </Button>
           <ThemeSwitcher />
+          <Button variant="outline" size="icon" asChild>
+            <a href={PROJECT_REPO_URL} target="_blank" rel="noreferrer" aria-label="AINotes on GitHub" title="AINotes on GitHub">
+              <GitHubMark />
+            </a>
+          </Button>
           <Button variant="outline" size="icon" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>
             <Settings />
           </Button>
@@ -508,8 +523,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                     <>
                       {supported ? (
                         <p>
-                          Connect your notes repo (the folder with a <code className="font-mono">db/</code> folder inside) to
-                          browse your notes, plans, tasks and daily logs.
+                          Connect your notes repo to browse your notes, plans, tasks and daily logs.
                         </p>
                       ) : (
                         <p>
@@ -521,8 +535,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                         Not ready to connect one yet? Try the demo: two sample workspaces, <strong>Work</strong> and{" "}
                         <strong>Personal</strong>, with notes, plans, daily plans, tasks and pull requests.
                       </p>
-                      <Button size="sm" variant={supported ? "outline" : "default"} className="gap-2" onClick={startDemo}>
-                        <FlaskConical className="size-3.5" />
+                      <Button className="demo-cta h-9 gap-2 px-5 font-semibold" onClick={startDemo}>
+                        <Sparkles className="size-4" />
                         Try the demo
                       </Button>
                     </>

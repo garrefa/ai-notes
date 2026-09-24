@@ -201,3 +201,95 @@
     border-radius: calc(var(--radius) - 4px);
   }
 }
+
+/* "Try the demo" call to action in the empty state: a gradient pill in the theme's primary color
+   with a soft glow, a light sweep across it every few seconds, and a lift on hover. Every theme
+   gets it for free because the colors are mixed from --primary. Motion stops for people who ask
+   for reduced motion. Unlayered on purpose, so it beats the Button's bg-primary utility. */
+.demo-cta {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+  border: 0;
+  border-radius: 9999px;
+  color: var(--primary-foreground);
+  background: linear-gradient(
+    120deg,
+    var(--primary),
+    color-mix(in oklab, var(--primary) 40%, #ec4899),
+    color-mix(in oklab, var(--primary) 45%, #f97316)
+  );
+  background-size: 200% 100%;
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 40%, transparent),
+    0 6px 20px -4px color-mix(in oklab, var(--primary) 65%, transparent);
+  transition:
+    transform 150ms ease,
+    box-shadow 150ms ease;
+  animation: demo-cta-gradient 6s ease-in-out infinite;
+}
+.demo-cta::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(100deg, transparent 30%, rgb(255 255 255 / 0.45) 50%, transparent 70%);
+  transform: translateX(-120%);
+  animation: demo-cta-shine 3.5s ease-in-out infinite;
+}
+.demo-cta:hover {
+  transform: translateY(-1px) scale(1.03);
+  box-shadow:
+    0 0 0 1px color-mix(in oklab, var(--primary) 55%, transparent),
+    0 10px 28px -4px color-mix(in oklab, var(--primary) 80%, transparent);
+}
+.demo-cta:active {
+  transform: translateY(0) scale(0.98);
+}
+.demo-cta svg {
+  animation: demo-cta-twinkle 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .demo-cta,
+  .demo-cta::after,
+  .demo-cta svg {
+    animation: none;
+  }
+  .demo-cta:hover,
+  .demo-cta:active {
+    transform: none;
+  }
+}
+
+@keyframes demo-cta-gradient {
+  0%,
+  100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes demo-cta-shine {
+  0%,
+  60% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(120%);
+  }
+}
+
+@keyframes demo-cta-twinkle {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.2) rotate(15deg);
+    opacity: 0.8;
+  }
+}
