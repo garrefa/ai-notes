@@ -1,0 +1,15 @@
+{
+  "name": "ainotes",
+  "description": "ainotes: a git-backed second brain for Claude Code across multi-repo workspaces.",
+  "owner": {
+    "name": "Alexandre Garrefa",
+    "url": "https://github.com/garrefa"
+  },
+  "plugins": [
+    {
+      "name": "ainotes",
+      "source": "./",
+      "description": "A git-backed second brain for Claude Code: notes, plans, PR ledger, tasks, daily plans and reports for a multi-repo workspace."
+    }
+  ]
+}

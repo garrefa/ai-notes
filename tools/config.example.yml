@@ -1,0 +1,68 @@
+# config.yml — organization-specific settings for the ainotes-* skill toolkit, for ONE workspace.
+#
+# Copy this file to <workspace-root>/.ai-notes/config.yml and fill in your own values (or run the
+# ainotes-setup skill, which creates and updates it interactively).
+# Every ainotes-* skill reads settings from here instead of hardcoding an organization's details, so
+# the toolkit itself (skills, agents, hooks) never needs to change to adopt it for a new company/workspace.
+#
+# The workspace root itself is never stored here or hardcoded into any skill. Skills find this file by
+# walking up from the current directory until a `.ai-notes/` directory turns up — the same discovery
+# pattern `.git` uses — and treat its parent as the workspace root. That's what lets one global
+# ainotes-* installation serve multiple independent workspaces at once, each with its own
+# `.ai-notes/config.yml` and its own settings below.
+#
+# Optional keys can be left null/empty or removed entirely; every skill degrades gracefully when one
+# is missing (it skips the step that needs it and tells you how to enable it).
+
+# Human-readable org name, used only in skill-generated prose where it reads naturally — e.g. the
+# ainotes-report title ("Acme work report — 2026-Q3") and the intro line of an
+# ainotes-pr-review-request Slack message. Optional; purely cosmetic.
+org_name: "Acme"
+
+# Directory name — and its own separate git repo, sitting directly in the workspace root — holding
+# every note/plan/ledger the ainotes-* skills produce (notes/, plans/, daily/, tasks/, INDEX.md,
+# PRS.md, TASKS.md). Every skill reads this once and uses the current value throughout; change this
+# one setting if you rename or move it and nothing else needs to change.
+notes_repo: notes
+
+vcs:
+  # GitHub org or user the workspace's repos live under — what `gh` calls use as the owner (e.g.
+  # `gh pr view <n> --repo <org>/<repo>`). GitHub is the only supported VCS.
+  org: acme
+
+# OPTIONAL — disabled by default. With no `jira` block every Jira step is skipped: no ticket
+# creation or linking, and no skill will ever ask you for a ticket. Uncomment to enable Jira.
+# jira:
+#   # Project key new tickets are created under and that ticket keys are matched against (PROJ-123).
+#   project_key: PROJ
+#   # Prefix for rendering a ticket key as a link: <base_url><KEY>.
+#   base_url: https://acme.atlassian.net/browse/
+
+# Epics offered as suggestions when a ticket is created — suggestions only, never auto-applied.
+# A living list, grown in place as epics are confirmed with you; never pre-populate guesses.
+#   - key: PROJ-100
+#     name: Example initiative
+preferred_epics: []
+
+slack:
+  # Channel ainotes-pr-review-request posts review requests to, e.g. "#pr-review".
+  # null/absent disables that skill (it will say so and explain how to enable it).
+  pr_review_channel: null
+
+ci:
+  # The PR-comment string ainotes-babysit-prs posts to trigger a deploy, e.g. "/deploy".
+  # null disables that step entirely: ainotes-babysit-prs reports readiness and stops there.
+  deploy_trigger_comment: null
+
+# Repos at the workspace root that ainotes-* skills should never manage/report on/nudge about
+# (archived, unrelated, someone else's scratch clone, etc.) — as opposed to a repo that's simply not
+# tagged yet, which the ainotes-setup skill will ask about instead of silently ignoring.
+ignored_repos: []
+
+# domain -> repos it typically maps to, for ainotes-notes frontmatter tagging, e.g.
+#   backend: [api-gateway, billing-service]
+#   frontend: [web-app, mobile-app]
+# Populate this by running the ainotes-setup skill, which scans the workspace root for cloned repos
+# and, for any repo that's neither here nor in ignored_repos above, asks you to tag it or ignore it
+# (suggesting tags based on name/stack similarity to domains you've already used).
+domain_taxonomy: {}

@@ -1,0 +1,10 @@
+{
+  "name": "ainotes",
+  "version": "0.1.0",
+  "description": "A git-backed second brain for Claude Code: dated, tagged notes and plans, a PR ledger, task tracking, daily plans, and reports across every repo in a workspace.",
+  "author": { "name": "Alexandre Garrefa", "url": "https://github.com/garrefa" },
+  "homepage": "https://github.com/garrefa/ai-notes",
+  "repository": "https://github.com/garrefa/ai-notes",
+  "license": "MIT",
+  "keywords": ["notes", "second-brain", "pull-requests", "tasks", "workflow", "jira", "github"]
+}
