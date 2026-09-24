@@ -4,6 +4,7 @@ import { ExternalLink } from "lucide-react"
 import { Pill, ToneChip } from "@/components/pr-hints"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { Button } from "@/components/ui/button"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { Note } from "@/lib/notes-frontmatter"
 import type { LedgerPr } from "@/lib/prs-parser"
 import {
@@ -93,19 +94,32 @@ function ChecksSection({ ci, behind }: { ci: ReturnType<typeof parseCi>; behind:
   )
 }
 
-// "Build (FAILURE)" → "❌ Build", with the state kept as the tooltip and accessible name.
+// The emoji for a check/review state; hovering or focusing it shows the readable label and the
+// raw state as written in PRS.md, e.g. "Failure (FAILURE)".
+function StateEmoji({ state, mark }: { state: string; mark: { emoji: string; label: string } }) {
+  const text = `${mark.label} (${state})`
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span role="img" aria-label={text} tabIndex={0} className="cursor-default rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          {mark.emoji}
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+// "Build (FAILURE)" → "❌ Build".
 function CheckLine({ check }: { check: string }) {
   const { name, state } = parseCheck(check)
   const mark = state ? stateEmoji(state) : null
   if (!state) return <>{name}</>
   if (!mark) return <>{name} ({state})</>
   return (
-    <span title={mark.label}>
-      <span role="img" aria-label={mark.label}>
-        {mark.emoji}
-      </span>{" "}
-      {name}
-    </span>
+    <>
+      <StateEmoji state={state} mark={mark} /> {name}
+    </>
   )
 }
 
@@ -114,7 +128,7 @@ function StateLabel({ state, label }: { state: string; label: string }) {
   if (!mark) return <>{label}</>
   return (
     <>
-      <span aria-hidden="true">{mark.emoji}</span> {label}
+      <StateEmoji state={state} mark={mark} /> {label}
     </>
   )
 }
