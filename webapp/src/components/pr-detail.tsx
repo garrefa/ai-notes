@@ -10,10 +10,12 @@ import {
   formatAge,
   parseBehind,
   parseCi,
+  parseCheck,
   parseReviews,
   parseUnresolved,
   prTitle,
   reviewStateHint,
+  stateEmoji,
   splitList,
 } from "@/lib/pr-view"
 import type { TaskStatus } from "@/lib/task-status"
@@ -81,11 +83,39 @@ function ChecksSection({ ci, behind }: { ci: ReturnType<typeof parseCi>; behind:
       {ci && ci.checks.length > 0 && (
         <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">
           {ci.checks.map((check, i) => (
-            <li key={i}>{check}</li>
+            <li key={i}>
+              <CheckLine check={check} />
+            </li>
           ))}
         </ul>
       )}
     </Section>
+  )
+}
+
+// "Build (FAILURE)" → "❌ Build", with the state kept as the tooltip and accessible name.
+function CheckLine({ check }: { check: string }) {
+  const { name, state } = parseCheck(check)
+  const mark = state ? stateEmoji(state) : null
+  if (!state) return <>{name}</>
+  if (!mark) return <>{name} ({state})</>
+  return (
+    <span title={mark.label}>
+      <span role="img" aria-label={mark.label}>
+        {mark.emoji}
+      </span>{" "}
+      {name}
+    </span>
+  )
+}
+
+function StateLabel({ state, label }: { state: string; label: string }) {
+  const mark = stateEmoji(state)
+  if (!mark) return <>{label}</>
+  return (
+    <>
+      <span aria-hidden="true">{mark.emoji}</span> {label}
+    </>
   )
 }
 
@@ -102,7 +132,9 @@ function ReviewsSection({ reviews, owners }: { reviews: string | null; owners: s
             return (
               <li key={i} className="flex flex-wrap items-center gap-2">
                 <span className="font-mono text-xs">{r.reviewer}</span>
-                <ToneChip tone={hint.tone}>{hint.label}</ToneChip>
+                <ToneChip tone={hint.tone}>
+                  <StateLabel state={r.state} label={hint.label} />
+                </ToneChip>
               </li>
             )
           })}

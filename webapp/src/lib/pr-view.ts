@@ -95,6 +95,40 @@ export function parseCi(ci: string | null): (Hint & { checks: string[] }) | null
   return { label, tone, checks: rest ? splitList(rest) : [] }
 }
 
+// GitHub check conclusions and review states, as written in parentheses in PRS.md.
+const STATE_EMOJI: Record<string, { emoji: string; label: string }> = {
+  FAILURE: { emoji: "❌", label: "Failure" },
+  ERROR: { emoji: "❌", label: "Error" },
+  TIMED_OUT: { emoji: "❌", label: "Timed out" },
+  STARTUP_FAILURE: { emoji: "❌", label: "Startup failure" },
+  SUCCESS: { emoji: "✅", label: "Success" },
+  PENDING: { emoji: "⏳", label: "Pending" },
+  IN_PROGRESS: { emoji: "⏳", label: "In progress" },
+  QUEUED: { emoji: "⏳", label: "Queued" },
+  CANCELLED: { emoji: "⚪", label: "Cancelled" },
+  SKIPPED: { emoji: "⚪", label: "Skipped" },
+  NEUTRAL: { emoji: "⚪", label: "Neutral" },
+  APPROVED: { emoji: "👍", label: "Approved" },
+  CHANGES_REQUESTED: { emoji: "✋", label: "Changes requested" },
+  COMMENTED: { emoji: "💬", label: "Commented" },
+  DISMISSED: { emoji: "🗑️", label: "Dismissed" },
+}
+
+export function stateEmoji(state: string): { emoji: string; label: string } | null {
+  return STATE_EMOJI[state] ?? null
+}
+
+export interface Check {
+  name: string
+  state: string | null
+}
+
+// "Build (FAILURE)" → { name: "Build", state: "FAILURE" }; no trailing state → state null.
+export function parseCheck(check: string): Check {
+  const m = check.match(/^(.*?)\s*\(([A-Z_]+)\)\s*$/)
+  return m ? { name: m[1], state: m[2] } : { name: check, state: null }
+}
+
 // "No" is up to date; "Yes" is behind; "Conflicts — dirty" has merge conflicts.
 export function parseBehind(behind: string | null): Hint | null {
   if (!behind) return null
