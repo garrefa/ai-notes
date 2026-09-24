@@ -4,7 +4,7 @@
 
 import { assertReadableDirectory, loadAllNotes, loadPrsFile, resolveWorkspace, type ResolvedWorkspace } from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
-import { parsePrs, type PendingPr } from "@/lib/prs-parser"
+import { parsePrLedger, type PrLedger } from "@/lib/prs-parser"
 import { toFolderUnavailable, withTimeout } from "@/lib/folder-errors"
 
 // A handle to a removed folder or an unmounted volume can stall instead of failing.
@@ -13,7 +13,8 @@ const PERMISSION_MODE = "readwrite"
 
 export interface WorkspaceData {
   notes: Note[]
-  prs: PendingPr[] | null
+  // null when the folder has no PRS.md.
+  prLedger: PrLedger | null
 }
 
 export interface LoadedWorkspace extends WorkspaceData {
@@ -22,7 +23,7 @@ export interface LoadedWorkspace extends WorkspaceData {
 
 export async function readWorkspaceData(dataDir: FileSystemDirectoryHandle): Promise<WorkspaceData> {
   const [notes, prsRaw] = await Promise.all([loadAllNotes(dataDir), loadPrsFile(dataDir)])
-  return { notes, prs: prsRaw ? parsePrs(prsRaw) : null }
+  return { notes, prLedger: prsRaw === null ? null : parsePrLedger(prsRaw) }
 }
 
 async function guarded<T>(work: Promise<T>, label: string, timeoutMs: number): Promise<T> {

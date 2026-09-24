@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CalendarDays, FolderOpen, FolderSearch, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, StickyNote, Trash2, X } from "lucide-react"
+import { AlertTriangle, CalendarDays, FolderOpen, FolderSearch, GitPullRequest, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, StickyNote, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,13 +21,16 @@ import {
 } from "@/components/ui/sidebar"
 import { CommandPalette } from "@/components/command-palette"
 import { NoteDetail } from "@/components/note-detail"
-import { PendingPrs } from "@/components/pending-prs"
+import { PrDetail } from "@/components/pr-detail"
+import { PrList } from "@/components/pr-list"
 import { StatusSettingsDialog } from "@/components/status-settings-dialog"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-directory"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
+import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
+import type { PrState } from "@/lib/prs-parser"
 import { useStatusSettings, type StatusSettings } from "@/lib/status-settings"
 import {
   buildStatusCatalog,
@@ -40,7 +43,7 @@ import {
 
 const JIRA_TICKET_RE = /^[A-Za-z]{3}-\d{4}$/
 
-type View = "all" | "notes" | "plans" | "daily" | "tasks"
+type View = "all" | "notes" | "plans" | "daily" | "tasks" | "prs"
 
 function tagCounts(notes: Note[]) {
   const counts = new Map<string, number>()
@@ -55,6 +58,7 @@ function viewMatchesSource(view: View, source: NoteSource) {
   if (view === "plans") return source === "plans"
   if (view === "daily") return source === "daily"
   if (view === "tasks") return source === "tasks"
+  if (view === "prs") return false
   return true
 }
 
@@ -80,7 +84,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     activeWorkspace,
     layout,
     notes,
-    prs,
+    prLedger,
     error,
     notice,
     busy,
@@ -107,6 +111,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const [settingsOpen, setSettingsOpen] = useState(false)
   // null = the default: every status that isn't closed.
   const [statusFilter, setStatusFilter] = useState<string[] | null>(null)
+  const [prState, setPrState] = useState<PrState>("pending")
+  const [prRepo, setPrRepo] = useState<string | null>(null)
+  const [selectedPrKey, setSelectedPrKey] = useState<string | null>(null)
 
   // Built-in statuses plus every other value this folder's tasks use, with the user's settings applied.
   const statusCatalog = useMemo(
@@ -159,6 +166,37 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
 
   const selected = notes.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
   const connected = status === "connected"
+
+  // Pull requests view: the PRS.md ledger, filtered like the notes list (the open PR stays listed).
+  const ledgerPrs = useMemo(() => prLedger?.prs ?? [], [prLedger])
+  const prCounts = useMemo(() => countByState(ledgerPrs), [ledgerPrs])
+  const prRepos = useMemo(() => reposIn(ledgerPrs.filter((p) => p.state === prState)), [ledgerPrs, prState])
+  // A repo filter left active after its last PR in this state merged/closed would silently hide
+  // everything — it stops applying once that repo has nothing left here.
+  const activePrRepo = prRepo && prRepos.includes(prRepo) ? prRepo : null
+  const visiblePrs = useMemo(
+    () => filterPrs(ledgerPrs, { state: prState, repo: activePrRepo, dateFrom, dateTo, keepKey: selectedPrKey }),
+    [ledgerPrs, prState, activePrRepo, dateFrom, dateTo, selectedPrKey],
+  )
+  const selectedPr = ledgerPrs.find((p) => p.key === selectedPrKey) ?? visiblePrs[0] ?? null
+  const tasksByPr = useMemo(() => tasksByPrKey(notes), [notes])
+
+  function showPrs(state: PrState, key: string | null = null) {
+    setView("prs")
+    setPrState(state)
+    setPrRepo(null)
+    setSelectedPrKey(key)
+  }
+
+  function openTask(path: string) {
+    setView("tasks")
+    setSelectedPath(path)
+  }
+
+  // Same as notes: pin the first listed PR as the real selection once one shows.
+  useEffect(() => {
+    if (!selectedPrKey && visiblePrs[0]) setSelectedPrKey(visiblePrs[0].key)
+  }, [selectedPrKey, visiblePrs])
 
   // Nothing is explicitly selected yet (selectedPath is still null) but a note is showing
   // via the filtered[0] fallback — pin it as the real selection so the "keep the open note
@@ -227,6 +265,12 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   <SidebarMenuButton isActive={view === "tasks"} onClick={() => setView("tasks")}>
                     <ListChecks />
                     Tasks
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+                <SidebarMenuItem>
+                  <SidebarMenuButton isActive={view === "prs"} onClick={() => setView("prs")}>
+                    <GitPullRequest />
+                    Pull requests
                   </SidebarMenuButton>
                 </SidebarMenuItem>
               </SidebarMenu>
@@ -303,48 +347,42 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             </SidebarGroupContent>
           </SidebarGroup>
 
-          {connected && prs && prs.length > 0 && (
+          {view !== "prs" && (
             <SidebarGroup>
-              <SidebarGroupContent className="px-2">
-                <PendingPrs prs={prs} />
+              <SidebarGroupLabel>Tags</SidebarGroupLabel>
+              <SidebarGroupContent className="space-y-2 px-2">
+                <Input
+                  value={tagQuery}
+                  onChange={(e) => setTagQuery(e.target.value)}
+                  placeholder="Search tags"
+                  className="h-7 text-xs"
+                />
+                <div className="flex flex-wrap gap-1.5">
+                  {counts
+                    .filter(([tag]) => tag.toLowerCase().includes(tagQuery.trim().toLowerCase()))
+                    .map(([tag, n]) => (
+                      <button
+                        key={tag}
+                        onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+                        className={`rounded-full border px-2 py-0.5 font-mono text-[11px] transition-colors ${
+                          activeTag === tag
+                            ? "border-primary bg-primary/10 text-primary"
+                            : "border-border text-muted-foreground hover:border-primary/50"
+                        }`}
+                      >
+                        {displayTag(tag)} <span className="opacity-60">{n}</span>
+                      </button>
+                    ))}
+                  {connected && counts.length === 0 && (
+                    <p className="px-0.5 text-xs text-muted-foreground">No tags yet.</p>
+                  )}
+                </div>
+                <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">
+                  Jira ticket tags hidden from the cloud — search by number instead.
+                </p>
               </SidebarGroupContent>
             </SidebarGroup>
           )}
-
-          <SidebarGroup>
-            <SidebarGroupLabel>Tags</SidebarGroupLabel>
-            <SidebarGroupContent className="space-y-2 px-2">
-              <Input
-                value={tagQuery}
-                onChange={(e) => setTagQuery(e.target.value)}
-                placeholder="Search tags"
-                className="h-7 text-xs"
-              />
-              <div className="flex flex-wrap gap-1.5">
-                {counts
-                  .filter(([tag]) => tag.toLowerCase().includes(tagQuery.trim().toLowerCase()))
-                  .map(([tag, n]) => (
-                    <button
-                      key={tag}
-                      onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-                      className={`rounded-full border px-2 py-0.5 font-mono text-[11px] transition-colors ${
-                        activeTag === tag
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border text-muted-foreground hover:border-primary/50"
-                      }`}
-                    >
-                      {displayTag(tag)} <span className="opacity-60">{n}</span>
-                    </button>
-                  ))}
-                {connected && counts.length === 0 && (
-                  <p className="px-0.5 text-xs text-muted-foreground">No tags yet.</p>
-                )}
-              </div>
-              <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">
-                Jira ticket tags hidden from the cloud — search by number instead.
-              </p>
-            </SidebarGroupContent>
-          </SidebarGroup>
         </SidebarContent>
 
         <SidebarFooter className="gap-2">
@@ -462,10 +500,29 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   <code className="font-mono">db/</code> folder) with <strong>Add folder</strong>.
                 </p>
               )}
-              {connected && layout !== "unrecognized" && filtered.length === 0 && (
+              {connected && view === "prs" && (
+                <PrList
+                  prs={visiblePrs}
+                  counts={prCounts}
+                  repos={prRepos}
+                  state={prState}
+                  onStateChange={(state) => showPrs(state)}
+                  repo={activePrRepo}
+                  onRepoChange={(repo) => {
+                    setPrRepo(repo)
+                    setSelectedPrKey(null)
+                  }}
+                  selectedKey={selectedPr?.key ?? null}
+                  onSelect={setSelectedPrKey}
+                  ledgerFound={prLedger !== null}
+                  filtered={Boolean(activePrRepo || dateFrom || dateTo)}
+                  lastDeepCheck={prLedger?.lastDeepCheck ?? null}
+                />
+              )}
+              {connected && view !== "prs" && layout !== "unrecognized" && filtered.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">No notes in this view yet.</p>
               )}
-              {groupNotesByDate(filtered).map((group) => (
+              {view !== "prs" && groupNotesByDate(filtered).map((group) => (
                 <div key={group.date ?? "no-date"}>
                   <div className="mb-2 flex items-baseline justify-between px-1 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     <span>{formatDateHeading(group.date)}</span>
@@ -518,7 +575,21 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           </div>
 
           <div className="h-full min-w-0 flex-1 overflow-y-auto">
-            {selected ? (
+            {view === "prs" ? (
+              connected && selectedPr ? (
+                <PrDetail
+                  key={selectedPr.key}
+                  pr={selectedPr}
+                  tasks={tasksByPr.get(selectedPr.key) ?? []}
+                  taskStatusByPath={taskStatusByPath}
+                  onOpenTask={openTask}
+                />
+              ) : (
+                <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                  {connected ? "Select a pull request to see its details." : "Nothing to show yet."}
+                </div>
+              )
+            ) : selected ? (
               <NoteDetail
                 key={selected.path}
                 note={selected}
@@ -544,7 +615,12 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         activeWorkspaceId={activeWorkspace?.id ?? null}
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        onSelectNote={setSelectedPath}
+        onSelectNote={(path) => {
+          if (view === "prs") setView("all")
+          setSelectedPath(path)
+        }}
+        prs={ledgerPrs}
+        onSelectPr={(pr) => showPrs(pr.state, pr.key)}
         onSwitchWorkspace={switchWorkspace}
         onAddWorkspace={addWorkspace}
         onOpenSettings={() => setSettingsOpen(true)}

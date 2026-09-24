@@ -15,6 +15,8 @@ export interface Note {
   epic: string | null
   jira: string | null
   tags: string[]
+  // Tasks (ainotes-tasks) list their PRs as "org/repo#123" in a `prs:` frontmatter field.
+  prs: string[]
   status: string | null
   mtime: number
   body: string
@@ -89,6 +91,10 @@ function asStringOrNull(v: unknown): string | null {
   return typeof v === "string" ? v : null
 }
 
+function unquote(value: string): string {
+  return value.replace(/^(["'])(.*)\1$/, "$2").trim()
+}
+
 function asStringArray(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []
 }
@@ -109,6 +115,7 @@ export function toNote(relPath: string, source: NoteSource, raw: string, mtime: 
     epic: asStringOrNull(frontmatter.epic),
     jira: asStringOrNull(frontmatter.jira),
     tags: asStringArray(frontmatter.tags),
+    prs: asStringArray(frontmatter.prs).map(unquote).filter(Boolean),
     status: asStringOrNull(frontmatter.status),
     mtime,
     body,

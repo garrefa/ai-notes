@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { FileText, FolderOpen, FolderPlus, ListChecks, ListTodo, Settings } from "lucide-react"
+import { FileText, FolderOpen, FolderPlus, GitPullRequest, ListChecks, ListTodo, Settings } from "lucide-react"
 
 import {
   CommandDialog,
@@ -14,6 +14,8 @@ import { TaskStatusDot } from "@/components/task-status-dot"
 import type { WorkspaceSummary } from "@/hooks/use-notes-directory"
 import type { TaskStatus } from "@/lib/task-status"
 import { displayTag, type Note } from "@/lib/notes-frontmatter"
+import { PR_STATES, prTitle } from "@/lib/pr-view"
+import type { LedgerPr } from "@/lib/prs-parser"
 
 // cmdk's default filter runs a fuzzy-match scoring algorithm over `value` + every
 // `keywords` entry on every keystroke, for every item. That's fine for short strings
@@ -41,6 +43,8 @@ export function CommandPalette({
   onSwitchWorkspace,
   onAddWorkspace,
   onOpenSettings,
+  prs,
+  onSelectPr,
 }: {
   notes: Note[]
   taskStatusByPath: Map<string, TaskStatus>
@@ -52,6 +56,9 @@ export function CommandPalette({
   onSwitchWorkspace: (id: string) => void
   onAddWorkspace: () => void
   onOpenSettings: () => void
+  // Every PR in PRS.md (pending, merged, closed).
+  prs: LedgerPr[]
+  onSelectPr: (pr: LedgerPr) => void
 }) {
   const otherWorkspaces = workspaces.filter((ws) => ws.id !== activeWorkspaceId)
 
@@ -78,7 +85,7 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Search notes"
-      description="Jump to a note or plan, switch notes folder, or open settings"
+      description="Jump to a note, plan or pull request, switch notes folder, or open settings"
       filter={containsFilter}
       className="top-[15%] translate-y-0 sm:max-w-2xl"
     >
@@ -148,6 +155,30 @@ export function CommandPalette({
             )
           })}
         </CommandGroup>
+        {prs.length > 0 && (
+          <CommandGroup heading="Pull requests">
+            {prs.map((pr) => {
+              const stateLabel = PR_STATES.find((s) => s.state === pr.state)?.label ?? pr.state
+              return (
+                <CommandItem
+                  key={pr.key}
+                  value={`${prTitle(pr)} ${pr.repo}#${pr.number}`}
+                  keywords={[pr.repo, `#${pr.number}`, pr.jira ?? "", stateLabel, "pull request", "PR"]}
+                  onSelect={() => runAndClose(() => onSelectPr(pr))}
+                  className="items-start gap-3 py-2.5"
+                >
+                  <GitPullRequest className="mt-0.5" />
+                  <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
+                    <span className="truncate font-medium">{prTitle(pr)}</span>
+                    <span className="shrink-0 font-mono text-xs text-muted-foreground">
+                      {pr.repo}#{pr.number} · {stateLabel}
+                    </span>
+                  </div>
+                </CommandItem>
+              )
+            })}
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   )

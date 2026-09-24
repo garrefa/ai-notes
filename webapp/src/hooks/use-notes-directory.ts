@@ -9,7 +9,7 @@ import {
 } from "@/lib/idb-handle"
 import { saveNote as saveNoteToDisk, setTaskStatus, type DataLayout } from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
-import type { PendingPr } from "@/lib/prs-parser"
+import type { PrLedger } from "@/lib/prs-parser"
 import type { TaskStatus } from "@/lib/task-status"
 import { toFolderUnavailable, withTimeout, type FolderUnavailableError } from "@/lib/folder-errors"
 import {
@@ -81,7 +81,7 @@ export function useNotesDirectory() {
   const [availability, setAvailability] = useState<Record<string, FolderAvailability>>({})
   const [layout, setLayout] = useState<DataLayout | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
-  const [prs, setPrs] = useState<PendingPr[] | null>(null)
+  const [prLedger, setPrLedger] = useState<PrLedger | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Non-blocking message (fallback to another folder, a failed save of the folder list, ...).
   const [notice, setNotice] = useState<string | null>(null)
@@ -130,7 +130,7 @@ export function useNotesDirectory() {
     dataDirRef.current = null
     setLayout(null)
     setNotes([])
-    setPrs(null)
+    setPrLedger(null)
     setError(null)
     setNotice(null)
   }, [stopObserving])
@@ -141,7 +141,7 @@ export function useNotesDirectory() {
       stopObserving()
       dataDirRef.current = null
       setNotes([])
-      setPrs(null)
+      setPrLedger(null)
       setStatus("unavailable")
       setError(failure.message)
       setFolderAvailability(id, "missing")
@@ -158,7 +158,7 @@ export function useNotesDirectory() {
       const next = await reloadWorkspace(dataDir, ws.label)
       if (generation !== generationRef.current) return
       setNotes(next.notes)
-      setPrs(next.prs)
+      setPrLedger(next.prLedger)
     } catch (e) {
       if (generation !== generationRef.current) return
       markUnavailable(ws.id, toFolderUnavailable(e, ws.label))
@@ -211,7 +211,7 @@ export function useNotesDirectory() {
         dataDirRef.current = loaded.resolved.dir
         setLayout(loaded.resolved.layout)
         setNotes(loaded.notes)
-        setPrs(loaded.prs)
+        setPrLedger(loaded.prLedger)
         setStatus("connected")
         setFolderAvailability(ws.id, "available")
         markOpened(ws.id)
@@ -418,7 +418,7 @@ export function useNotesDirectory() {
     activeWorkspace,
     layout,
     notes,
-    prs,
+    prLedger,
     error,
     notice,
     busy,

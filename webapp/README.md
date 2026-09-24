@@ -2,8 +2,8 @@
 
 An optional, local browser viewer for AINotes notes repos. It lists and renders the notes, plans, daily plans, and tasks the
 `ainotes-*` skills write, lets you filter them by date range and tag, search them with a command
-palette (`Cmd/Ctrl+K`), edit a note's body or tags in place, and shows the open PRs tracked in
-`PRS.md`. Tasks show their status as a colored dot and can be moved between statuses from the
+palette (`Cmd/Ctrl+K`), edit a note's body or tags in place, and browse the PRs tracked in
+`PRS.md` under **Pull requests**. Tasks show their status as a colored dot and can be moved between statuses from the
 viewer. You can track several notes repos at once and switch between them in one click.
 
 There is no server component: the app runs entirely in the browser and reads the notes repo straight
@@ -86,8 +86,9 @@ Notes repos keep all their data under `db/` (see `templates/notes-repo/`):
     daily/     daily plans (YYYY-MM-DD.md)
     tasks/     one file per task
     INDEX.md   tag index (maintained by ainotes-notes)
-    PRS.md     PR ledger: the "Pending (open)" table, plus the optional
-               "Pending — Detail" table that tools/check-prs.sh generates
+    PRS.md     PR ledger: the "Pending (open)", "Merged" and "Closed (not merged)"
+               tables, plus the optional "Pending — Detail" table that
+               tools/check-prs.sh generates (shown in the Pull requests view)
     TASKS.md   task ledger (shown in the Tasks view with the task files)
 ```
 
@@ -95,6 +96,31 @@ Whether you pick the repo root or `db/` itself, the viewer reads and writes ever
 `PRS.md`, tasks, daily plans) inside `db/`. Older repos without a `db/` folder, with `notes/` and
 `plans/` directly at the root, still work: the root is used as the data folder. Missing directories
 are simply skipped.
+
+## Pull requests
+
+**Pull requests** in the sidebar's Library lists the PRs in `db/PRS.md`, in the same list and
+detail panes the notes use.
+
+- **List:** PRs are grouped by repo and sorted by number. Each row shows the PR title,
+  `repo#number`, the Jira key, and compact hints from the Detail table: CI status, review state
+  (changes requested / approved), behind base or merge conflicts, unresolved comment count, and how
+  long it's been open and since its last commit.
+- **Filters:** the chips above the list switch between **Pending** (the default), **Merged** and
+  **Closed**, each with its count, and narrow the list to one repo. The sidebar's date range filters
+  by the date the PR was opened. The tag filter doesn't apply to PRs, so it's hidden in this view.
+- **Details:** selecting a PR shows an **Open on GitHub** button (opens a new tab) and everything
+  the ledger has for it: repo, opened/merged/closed dates, open for, last commit, Jira key (a link
+  when the ledger cell is a markdown link), last checked; then the failing CI checks, behind base or
+  conflicts, each reviewer with their review state, the code owners it's still waiting on, and the
+  unresolved comment snippets. A pending PR with no Detail row yet says so.
+- **Tasks:** if a task's `prs:` frontmatter lists the PR (`org/repo#123`), the task appears under
+  **Task** with its status dot. Click it to open the task.
+- **Search:** `Cmd/Ctrl+K` also finds PRs by title, repo, number or Jira key.
+
+The view updates live when `PRS.md` changes on disk. If the folder has no `PRS.md` (or no PRs in the
+chosen state), the list says so; `check prs` (the ainotes-pr-tracker skill) and
+`tools/check-prs.sh` maintain it.
 
 ## Task statuses
 
