@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CalendarDays, FolderOpen, FolderSearch, GitPullRequest, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, StickyNote, Trash2, X } from "lucide-react"
+import { AlertTriangle, CalendarDays, FlaskConical, FolderOpen, FolderSearch, GitPullRequest, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, StickyNote, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -79,6 +79,7 @@ export function AppShell() {
 
 function WorkspaceView({ directory, statusSettings }: { directory: NotesDirectory; statusSettings: StatusSettings }) {
   const {
+    supported,
     status,
     workspaces,
     activeWorkspace,
@@ -95,11 +96,15 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     renameWorkspace,
     removeWorkspace,
     refreshAvailability,
+    startDemo,
+    exitDemo,
     dismissNotice,
     saveNote,
     updateTaskStatus,
   } = directory
   const folderName = activeWorkspace?.label ?? null
+  const inDemo = activeWorkspace?.demo ?? false
+  const addFolder = supported ? addWorkspace : null
 
   const [view, setView] = useState<View>("all")
   const [activeTag, setActiveTag] = useState<string | null>(null)
@@ -222,9 +227,10 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           <WorkspaceSwitcher
             workspaces={workspaces}
             active={activeWorkspace}
-            disabled={status === "unsupported"}
             onSwitch={switchWorkspace}
-            onAdd={addWorkspace}
+            onAdd={addFolder}
+            onStartDemo={startDemo}
+            onExitDemo={exitDemo}
             onRename={renameWorkspace}
             onRemove={removeWorkspace}
             onLocate={locateWorkspace}
@@ -386,7 +392,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         </SidebarContent>
 
         <SidebarFooter className="gap-2">
-          {status === "unsupported" ? (
+          {!supported ? (
             <div className="flex items-start gap-2 rounded-lg bg-muted p-2 text-[11px] leading-snug text-muted-foreground">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               Needs Chrome 133+ for the File System Access API and FileSystemObserver.
@@ -399,19 +405,19 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           ) : (
             <Button variant="outline" size="sm" className="justify-start gap-2" onClick={addWorkspace} disabled={busy}>
               <FolderOpen className="size-3.5" />
-              {workspaces.length > 0 ? "Add folder" : "Connect folder"}
+              {workspaces.some((ws) => !ws.demo) ? "Add folder" : "Connect folder"}
             </Button>
           )}
 
-          {status !== "unsupported" && (
+          {(supported || inDemo) && (
             <div className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 font-mono text-[11px] text-muted-foreground">
               <Radio
-                className={`size-3 ${connected ? "animate-pulse text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
+                className={`size-3 ${connected && !inDemo ? "animate-pulse text-emerald-600 dark:text-emerald-400" : "text-muted-foreground"}`}
               />
               {busy
                 ? "Connecting…"
                 : connected
-                  ? `Watching · ${folderName}`
+                  ? `${inDemo ? "Demo" : "Watching"} · ${folderName}`
                   : status === "needs-permission"
                     ? "Permission needed"
                     : status === "unavailable"
@@ -454,6 +460,19 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   </button>
                 </div>
               )}
+              {connected && inDemo && (
+                <div role="status" className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
+                  <FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                  <span className="flex-1">
+                    <span className="font-medium text-foreground">Demo workspace.</span> Sample notes, plans, tasks and PRs
+                    kept in memory: edit freely, nothing is saved. Switch between Work and Personal from the folder
+                    menu.
+                  </span>
+                  <button onClick={exitDemo} className="shrink-0 font-medium text-primary hover:underline">
+                    Exit demo
+                  </button>
+                </div>
+              )}
               {!connected && (
                 <div className="space-y-3 p-4 text-sm text-muted-foreground">
                   {busy ? (
@@ -486,10 +505,27 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                       </div>
                     </>
                   ) : (
-                    <p>
-                      Connect your notes repo (the folder with a <code className="font-mono">db/</code> folder inside) to browse
-                      your notes, plans, tasks and daily logs.
-                    </p>
+                    <>
+                      {supported ? (
+                        <p>
+                          Connect your notes repo (the folder with a <code className="font-mono">db/</code> folder inside) to
+                          browse your notes, plans, tasks and daily logs.
+                        </p>
+                      ) : (
+                        <p>
+                          Connecting a notes folder needs a Chromium-based browser (Chrome 133+, Edge, Arc, Brave). You can
+                          still look around with sample data.
+                        </p>
+                      )}
+                      <p>
+                        Not ready to connect one yet? Try the demo: two sample workspaces, <strong>Work</strong> and{" "}
+                        <strong>Personal</strong>, with notes, plans, daily plans, tasks and pull requests.
+                      </p>
+                      <Button size="sm" variant={supported ? "outline" : "default"} className="gap-2" onClick={startDemo}>
+                        <FlaskConical className="size-3.5" />
+                        Try the demo
+                      </Button>
+                    </>
                   )}
                 </div>
               )}
@@ -622,7 +658,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         prs={ledgerPrs}
         onSelectPr={(pr) => showPrs(pr.state, pr.key)}
         onSwitchWorkspace={switchWorkspace}
-        onAddWorkspace={addWorkspace}
+        onAddWorkspace={addFolder}
+        onStartDemo={startDemo}
+        onExitDemo={exitDemo}
         onOpenSettings={() => setSettingsOpen(true)}
       />
 

@@ -15,7 +15,7 @@ It only reads the notes repo you pick; it never reads your workspace's `.ai-note
 - **Node.js 20.19+ or 22.12+** (what Vite 8 requires; any current LTS works).
 - **A Chromium-based browser** (Chrome 133+, Edge, Arc, Brave) with `showDirectoryPicker` and
   `FileSystemObserver` support. Other browsers show an "unsupported" message instead of the
-  connect button.
+  connect button, but can still open the [demo](#try-the-demo).
 
 ## Run it
 
@@ -37,6 +37,28 @@ npm run preview    # serves dist/ on http://localhost:4173
 
 `dist/` is plain static files. It can be served from anywhere that uses `localhost` or HTTPS (the
 File System Access API only works in secure contexts).
+
+## Try the demo
+
+Not ready to connect a notes repo, or just want to see how it works? Click **Try the demo** in the
+empty state, the folder switcher or the command palette (`Cmd/Ctrl+K`). It opens two sample
+workspaces you can switch between like real folders:
+
+- **Work**: a payments team's notes (an incident investigation, a retro, an architecture sync),
+  plans in every state, daily plans, tasks linked to Jira keys and PRs, and a PR ledger with
+  passing, failing, conflicted and approved PRs.
+- **Personal**: university study (lecture notes, a paper reading, a thesis meeting, an exam study
+  plan), housekeeping (a repair log, a cleaning routine, a budget check-in), personal tasks with
+  deadlines, and a small PR ledger for a course lab repo.
+
+The demo runs in memory and works in any browser. You can edit notes, tags and task statuses; the
+changes last until you reload or exit the demo, and nothing is written to disk or added to your
+saved folder list. Its dates are shifted on load so it always looks like recent work. **Exit demo**
+(in the banner, the folder switcher or the command palette) removes both sample workspaces.
+
+The sample files live in `src/demo/<workspace>/db/`, in the same layout as a real notes repo. They
+are written as if today were 2026-03-18 (`FIXTURE_TODAY` in `src/lib/demo-workspaces.ts`); keep
+new ones relative to that date, and avoid weekday or month names, which the date shift can't update.
 
 ## Connect your notes repos
 

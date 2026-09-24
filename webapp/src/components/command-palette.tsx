@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { FileText, FolderOpen, FolderPlus, GitPullRequest, ListChecks, ListTodo, Settings } from "lucide-react"
+import { FileText, FlaskConical, FolderOpen, FolderPlus, GitPullRequest, ListChecks, ListTodo, LogOut, Settings } from "lucide-react"
 
 import {
   CommandDialog,
@@ -42,6 +42,8 @@ export function CommandPalette({
   onSelectNote,
   onSwitchWorkspace,
   onAddWorkspace,
+  onStartDemo,
+  onExitDemo,
   onOpenSettings,
   prs,
   onSelectPr,
@@ -54,13 +56,17 @@ export function CommandPalette({
   onOpenChange: (open: boolean) => void
   onSelectNote: (path: string) => void
   onSwitchWorkspace: (id: string) => void
-  onAddWorkspace: () => void
+  // null when this browser can't connect folders (the demo still works there).
+  onAddWorkspace: (() => void) | null
+  onStartDemo: () => void
+  onExitDemo: () => void
   onOpenSettings: () => void
   // Every PR in PRS.md (pending, merged, closed).
   prs: LedgerPr[]
   onSelectPr: (pr: LedgerPr) => void
 }) {
   const otherWorkspaces = workspaces.filter((ws) => ws.id !== activeWorkspaceId)
+  const demoLoaded = workspaces.some((ws) => ws.demo)
 
   // Selecting runs inside the click/keypress handler, so the permission prompt (for a
   // folder whose access lapsed) or folder picker still counts as user-initiated.
@@ -104,10 +110,23 @@ export function CommandPalette({
               Switch to {ws.label}
             </CommandItem>
           ))}
-          <CommandItem value="workspace:add" keywords={["Add folder", "workspace", "connect"]} onSelect={() => runAndClose(onAddWorkspace)}>
-            <FolderPlus />
-            Add folder…
-          </CommandItem>
+          {onAddWorkspace && (
+            <CommandItem value="workspace:add" keywords={["Add folder", "workspace", "connect"]} onSelect={() => runAndClose(onAddWorkspace)}>
+              <FolderPlus />
+              Add folder…
+            </CommandItem>
+          )}
+          {demoLoaded ? (
+            <CommandItem value="workspace:exit-demo" keywords={["Exit demo", "sample", "workspace"]} onSelect={() => runAndClose(onExitDemo)}>
+              <LogOut />
+              Exit demo
+            </CommandItem>
+          ) : (
+            <CommandItem value="workspace:demo" keywords={["Try the demo", "sample", "example", "workspace"]} onSelect={() => runAndClose(onStartDemo)}>
+              <FlaskConical />
+              Try the demo
+            </CommandItem>
+          )}
         </CommandGroup>
         <CommandGroup heading="App">
           <CommandItem value="app:settings" keywords={["Settings", "preferences", "status", "colors"]} onSelect={() => runAndClose(onOpenSettings)}>

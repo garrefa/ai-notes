@@ -7,6 +7,7 @@ import {
   saveWorkspaces,
   type Workspace,
 } from "@/lib/idb-handle"
+import { createDemoWorkspaces, isDemoWorkspace } from "@/lib/demo-workspaces"
 import { saveNote as saveNoteToDisk, setTaskStatus, type DataLayout } from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
 import type { PrLedger } from "@/lib/prs-parser"
@@ -30,6 +31,8 @@ export interface WorkspaceSummary {
   addedAt: number
   lastOpenedAt: number
   availability: FolderAvailability
+  // A built-in sample workspace served from memory (see demo-workspaces.ts), not a folder on disk.
+  demo: boolean
 }
 
 type OpenOutcome = "connected" | "needs-permission" | "unavailable" | "stale"
@@ -107,7 +110,8 @@ export function useNotesDirectory() {
     workspacesRef.current = next
     setWorkspaces(next)
     try {
-      await saveWorkspaces(next)
+      // Demo workspaces live only in memory: they're never part of the saved folder list.
+      await saveWorkspaces(next.filter((ws) => !isDemoWorkspace(ws)))
     } catch (e) {
       setNotice(errorMessage(e, "Failed to save the folder list."))
     }
@@ -191,7 +195,8 @@ export function useNotesDirectory() {
       setActiveId(ws.id)
       setStatus("disconnected")
       setBusy(true)
-      void saveActiveWorkspaceId(ws.id).catch(() => {})
+      // A demo is never reopened on the next visit, so it never becomes the saved active folder.
+      if (!isDemoWorkspace(ws)) void saveActiveWorkspaceId(ws.id).catch(() => {})
 
       try {
         let permission = await queryFolderPermission(ws.handle, ws.label)
@@ -215,6 +220,8 @@ export function useNotesDirectory() {
         setStatus("connected")
         setFolderAvailability(ws.id, "available")
         markOpened(ws.id)
+        // Nothing else can change a demo's in-memory files, so there's nothing to watch.
+        if (isDemoWorkspace(ws)) return "connected"
 
         const observer = new FileSystemObserver((records) => {
           if (observedRootIsGone(records)) {
@@ -246,7 +253,7 @@ export function useNotesDirectory() {
     resetWorkspaceData()
     activeRef.current = null
     setActiveId(null)
-    setStatus("disconnected")
+    setStatus(isSupported() ? "disconnected" : "unsupported")
     setBusy(false)
     void saveActiveWorkspaceId(null).catch(() => {})
   }, [resetWorkspaceData])
@@ -379,6 +386,24 @@ export function useNotesDirectory() {
     [commitWorkspaces, openFirstAvailable],
   )
 
+  // Adds the sample workspaces to the folder switcher (fresh, discarding earlier demo edits) and
+  // opens the first one. Works in any browser: the demo never touches the File System Access API.
+  const startDemo = useCallback(async () => {
+    const demos = createDemoWorkspaces()
+    const real = workspacesRef.current.filter((ws) => !isDemoWorkspace(ws))
+    await commitWorkspaces([...real, ...demos])
+    await openWorkspace(demos[0], { promptForPermission: false })
+  }, [commitWorkspaces, openWorkspace])
+
+  // Drops the sample workspaces; if one was open, falls back to the most recent real folder.
+  const exitDemo = useCallback(async () => {
+    const real = workspacesRef.current.filter((ws) => !isDemoWorkspace(ws))
+    const wasInDemo = activeRef.current ? isDemoWorkspace(activeRef.current) : false
+    await commitWorkspaces(real)
+    setAvailability((prev) => Object.fromEntries(Object.entries(prev).filter(([id]) => !isDemoWorkspace({ id }))))
+    if (wasInDemo) await openFirstAvailable(byMostRecentlyOpened(real))
+  }, [commitWorkspaces, openFirstAvailable])
+
   const saveNote = useCallback(
     async (path: string, content: string) => {
       if (!dataDirRef.current) throw new Error("No folder connected.")
@@ -407,12 +432,15 @@ export function useNotesDirectory() {
         addedAt,
         lastOpenedAt,
         availability: availability[id] ?? "available",
+        demo: isDemoWorkspace({ id }),
       })),
     [workspaces, availability],
   )
   const activeWorkspace = workspaceSummaries.find((ws) => ws.id === activeId) ?? null
 
   return {
+    // Whether real folders can be connected in this browser (the demo works either way).
+    supported: isSupported(),
     status,
     workspaces: workspaceSummaries,
     activeWorkspace,
@@ -429,6 +457,8 @@ export function useNotesDirectory() {
     renameWorkspace,
     removeWorkspace,
     refreshAvailability,
+    startDemo,
+    exitDemo,
     dismissNotice: () => setNotice(null),
     saveNote,
     updateTaskStatus,

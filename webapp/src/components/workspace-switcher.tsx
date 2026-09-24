@@ -1,5 +1,5 @@
 import { useState } from "react"
-import { Check, ChevronsUpDown, FolderPlus, FolderSearch, KeyRound, NotebookText, Pencil, Trash2, TriangleAlert } from "lucide-react"
+import { Check, ChevronsUpDown, FlaskConical, FolderPlus, FolderSearch, KeyRound, LogOut, NotebookText, Pencil, Trash2, TriangleAlert } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -66,9 +66,10 @@ function RenameDialog({
 export function WorkspaceSwitcher({
   workspaces,
   active,
-  disabled,
   onSwitch,
   onAdd,
+  onStartDemo,
+  onExitDemo,
   onRename,
   onRemove,
   onLocate,
@@ -76,9 +77,11 @@ export function WorkspaceSwitcher({
 }: {
   workspaces: WorkspaceSummary[]
   active: WorkspaceSummary | null
-  disabled?: boolean
   onSwitch: (id: string) => void
-  onAdd: () => void
+  // null when this browser can't connect folders (the demo still works there).
+  onAdd: (() => void) | null
+  onStartDemo: () => void
+  onExitDemo: () => void
   onRename: (id: string, label: string) => void
   onRemove: (id: string) => void
   onLocate: (id: string) => void
@@ -86,13 +89,14 @@ export function WorkspaceSwitcher({
   onOpen: () => void
 }) {
   const [renaming, setRenaming] = useState<WorkspaceSummary | null>(null)
+  const demoLoaded = workspaces.some((ws) => ws.demo)
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         {/* Non-modal so opening the rename dialog from a menu item doesn't fight the menu's focus trap. */}
         <DropdownMenu modal={false} onOpenChange={(open) => open && onOpen()}>
-          <DropdownMenuTrigger asChild disabled={disabled}>
+          <DropdownMenuTrigger asChild>
             <SidebarMenuButton size="lg" className="data-open:bg-sidebar-accent" aria-label="Switch notes folder">
               <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
                 <NotebookText className="size-3.5" />
@@ -118,7 +122,11 @@ export function WorkspaceSwitcher({
                   >
                     <Check className={isActive ? "" : "invisible"} />
                     <span className={cn("truncate", missing && "line-through decoration-muted-foreground/50")}>{ws.label}</span>
-                    {missing ? (
+                    {ws.demo ? (
+                      <span className="ml-auto rounded-full border border-border px-1.5 text-[10px] text-muted-foreground" title="Sample data, kept in memory">
+                        Demo
+                      </span>
+                    ) : missing ? (
                       <span className="ml-auto flex items-center gap-1 text-[10px]" title="This folder couldn't be found">
                         <TriangleAlert className="size-3" />
                         Missing
@@ -142,31 +150,47 @@ export function WorkspaceSwitcher({
                       <Trash2 />
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger className="px-1" aria-label={`Options for ${ws.label}`} />
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem onSelect={() => onLocate(ws.id)}>
-                        <FolderSearch />
-                        Locate…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setRenaming(ws)}>
-                        <Pencil />
-                        Rename…
-                      </DropdownMenuItem>
-                      <DropdownMenuItem variant="destructive" onSelect={() => onRemove(ws.id)}>
-                        <Trash2 />
-                        Remove from list
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
+                  {/* A demo has no folder on disk to locate, rename or forget: "Exit demo" drops both. */}
+                  {!ws.demo && (
+                    <DropdownMenuSub>
+                      <DropdownMenuSubTrigger className="px-1" aria-label={`Options for ${ws.label}`} />
+                      <DropdownMenuSubContent>
+                        <DropdownMenuItem onSelect={() => onLocate(ws.id)}>
+                          <FolderSearch />
+                          Locate…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onSelect={() => setRenaming(ws)}>
+                          <Pencil />
+                          Rename…
+                        </DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onSelect={() => onRemove(ws.id)}>
+                          <Trash2 />
+                          Remove from list
+                        </DropdownMenuItem>
+                      </DropdownMenuSubContent>
+                    </DropdownMenuSub>
+                  )}
                 </div>
               )
             })}
             {workspaces.length > 0 && <DropdownMenuSeparator />}
-            <DropdownMenuItem onSelect={onAdd}>
-              <FolderPlus />
-              Add folder…
-            </DropdownMenuItem>
+            {onAdd && (
+              <DropdownMenuItem onSelect={onAdd}>
+                <FolderPlus />
+                Add folder…
+              </DropdownMenuItem>
+            )}
+            {demoLoaded ? (
+              <DropdownMenuItem onSelect={onExitDemo}>
+                <LogOut />
+                Exit demo
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onSelect={onStartDemo}>
+                <FlaskConical />
+                Try the demo
+              </DropdownMenuItem>
+            )}
           </DropdownMenuContent>
         </DropdownMenu>
       </SidebarMenuItem>
