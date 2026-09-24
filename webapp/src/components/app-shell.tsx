@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CalendarDays, FolderOpen, FolderSearch, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, StickyNote, Trash2, X } from "lucide-react"
+import { AlertTriangle, CalendarDays, FolderOpen, FolderSearch, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, StickyNote, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -22,18 +22,20 @@ import {
 import { CommandPalette } from "@/components/command-palette"
 import { NoteDetail } from "@/components/note-detail"
 import { PendingPrs } from "@/components/pending-prs"
+import { StatusSettingsDialog } from "@/components/status-settings-dialog"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-directory"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
+import { useStatusSettings, type StatusSettings } from "@/lib/status-settings"
 import {
-  OTHER_STATUS_KEY,
+  buildStatusCatalog,
   defaultStatusFilter,
+  discoverStatusKeys,
   isTaskFile,
   resolveTaskStatus,
-  statusFilterKey,
-  type ResolvedTaskStatus,
+  type TaskStatus,
 } from "@/lib/task-status"
 
 const JIRA_TICKET_RE = /^[A-Za-z]{3}-\d{4}$/
@@ -58,24 +60,25 @@ function viewMatchesSource(view: View, source: NoteSource) {
 
 export function AppShell() {
   const directory = useNotesDirectory()
+  // Outside the keyed view: status settings are global, not per folder.
+  const statusSettings = useStatusSettings()
 
   return (
     <SidebarProvider>
       {/* Keyed by workspace: switching folders remounts everything below, so the selected
           note, view, filters, tag search and palette state never leak from one folder into
           another. The SidebarProvider stays outside so the sidebar's open/closed state does. */}
-      <WorkspaceView key={directory.activeWorkspace?.id ?? "none"} directory={directory} />
+      <WorkspaceView key={directory.activeWorkspace?.id ?? "none"} directory={directory} statusSettings={statusSettings} />
     </SidebarProvider>
   )
 }
 
-function WorkspaceView({ directory }: { directory: NotesDirectory }) {
+function WorkspaceView({ directory, statusSettings }: { directory: NotesDirectory; statusSettings: StatusSettings }) {
   const {
     status,
     workspaces,
     activeWorkspace,
     layout,
-    taskStatuses,
     notes,
     prs,
     error,
@@ -101,16 +104,27 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
   const [dateTo, setDateTo] = useState("")
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  // null = the default: every non-closed status (plus unrecognized ones).
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  // null = the default: every status that isn't closed.
   const [statusFilter, setStatusFilter] = useState<string[] | null>(null)
 
-  const effectiveStatusFilter = useMemo(() => statusFilter ?? defaultStatusFilter(taskStatuses), [statusFilter, taskStatuses])
+  // Built-in statuses plus every other value this folder's tasks use, with the user's settings applied.
+  const statusCatalog = useMemo(
+    () => buildStatusCatalog(discoverStatusKeys(notes), statusSettings.overrides),
+    [notes, statusSettings.overrides],
+  )
+  const effectiveStatusFilter = useMemo(() => statusFilter ?? defaultStatusFilter(statusCatalog), [statusFilter, statusCatalog])
   const taskStatusByPath = useMemo(() => {
-    const map = new Map<string, ResolvedTaskStatus>()
-    for (const n of notes) if (isTaskFile(n)) map.set(n.path, resolveTaskStatus(n.status, taskStatuses))
+    const map = new Map<string, TaskStatus>()
+    for (const n of notes) if (isTaskFile(n)) map.set(n.path, resolveTaskStatus(n.status, statusCatalog))
     return map
-  }, [notes, taskStatuses])
-  const hasUnknownStatus = useMemo(() => [...taskStatusByPath.values()].some((s) => !s.known), [taskStatusByPath])
+  }, [notes, statusCatalog])
+
+  async function setTaskStatusByKey(path: string, key: string) {
+    const next = statusCatalog.find((s) => s.key === key)
+    if (!next) throw new Error(`Unknown status "${key}".`)
+    return updateTaskStatus(path, next)
+  }
 
   function toggleStatus(key: string) {
     const current = new Set(effectiveStatusFilter)
@@ -131,7 +145,7 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
       const allowed = new Set(effectiveStatusFilter)
       list = list.filter((n) => {
         const status = taskStatusByPath.get(n.path)
-        return !status || allowed.has(statusFilterKey(status)) || n.path === selectedPath
+        return !status || allowed.has(status.key) || n.path === selectedPath
       })
     }
     if (activeTag) list = list.filter((n) => n.tags.includes(activeTag) || n.path === selectedPath)
@@ -230,10 +244,7 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
                 )}
               </SidebarGroupLabel>
               <SidebarGroupContent className="flex flex-wrap gap-1.5 px-2">
-                {[
-                  ...taskStatuses.map((s) => ({ key: s.key, label: s.label, color: s.color as string | null })),
-                  ...(hasUnknownStatus ? [{ key: OTHER_STATUS_KEY, label: "Other", color: null }] : []),
-                ].map((s) => {
+                {statusCatalog.map((s) => {
                   const on = effectiveStatusFilter.includes(s.key)
                   return (
                     <button
@@ -388,6 +399,9 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
             <kbd className="rounded border border-border px-1 font-mono text-[10px]">⌘K</kbd>
           </Button>
           <ThemeSwitcher />
+          <Button variant="outline" size="icon" aria-label="Settings" title="Settings" onClick={() => setSettingsOpen(true)}>
+            <Settings />
+          </Button>
         </header>
 
         <div className="flex min-h-0 flex-1">
@@ -435,7 +449,7 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
                     </>
                   ) : (
                     <p>
-                      Connect your workspace root (the folder containing <code className="font-mono">.ai-notes/</code>) to browse
+                      Connect your notes repo (the folder with a <code className="font-mono">db/</code> folder inside) to browse
                       your notes, plans, tasks and daily logs.
                     </p>
                   )}
@@ -444,8 +458,8 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
               {connected && layout === "unrecognized" && notes.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">
                   "{folderName}" has no <code className="font-mono">db/</code>, <code className="font-mono">notes/</code> or{" "}
-                  <code className="font-mono">plans/</code> folder. Pick your workspace root (the folder with{" "}
-                  <code className="font-mono">.ai-notes/</code>) or your notes repo with <strong>Add folder</strong>.
+                  <code className="font-mono">plans/</code> folder. Pick your notes repo (or its{" "}
+                  <code className="font-mono">db/</code> folder) with <strong>Add folder</strong>.
                 </p>
               )}
               {connected && layout !== "unrecognized" && filtered.length === 0 && (
@@ -511,8 +525,8 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
                 onSave={saveNote}
                 allTags={allTags}
                 taskStatus={taskStatusByPath.get(selected.path) ?? null}
-                taskStatuses={taskStatuses}
-                onSetTaskStatus={updateTaskStatus}
+                taskStatuses={statusCatalog}
+                onSetTaskStatus={setTaskStatusByKey}
               />
             ) : (
               <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -533,7 +547,10 @@ function WorkspaceView({ directory }: { directory: NotesDirectory }) {
         onSelectNote={setSelectedPath}
         onSwitchWorkspace={switchWorkspace}
         onAddWorkspace={addWorkspace}
+        onOpenSettings={() => setSettingsOpen(true)}
       />
+
+      <StatusSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} catalog={statusCatalog} settings={statusSettings} />
     </>
   )
 }

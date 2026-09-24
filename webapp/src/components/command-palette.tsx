@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { FileText, FolderOpen, FolderPlus, ListChecks, ListTodo } from "lucide-react"
+import { FileText, FolderOpen, FolderPlus, ListChecks, ListTodo, Settings } from "lucide-react"
 
 import {
   CommandDialog,
@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/command"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import type { WorkspaceSummary } from "@/hooks/use-notes-directory"
-import type { ResolvedTaskStatus } from "@/lib/task-status"
+import type { TaskStatus } from "@/lib/task-status"
 import { displayTag, type Note } from "@/lib/notes-frontmatter"
 
 // cmdk's default filter runs a fuzzy-match scoring algorithm over `value` + every
@@ -40,9 +40,10 @@ export function CommandPalette({
   onSelectNote,
   onSwitchWorkspace,
   onAddWorkspace,
+  onOpenSettings,
 }: {
   notes: Note[]
-  taskStatusByPath: Map<string, ResolvedTaskStatus>
+  taskStatusByPath: Map<string, TaskStatus>
   workspaces: WorkspaceSummary[]
   activeWorkspaceId: string | null
   open: boolean
@@ -50,6 +51,7 @@ export function CommandPalette({
   onSelectNote: (path: string) => void
   onSwitchWorkspace: (id: string) => void
   onAddWorkspace: () => void
+  onOpenSettings: () => void
 }) {
   const otherWorkspaces = workspaces.filter((ws) => ws.id !== activeWorkspaceId)
 
@@ -76,7 +78,7 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Search notes"
-      description="Jump to a note or plan, or switch notes folder"
+      description="Jump to a note or plan, switch notes folder, or open settings"
       filter={containsFilter}
       className="top-[15%] translate-y-0 sm:max-w-2xl"
     >
@@ -98,6 +100,12 @@ export function CommandPalette({
           <CommandItem value="workspace:add" keywords={["Add folder", "workspace", "connect"]} onSelect={() => runAndClose(onAddWorkspace)}>
             <FolderPlus />
             Add folder…
+          </CommandItem>
+        </CommandGroup>
+        <CommandGroup heading="App">
+          <CommandItem value="app:settings" keywords={["Settings", "preferences", "status", "colors"]} onSelect={() => runAndClose(onOpenSettings)}>
+            <Settings />
+            Settings
           </CommandItem>
         </CommandGroup>
         <CommandSeparator />

@@ -13,8 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { displayTag, withUpdatedTags, type Note } from "@/lib/notes-frontmatter"
-import type { ResolvedTaskStatus } from "@/lib/task-status"
-import type { TaskStatus } from "@/lib/workspace-config"
+import type { TaskStatus } from "@/lib/task-status"
 
 // Status picker for a task file. Writing goes through onChange, which updates the task file and
 // TASKS.md; a problem with the ledger comes back as a non-blocking notice.
@@ -23,7 +22,7 @@ function TaskStatusControl({
   statuses,
   onChange,
 }: {
-  status: ResolvedTaskStatus
+  status: TaskStatus
   statuses: TaskStatus[]
   onChange: (key: string) => Promise<string | null>
 }) {
@@ -32,7 +31,7 @@ function TaskStatusControl({
   const [error, setError] = useState<string | null>(null)
 
   async function select(key: string) {
-    if (key === status.key && status.known) return
+    if (key === status.key) return
     setBusy(true)
     setNotice(null)
     setError(null)
@@ -56,7 +55,7 @@ function TaskStatusControl({
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-44">
-          <DropdownMenuRadioGroup value={status.known ? status.key : ""} onValueChange={select}>
+          <DropdownMenuRadioGroup value={status.key} onValueChange={select}>
             {statuses.map((s) => (
               <DropdownMenuRadioItem key={s.key} value={s.key} className="gap-2">
                 <TaskStatusDot status={s} />
@@ -84,7 +83,7 @@ export function NoteDetail({
   onSave: (path: string, content: string) => Promise<void>
   allTags: string[]
   // Set only for task files.
-  taskStatus: ResolvedTaskStatus | null
+  taskStatus: TaskStatus | null
   taskStatuses: TaskStatus[]
   onSetTaskStatus: (path: string, statusKey: string) => Promise<string | null>
 }) {

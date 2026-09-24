@@ -181,3 +181,23 @@
     @apply font-sans;
   }
 }
+
+/* Native color inputs (Settings → task statuses): drop the browser's inner padding and border so
+   the swatch fills the control, which then gets the app's own border and focus ring. */
+@layer components {
+  .color-swatch-input {
+    appearance: none;
+    -webkit-appearance: none;
+  }
+  .color-swatch-input::-webkit-color-swatch-wrapper {
+    padding: 0;
+  }
+  .color-swatch-input::-webkit-color-swatch {
+    border: none;
+    border-radius: calc(var(--radius) - 4px);
+  }
+  .color-swatch-input::-moz-color-swatch {
+    border: none;
+    border-radius: calc(var(--radius) - 4px);
+  }
+}

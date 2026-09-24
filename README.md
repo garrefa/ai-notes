@@ -164,17 +164,17 @@ npm install
 npm run dev        # then open the URL it prints (http://localhost:5173 by default)
 ```
 
-Click **Add folder…** and pick a **workspace root** (the folder containing `.ai-notes/`). The viewer
-reads its config to find the notes repo and your task statuses. Picking a notes repo or its `db/`
-folder directly also works, but then the viewer uses the default statuses. Add as many workspaces as
-you like, for example work, personal and study. The viewer remembers them, reopens the last one you
-used, and switches between them from the switcher at the top of the sidebar or the command palette,
-with no re-picking.
+Click **Add folder…** and pick a workspace's notes repo (or its `db/` folder). Add as many as you
+like, for example work, personal and study. The viewer remembers them, reopens the last one you used,
+and switches between them from the switcher at the top of the sidebar or the command palette, with no
+re-picking.
 
 - **Task statuses**: every task shows a colored dot for its status. The Tasks view filters by status,
-  and changing a task's status in the detail pane updates both the task file and `db/TASKS.md`. The
-  labels and colors come from `task_statuses` in `.ai-notes/config.yml` (backlog, in progress, done
-  and dropped by default).
+  and changing a task's status in the detail pane updates both the task file and `db/TASKS.md`.
+  Backlog, in progress, done and dropped have built-in colors, and any other status shows in gray.
+  Use **Settings** to change a status's color or mark it as closed. These viewer preferences are
+  stored in your browser; the statuses the skills use are defined in `task_statuses` in
+  `.ai-notes/config.yml`.
 - **Permissions**: if the browser drops a folder's permission, click **Grant access** to restore it.
 - **Missing folders**: a folder that was moved or deleted shows as *Missing*, with Locate… and
   Remove options, instead of blocking the app.

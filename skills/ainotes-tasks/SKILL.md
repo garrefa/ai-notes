@@ -22,18 +22,19 @@ has no `jira` block, the `Jira` column and `jira:` field simply stay `—`/`[]` 
 ## Statuses
 
 Statuses come from `task_statuses` in `.ai-notes/config.yml` — an ordered list of
-`{ key, label, color, closed? }`. If the key is absent, use exactly these defaults:
+`{ key, label, closed? }`. If the key is absent, use exactly these defaults:
 
 ```yaml
 task_statuses:
-  - { key: backlog,     label: Backlog,     color: "#9ca3af" }
-  - { key: in-progress, label: In progress, color: "#3b82f6" }
-  - { key: done,        label: Done,        color: "#22c55e", closed: true }
-  - { key: dropped,     label: Dropped,     color: "#ef4444", closed: true }
+  - { key: backlog,     label: Backlog }
+  - { key: in-progress, label: In progress }
+  - { key: done,        label: Done,        closed: true }
+  - { key: dropped,     label: Dropped,     closed: true }
 ```
 
 - The **key** is the only thing ever written to a task file's `status:` and to `TASKS.md`'s `Status`
-  cell. `label` and `color` are for display (the viewer's status dot, and friendlier wording in chat).
+  cell. `label` is for display (friendlier wording in chat and reports). Status colors aren't part of
+  the config; they're a viewer-only setting (the viewer's Settings).
 - A status is **closed** when it has `closed: true` (finished — the task lives in the Completed table);
   every other status is **non-closed** (still in play — the Open table).
 - If the configured list lacks at least one closed and one non-closed status, don't guess: tell the

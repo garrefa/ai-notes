@@ -1,14 +1,6 @@
 import { localIsoDate, parseFrontmatter, toNote, sortNotes, withAppendedUpdate, withUpdatedStatus, type Note, type NoteSource } from "@/lib/notes-frontmatter"
-import { FolderUnavailableError } from "@/lib/folder-errors"
 import { updateLedgerStatus } from "@/lib/tasks-ledger"
-import {
-  CONFIG_DIR,
-  CONFIG_FILE,
-  DEFAULT_WORKSPACE_CONFIG,
-  parseWorkspaceConfig,
-  type TaskStatus,
-  type WorkspaceConfig,
-} from "@/lib/workspace-config"
+import type { TaskStatus } from "@/lib/task-status"
 
 // Every note path below is relative to the workspace's *data dir* — see resolveWorkspace.
 const WATCHED_DIRS: NoteSource[] = ["notes", "plans", "daily", "tasks"]
@@ -21,19 +13,15 @@ const TASKS_LEDGER_FILE = "TASKS.md"
 const MISSING_ENTRY_ERRORS = new Set(["NotFoundError", "TypeMismatchError"])
 
 // How the picked folder maps onto the data dir:
-// - "workspace-root": a workspace root with .ai-notes/config.yml; data lives in <notes_repo>/db
-// - "repo-root":      the notes repo root was picked; data lives in its db/ subfolder
-// - "db-folder":      the db/ folder itself was picked
-// - "legacy":         an older repo with notes/, plans/, ... directly at its root
-// - "unrecognized":   none of the above; treated as the data dir, but likely the wrong folder
-export type DataLayout = "workspace-root" | "repo-root" | "db-folder" | "legacy" | "unrecognized"
+// - "repo-root":    the notes repo root was picked; data lives in its db/ subfolder
+// - "db-folder":    the db/ folder itself was picked
+// - "legacy":       an older repo with notes/, plans/, ... directly at its root
+// - "unrecognized": none of the above; treated as the data dir, but likely the wrong folder
+export type DataLayout = "repo-root" | "db-folder" | "legacy" | "unrecognized"
 
 export interface ResolvedWorkspace {
   dir: FileSystemDirectoryHandle
   layout: DataLayout
-  config: WorkspaceConfig
-  // Non-fatal problem worth telling the user about (e.g. an unparseable config.yml).
-  warning: string | null
 }
 
 function isMissingEntryError(e: unknown): boolean {
@@ -71,55 +59,15 @@ async function hasAnySubdirectory(root: FileSystemDirectoryHandle, names: string
   return found.some(Boolean)
 }
 
-// Within a notes repo (or its db/ folder): prefer db/, fall back to the legacy root layout.
-async function resolveNotesRepo(repo: FileSystemDirectoryHandle): Promise<Pick<ResolvedWorkspace, "dir" | "layout">> {
-  const dbDir = await getSubdirectory(repo, DATA_DIR_NAME)
-  if (dbDir) return { dir: dbDir, layout: "repo-root" }
-  if (repo.name === DATA_DIR_NAME) return { dir: repo, layout: "db-folder" }
-  if (await hasAnySubdirectory(repo, LEGACY_MARKER_DIRS)) return { dir: repo, layout: "legacy" }
-  return { dir: repo, layout: "unrecognized" }
-}
-
-async function readWorkspaceConfig(picked: FileSystemDirectoryHandle): Promise<{ text: string } | null> {
-  const configDir = await getSubdirectory(picked, CONFIG_DIR)
-  if (!configDir) return null
-  const file = await getFileIn(configDir, CONFIG_FILE)
-  return file ? { text: await file.text() } : null
-}
-
-async function getNestedDirectory(root: FileSystemDirectoryHandle, relPath: string): Promise<FileSystemDirectoryHandle> {
-  const parts = relPath.split("/").filter(Boolean)
-  if (parts.length === 0 || parts.some((p) => p === "." || p === "..")) {
-    throw new Error(`notes_repo "${relPath}" must be a folder inside the workspace.`)
-  }
-  let dir = root
-  for (const part of parts) {
-    const next = await getSubdirectory(dir, part)
-    if (!next) throw new FolderUnavailableError("missing", `The notes repo "${relPath}" (notes_repo in ${CONFIG_DIR}/${CONFIG_FILE}) wasn't found in this workspace.`)
-    dir = next
-  }
-  return dir
-}
-
-// Accepts a workspace root (.ai-notes/config.yml → <notes_repo>/db), a notes repo root, its db/
-// folder, or a legacy repo. Throws if the picked folder itself can't be read.
+// Accepts a notes repo root (→ its db/), the db/ folder itself, or a legacy repo with notes/ and
+// plans/ at its root. Throws if the picked folder itself can't be read.
 export async function resolveWorkspace(picked: FileSystemDirectoryHandle): Promise<ResolvedWorkspace> {
   await assertReadableDirectory(picked)
-  const configFile = await readWorkspaceConfig(picked)
-  if (!configFile) {
-    return { ...(await resolveNotesRepo(picked)), config: DEFAULT_WORKSPACE_CONFIG, warning: null }
-  }
-
-  let config = DEFAULT_WORKSPACE_CONFIG
-  let warning: string | null = null
-  try {
-    config = await parseWorkspaceConfig(configFile.text)
-  } catch (e) {
-    warning = `Couldn't parse ${CONFIG_DIR}/${CONFIG_FILE} (${e instanceof Error ? e.message : "invalid YAML"}); using default settings.`
-  }
-  const repo = await getNestedDirectory(picked, config.notesRepo)
-  const resolved = await resolveNotesRepo(repo)
-  return { dir: resolved.dir, layout: resolved.layout === "unrecognized" ? "unrecognized" : "workspace-root", config, warning }
+  const dbDir = await getSubdirectory(picked, DATA_DIR_NAME)
+  if (dbDir) return { dir: dbDir, layout: "repo-root" }
+  if (picked.name === DATA_DIR_NAME) return { dir: picked, layout: "db-folder" }
+  if (await hasAnySubdirectory(picked, LEGACY_MARKER_DIRS)) return { dir: picked, layout: "legacy" }
+  return { dir: picked, layout: "unrecognized" }
 }
 
 async function readMarkdownFilesIn(dir: FileSystemDirectoryHandle, source: NoteSource): Promise<Note[]> {
@@ -191,7 +139,7 @@ export async function saveNote(dataDir: FileSystemDirectoryHandle, notePath: str
 export async function setTaskStatus(
   dataDir: FileSystemDirectoryHandle,
   taskPath: string,
-  status: TaskStatus,
+  status: Pick<TaskStatus, "key" | "label" | "closed">,
   today = localIsoDate(),
 ): Promise<{ notice: string | null }> {
   const raw = await readNote(dataDir, taskPath)

@@ -59,19 +59,21 @@ ci:
 #   key    — what gets written in a task file's `status:` frontmatter and in db/TASKS.md's Status
 #            column. Keep it short, lowercase, no spaces (e.g. in-progress). Renaming a key later
 #            doesn't rewrite existing tasks, so pick keys you're happy to keep.
-#   label  — human-readable name shown next to the status dot in the local viewer (webapp/).
-#   color  — CSS color for that status dot in the viewer (hex recommended).
+#   label  — human-readable name the skills use in chat and reports.
 #   closed — true marks a finished status: tasks in it live in TASKS.md's Completed table and get a
 #            Completed date. Omit (or false) for statuses that are still in play (the Open table).
 # Order matters: the FIRST entry is the default status for new tasks, and the list order is the
 # order statuses are grouped/shown in. At least one closed and one non-closed status are required.
 # Statuses are never tags — they don't go into a task's `tags:`.
+# Colors are not configured here: they're a viewer-only setting. The local viewer (webapp/) has
+# built-in colors for the four defaults, shows any other status in gray, and lets you change colors
+# (and which statuses count as closed there) in its Settings, stored per browser.
 # If this key is absent, every skill uses exactly these four defaults.
 task_statuses:
-  - { key: backlog,     label: Backlog,     color: "#9ca3af" }
-  - { key: in-progress, label: In progress, color: "#3b82f6" }
-  - { key: done,        label: Done,        color: "#22c55e", closed: true }
-  - { key: dropped,     label: Dropped,     color: "#ef4444", closed: true }
+  - { key: backlog,     label: Backlog }
+  - { key: in-progress, label: In progress }
+  - { key: done,        label: Done,        closed: true }
+  - { key: dropped,     label: Dropped,     closed: true }
 
 # Repos at the workspace root that ainotes-* skills should never manage/report on/nudge about
 # (archived, unrelated, someone else's scratch clone, etc.) — as opposed to a repo that's simply not

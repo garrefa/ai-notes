@@ -1,14 +1,14 @@
 # AINotes viewer
 
-An optional, local browser viewer for AINotes notes repos (the `notes_repo` directory from your
-workspace's `.ai-notes/config.yml`). It lists and renders the notes, plans, daily plans, and tasks the
+An optional, local browser viewer for AINotes notes repos. It lists and renders the notes, plans, daily plans, and tasks the
 `ainotes-*` skills write, lets you filter them by date range and tag, search them with a command
 palette (`Cmd/Ctrl+K`), edit a note's body or tags in place, and shows the open PRs tracked in
 `PRS.md`. Tasks show their status as a colored dot and can be moved between statuses from the
-viewer. You can track several workspaces at once and switch between them in one click.
+viewer. You can track several notes repos at once and switch between them in one click.
 
 There is no server component: the app runs entirely in the browser and reads the notes repo straight
 from disk through the [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API).
+It only reads the notes repo you pick; it never reads your workspace's `.ai-notes/config.yml`.
 
 ## Requirements
 
@@ -38,20 +38,18 @@ npm run preview    # serves dist/ on http://localhost:4173
 `dist/` is plain static files. It can be served from anywhere that uses `localhost` or HTTPS (the
 File System Access API only works in secure contexts).
 
-## Connect your workspaces
+## Connect your notes repos
 
 1. Open the app and click **Connect folder** in the sidebar.
-2. In the folder picker, choose your **workspace root**: the folder that contains
-   `.ai-notes/config.yml`. The viewer reads `notes_repo` from that config (default `notes`) and opens
-   `<workspace-root>/<notes_repo>/db/`. It also uses the config's `task_statuses`.
-   You can also pick a notes repo directly, or its `db/` folder. There's no config in that case, so
-   the default task statuses apply.
+2. In the folder picker, choose your **notes repo**: the folder named by `notes_repo` in your
+   workspace config (it has a `db/` folder inside). The viewer opens its `db/` folder. Picking the
+   `db/` folder itself works too.
 3. Grant read/write access when the browser asks. Write access is only used when you edit a note's
    body, tags or a task's status from the viewer.
 
 ### Several repos, fast switching
 
-- **Add another workspace:** open the folder switcher at the top of the sidebar (it shows the current
+- **Add another notes repo:** open the folder switcher at the top of the sidebar (it shows the current
   folder's name) and choose **Add folder…**. Picking a folder that's already tracked just switches to
   it.
 - **Switch:** choose a folder from the same menu, or press `Cmd/Ctrl+K` and pick
@@ -100,31 +98,47 @@ are simply skipped.
 
 ## Task statuses
 
-Each task file in `db/tasks/` has a frontmatter `status:`. The allowed statuses come from
-`task_statuses` in `.ai-notes/config.yml`, in order. The first one is the default for new tasks, and
-the `closed: true` ones count as finished:
+Each task file in `db/tasks/` has a frontmatter `status:`. The viewer has four built-in statuses:
 
-```yaml
-task_statuses:
-  - { key: backlog,     label: Backlog,     color: "#9ca3af" }
-  - { key: in-progress, label: In progress, color: "#3b82f6" }
-  - { key: done,        label: Done,        color: "#22c55e", closed: true }
-  - { key: dropped,     label: Dropped,     color: "#ef4444", closed: true }
-```
+| Status        | Label       | Default color | Closed |
+|---------------|-------------|---------------|--------|
+| `backlog`     | Backlog     | `#9ca3af`     | no     |
+| `in-progress` | In progress | `#3b82f6`     | no     |
+| `done`        | Done        | `#22c55e`     | yes    |
+| `dropped`     | Dropped     | `#ef4444`     | yes    |
 
-These are the defaults when there's no config or it has no `task_statuses`. Older values still work:
-`open` counts as the first non-closed status, and `done` (if there's no `done` key) as the first
-closed one. Any other unknown value shows as a gray dot with its raw text.
+A task with no `status:` counts as `backlog`. Older values still work: `open` counts as `backlog`.
+Any other value (for example a custom status from your workspace's `task_statuses`) shows as a gray
+dot labeled with its raw text and counts as not closed, until you change that in Settings. Closed
+statuses count as finished.
 
 - Every task in a list shows a dot in its status color (hover it for the label). Statuses are
   separate from tags.
-- In the Tasks view, the **Status** filter picks which statuses to show. By default it shows every
-  status that isn't closed.
-- In a task's detail pane, the status button changes the status. That rewrites only the `status:`
+- In the Tasks view, the **Status** filter picks which statuses to show. It lists the built-in
+  statuses plus every other status used by the open folder's tasks. By default it shows every status
+  that isn't closed.
+- In a task's detail pane, the status button changes the status. It offers the same list as the
+  filter: the built-ins plus the other statuses found in this folder's tasks. Changing it rewrites only the `status:`
   line of the task file, adds `- YYYY-MM-DD: status → <label>` under its `## Updates` section (if it
   has one), and updates the task's row in `db/TASKS.md`. A task that moves between open and closed
   moves between the Open and Completed tables, and its Completed date is set or cleared. If
   `TASKS.md` or the row is missing, only the task file is updated and the viewer says so.
+
+### Settings
+
+Click the gear button in the header (or press `Cmd/Ctrl+K` and choose **Settings**) to customize
+statuses. The dialog lists the built-ins and every status found in the open folder's tasks. For each
+one you can:
+
+- pick its **color**, used for the dots and the filter chips;
+- toggle **Closed**. Closed statuses are hidden by the default filter, and a task moved to one goes
+  to the Completed table in `TASKS.md` (moving it to a non-closed status moves it back to Open);
+- **reset** it to its default. **Reset all to defaults** clears every customization.
+
+Changes apply immediately. They're stored in this browser's `localStorage`, keyed by status, and
+shared by every folder you open in this browser. They aren't written to your notes repo or config,
+so another browser or machine starts from the defaults. If the browser blocks storage, the viewer
+uses the defaults.
 
 ## Development
 

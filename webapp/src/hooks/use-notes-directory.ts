@@ -10,7 +10,7 @@ import {
 import { saveNote as saveNoteToDisk, setTaskStatus, type DataLayout } from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
 import type { PendingPr } from "@/lib/prs-parser"
-import { DEFAULT_TASK_STATUSES, type TaskStatus } from "@/lib/workspace-config"
+import type { TaskStatus } from "@/lib/task-status"
 import { toFolderUnavailable, withTimeout, type FolderUnavailableError } from "@/lib/folder-errors"
 import {
   FOLDER_TIMEOUT_MS,
@@ -80,17 +80,15 @@ export function useNotesDirectory() {
   const [activeId, setActiveId] = useState<string | null>(null)
   const [availability, setAvailability] = useState<Record<string, FolderAvailability>>({})
   const [layout, setLayout] = useState<DataLayout | null>(null)
-  const [taskStatuses, setTaskStatuses] = useState<TaskStatus[]>(DEFAULT_TASK_STATUSES)
   const [notes, setNotes] = useState<Note[]>([])
   const [prs, setPrs] = useState<PendingPr[] | null>(null)
   const [error, setError] = useState<string | null>(null)
-  // Non-blocking message (fallback to another folder, config problems, ...).
+  // Non-blocking message (fallback to another folder, a failed save of the folder list, ...).
   const [notice, setNotice] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
 
   const workspacesRef = useRef<Workspace[]>([])
   const activeRef = useRef<Workspace | null>(null)
-  const taskStatusesRef = useRef<TaskStatus[]>(DEFAULT_TASK_STATUSES)
   const dataDirRef = useRef<FileSystemDirectoryHandle | null>(null)
   const observerRef = useRef<FileSystemObserver | null>(null)
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -124,11 +122,6 @@ export function useNotesDirectory() {
     setAvailability(Object.fromEntries(entries))
   }, [])
 
-  const applyTaskStatuses = useCallback((statuses: TaskStatus[]) => {
-    taskStatusesRef.current = statuses
-    setTaskStatuses(statuses)
-  }, [])
-
   // Drops everything tied to the currently open workspace, synchronously, so the
   // very next render never shows the previous workspace's notes under a new one.
   const resetWorkspaceData = useCallback(() => {
@@ -136,12 +129,11 @@ export function useNotesDirectory() {
     stopObserving()
     dataDirRef.current = null
     setLayout(null)
-    applyTaskStatuses(DEFAULT_TASK_STATUSES)
     setNotes([])
     setPrs(null)
     setError(null)
     setNotice(null)
-  }, [applyTaskStatuses, stopObserving])
+  }, [stopObserving])
 
   // The open (or opening) folder can't be read: show why, stop watching, keep its entry.
   const markUnavailable = useCallback(
@@ -218,10 +210,8 @@ export function useNotesDirectory() {
         if (isStale()) return "stale"
         dataDirRef.current = loaded.resolved.dir
         setLayout(loaded.resolved.layout)
-        applyTaskStatuses(loaded.resolved.config.taskStatuses)
         setNotes(loaded.notes)
         setPrs(loaded.prs)
-        if (loaded.resolved.warning) setNotice(loaded.resolved.warning)
         setStatus("connected")
         setFolderAvailability(ws.id, "available")
         markOpened(ws.id)
@@ -249,7 +239,7 @@ export function useNotesDirectory() {
         if (!isStale()) setBusy(false)
       }
     },
-    [applyTaskStatuses, markOpened, markUnavailable, resetWorkspaceData, scheduleReload, setFolderAvailability],
+    [markOpened, markUnavailable, resetWorkspaceData, scheduleReload, setFolderAvailability],
   )
 
   const closeWorkspace = useCallback(() => {
@@ -400,10 +390,8 @@ export function useNotesDirectory() {
 
   // Returns a non-blocking notice when TASKS.md couldn't be updated alongside the task file.
   const updateTaskStatus = useCallback(
-    async (path: string, statusKey: string): Promise<string | null> => {
+    async (path: string, next: TaskStatus): Promise<string | null> => {
       if (!dataDirRef.current) throw new Error("No folder connected.")
-      const next = taskStatusesRef.current.find((s) => s.key === statusKey)
-      if (!next) throw new Error(`Unknown status "${statusKey}".`)
       const { notice: ledgerNotice } = await setTaskStatus(dataDirRef.current, path, next)
       await reload()
       return ledgerNotice
@@ -429,7 +417,6 @@ export function useNotesDirectory() {
     workspaces: workspaceSummaries,
     activeWorkspace,
     layout,
-    taskStatuses,
     notes,
     prs,
     error,

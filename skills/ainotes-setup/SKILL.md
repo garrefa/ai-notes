@@ -54,7 +54,9 @@ Run when no `.ai-notes/config.yml` is found by walking up from the current direc
    - **Task statuses** (`task_statuses`, optional): the workflow statuses `ainotes-tasks` uses. Show
      the four defaults (`backlog` → `in-progress` → `done` / `dropped`, the last two closed) and ask
      one question: "keep these defaults?" If yes, write them as-is. If not, take the user's edits
-     (rename, add, remove, reorder, recolor) in a single round — don't interview status by status.
+     (rename, add, remove, reorder, change which are closed) in a single round — don't interview
+     status by status. Don't ask about colors: they're a viewer-only setting, changed in the viewer's
+     Settings.
      Remind them the first entry is the default for new tasks, and refuse to write a list without
      at least one closed and one non-closed status.
    - **`ignored_repos`** and **`domain_taxonomy`**: don't ask about these as raw config — populate
@@ -84,18 +86,19 @@ slack:
 ci:
   deploy_trigger_comment: null   # e.g. "/deploy"; null => ainotes-babysit-prs never posts a deploy comment
 task_statuses:                   # ainotes-tasks statuses; order matters: first = default for new tasks
-  - { key: backlog,     label: Backlog,     color: "#9ca3af" }
-  - { key: in-progress, label: In progress, color: "#3b82f6" }
-  - { key: done,        label: Done,        color: "#22c55e", closed: true }   # closed: true = finished
-  - { key: dropped,     label: Dropped,     color: "#ef4444", closed: true }
+  - { key: backlog,     label: Backlog }
+  - { key: in-progress, label: In progress }
+  - { key: done,        label: Done,        closed: true }   # closed: true = finished
+  - { key: dropped,     label: Dropped,     closed: true }
 ignored_repos: []
 domain_taxonomy: {}              # domain -> [repos]; populated by the repo scan
 ```
 
-`task_statuses` rules: `key` is what's written in task frontmatter and `db/TASKS.md`; `label` + `color`
-drive the viewer's status dot; `closed: true` marks a finished status (Completed table). At least one
-closed and one non-closed status are required. If the key is absent, skills use exactly the four
-defaults above.
+`task_statuses` rules: `key` is what's written in task frontmatter and `db/TASKS.md`; `label` is the
+human-readable name used in chat and reports; `closed: true` marks a finished status (Completed table).
+There is no `color` field: status colors are a viewer-only setting, configured in the viewer's Settings.
+At least one closed and one non-closed status are required. If the key is absent, skills use exactly
+the four defaults above.
 
 A commented copy lives at `<skill base dir>/../../tools/config.example.yml`.
 
