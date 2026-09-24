@@ -15,6 +15,15 @@ skill owns `<notes_repo>/db/PRS.md` — `ainotes-notes` doesn't touch it.
 including what to do with a legacy repo that has no `db/`. The
 `Jira` column holds `—` for every row when the config has no `jira` block.)
 
+## Who writes
+
+Every change to `PRS.md` goes through the `ledger-keeper` agent. Spawn the `ledger-keeper` agent
+(named `ainotes:ledger-keeper` when AINotes is installed as a plugin). If neither name is available,
+spawn a general-purpose agent with `model: haiku` and give it the contents of
+`<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass `notes_repo_path`
+and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields. It returns a compact
+result; don't re-read `PRS.md` after it's done.
+
 ## Ledger file
 
 `<notes_repo>/db/PRS.md` — a single living document, not dated like `db/notes/`/`db/plans/` files. Four
@@ -93,14 +102,11 @@ _Regenerated wholesale on each deep check — not an accumulating log._
 ## Registering a PR (whenever one gets opened)
 
 Immediately after running `gh pr create` (or otherwise opening a PR) in any workspace repo — whether
-from `ainotes-task`, another PR-opening skill, or an ad hoc request — append a row to **Pending
-(open)** with today's date and the Jira key if one exists (`—` if none). Commit on the notes
-repo's `main`:
-
-```bash
-git -C <notes_repo> add db/PRS.md
-git -C <notes_repo> commit -m "Track PR: <repo>#<number>"
-```
+from `ainotes-task`, another PR-opening skill, or an ad hoc request — spawn `ledger-keeper` with
+`register_pr {repo, number, url, title, jira?, task_file?}` (`jira` = the key if one exists; `task_file`
+= the active task's file when `ainotes-tasks` has one for this session, so the task gets linked in the
+same commit). It appends a row to **Pending (open)** with today's date (`—` for Jira when none),
+commits `"Track PR: <repo>#<number>"` on the notes repo's `main`, and returns `{row_added, sha}`.
 
 Do this before reporting the opened PR back to the user, not as an afterthought.
 
@@ -109,29 +115,26 @@ Do this before reporting the opened PR back to the user, not as an afterthought.
 Trigger phrases: `check prs`, `check PR status`, `check pr status`, "check on our PRs", or any
 request to reconcile the ledger.
 
-1. Read `<notes_repo>/db/PRS.md`'s **Pending (open)** table. If it's empty, report that plainly and stop.
-2. For each row, check its real state (independent rows can run in parallel):
-   ```bash
-   gh pr view <number> --repo <vcs.org>/<repo> --json state,mergedAt,closedAt,url
-   ```
-3. For any row whose state changed:
-   - `MERGED` → move the row to **Merged**, recording the merge date (from `mergedAt`, date only).
-   - `CLOSED` (and not merged) → move the row to **Closed (not merged)**, recording the close date.
-   - Still `OPEN` → leave it in **Pending**, refresh `Last checked` to today.
-4. Commit the update — one commit covering every row that moved this pass is fine:
-   ```bash
-   git -C <notes_repo> add db/PRS.md
-   git -C <notes_repo> commit -m "Update PR tracker: <repo>#<number> -> merged|closed[, ...]"
-   ```
-5. Report back to the user as two lists:
-   - **Updated** — PRs that moved this pass, with their new status (merged/closed) and date.
-   - **Still pending** — PRs that remain open.
+The reconciliation is mechanical, so it runs through the bundled script rather than per-row `gh`
+calls in the main thread:
+
+1. Spawn `ledger-keeper` with `check_prs {script, prs_path?, org?}`, where `script` is the resolved
+   path `<skill base dir>/../../tools/check-prs.sh` (`prs_path` = `<notes_repo>/db/PRS.md`; `org`
+   only if the user asked for a different one than `vcs.org`). The script moves merged/closed rows,
+   refreshes `Last checked`, folds in untracked open PRs you authored, rebuilds **Pending — Detail**,
+   and commits — nobody hand-edits those tables.
+2. It returns `{updated: [{pr, from, to, note}], still_pending: [{pr, state, blocker_1line}], sha|null}`.
+   If it returns an `error` (e.g. `gh` not authenticated, `jq` missing, the script's sanity check
+   failed), report that to the user verbatim and stop — don't fall back to editing `PRS.md` by hand.
+3. Report back to the user as two lists:
+   - **Updated** — PRs that moved this pass, with their new status (merged/closed, or newly tracked) and date.
+   - **Still pending** — PRs that remain open, each with its one-line blocker (or none).
    If nothing moved, say so plainly ("no PRs changed status") instead of omitting the section.
 
 ## Optional: standalone refresh script
 
-The toolkit ships `<skill base dir>/../../tools/check-prs.sh`, an AI-free script that does the same
-reconciliation mechanically (no narrative synthesis) and also runs
+The toolkit ships `<skill base dir>/../../tools/check-prs.sh`, the AI-free script "check prs" runs
+through `ledger-keeper` (above). It does the reconciliation mechanically (no narrative synthesis) and also runs
 `gh search prs --owner <vcs.org> --author @me --state open` to fold in open PRs you authored that
 aren't in the ledger yet (e.g. opened outside Claude). It needs only `gh` (authenticated) and `jq`.
 Usage: `check-prs.sh [--dry-run] [--verbose] [--org ORG] [PRS.md path]` — the `PRS.md` path is optional
@@ -144,9 +147,9 @@ verbatim; everything after it is regenerated — the Pending (open) table is reb
 state (rows that merged or closed move out, newly discovered PRs are added), the Merged and Closed
 (not merged) tables keep their existing rows and gain the newly moved ones, and the Pending — Detail
 table is rebuilt from scratch. Any non-table content below that heading is dropped. Unless
-`--dry-run` is given, it then commits `db/PRS.md` in the notes repo (git runs at the notes repo root). Using it is entirely optional —
-nothing in this skill runs it automatically; if you want it on a schedule, set that up yourself (cron,
-launchd, a CI job, etc.). When it has run, treat its changes to `PRS.md` like any other update.
+`--dry-run` is given, it then commits `db/PRS.md` in the notes repo (git runs at the notes repo root). Running it outside
+"check prs" is entirely optional — nothing in this skill runs it on a timer; if you want it on a
+schedule, set that up yourself (cron, launchd, a CI job, etc.). When it has run, treat its changes to `PRS.md` like any other update.
 
 ## Relationship to ad hoc tracking notes
 

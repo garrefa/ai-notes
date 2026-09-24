@@ -24,15 +24,28 @@ Ask (if not already stated in the request):
 - Start and end date. Convert anything relative ("this week", "Q3") to absolute dates.
 - Scope: whole workspace (default) or a specific repo/epic.
 
-Recording only goes back as far as the notes repo itself does — before compiling, find the earliest
-`date` across all frontmatter in `db/notes/*.md` and `db/plans/*.md` (one scan, not a per-file read) and
-treat that as the practical start of recorded history. If the requested window starts before that
+Recording only goes back as far as the notes repo itself does — the earliest `date` across all
+frontmatter in `db/notes/*.md` and `db/plans/*.md` (Step 2's `earliest_recorded_date`) is the
+practical start of recorded history. If the requested window starts before that
 earliest date, say so plainly in the report's opening line rather than presenting a thin window as if
 it were complete — don't silently pad it out.
 
 ## Step 2 — Gather source material
 
-All sourced from `<notes_repo>/db/`, never from re-deriving via fresh Jira/GitHub mining:
+Gathering is a read-only sweep, so it runs on a Haiku agent and the main thread compiles from its
+output. Spawn the `notes-extractor` agent (named `ainotes:notes-extractor` when AINotes is installed
+as a plugin). If neither name is available, spawn a general-purpose agent with `model: haiku` and give
+it the contents of `<skill base dir>/../../agents/notes-extractor.md` as its instructions. Pass
+`{window_start, window_end, scope, notes_repo_path, jira_base_url?}`; it returns JSON
+`{items: [{file, date, type, repo, domain, epic, prs: [{url, ledger_status}], jira, tasks: [{file, status}],
+outcome_1line, cost?}], counts: {notes, plans, tasks, daily, prs}, files: [...], earliest_recorded_date}`.
+
+Before compiling, validate it cheaply: spot-read 2–3 of the listed `files` and confirm their items
+match (date, PRs, outcome); check that `counts` agree with `items` (e.g. `counts.notes` equals the
+number of `type: note` items). If something's off, re-run the agent with the discrepancy spelled out
+rather than reading everything yourself. Then compile **only** from that JSON — no extra scanning.
+
+What the agent covers (all sourced from `<notes_repo>/db/`, never from re-deriving via fresh Jira/GitHub mining):
 
 1. `db/notes/*.md` and `db/plans/*.md` whose `date` (or plan's linked outcome note date) falls in the window
    — filter via frontmatter, not by guessing from filenames alone.
@@ -47,6 +60,9 @@ All sourced from `<notes_repo>/db/`, never from re-deriving via fresh Jira/GitHu
    closed status) means abandoned, not accomplished.
    Legacy `status: open` counts as the first non-closed status, legacy `status: done` as `done`.
 5. Each source note's "Cost" section (if present) for the token/cost rollup.
+
+The agent reports each task's `status` key as written; applying `task_statuses` (done vs. dropped vs.
+still open) is your job, per item 4 above.
 
 ## Step 3 — Compile the report
 
@@ -117,8 +133,12 @@ report — 2026-Q3"); otherwise just "Work report — <period>".
    section is included — never `career-ladder-checklist`, which belongs only to the checklist note
    itself, so reports never get mistaken for the checklist) with the **full compiled report as the body** — every section from Step 3,
    including career-ladder alignment, verbatim, not a trimmed-down pointer to the dashboard. Follow the
-   frontmatter schema from `ainotes-notes`. Commit on `main`:
-   `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Add report: <period>"`.
+   frontmatter schema from `ainotes-notes`. Hand the write to the `notetaker` agent (named
+   `ainotes:notetaker` when AINotes is installed as a plugin; if neither name is available, spawn a
+   general-purpose agent with `model: haiku` and give it the contents of
+   `<skill base dir>/../../agents/notetaker.md` as its instructions) with
+   `{type: note, slug, frontmatter fields, body, commit_message: "Add report: <period>"}`; it writes,
+   indexes and commits on `main`, returning `{path, index_sections, sha, flags}`.
 2. **Dashboard** — an HTML page summarizing the same content visually (headline achievements,
    shipped-work table, metrics) for easy sharing/skimming. If an Artifact/publishing tool is
    available, publish it as an Artifact (load the `artifact-design` skill first, if available).

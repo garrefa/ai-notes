@@ -20,6 +20,16 @@ same store, with its own file convention (below) rather than the `db/notes/`/`db
 see `ainotes-notes` for the config-discovery rule and the canonical `db/` layout, including what to
 do with a legacy repo that has no `db/`.)
 
+## Who writes the file
+
+Writes to `db/daily/` and its `INDEX.md` entries go through the `ledger-keeper` agent. Spawn the
+`ledger-keeper` agent (named `ainotes:ledger-keeper` when AINotes is installed as a plugin). If
+neither name is available, spawn a general-purpose agent with `model: haiku` and give it the contents
+of `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass
+`notes_repo_path` and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields.
+Showing the checklist, matching the user's words to an item, and asking which item they meant all
+stay in the main thread; don't re-read the file the agent wrote.
+
 ## Trigger phrases
 
 - **Start of day**: `"<Weekday> plan: ..."`, `"daily plan: ..."`, `"today's plan: ..."`,
@@ -52,8 +62,10 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
 ## Creating today's plan
 
 1. Take the user's tasks verbatim as checklist items — don't reword, reorder, or merge them.
-2. For each task, launch the **`daily-plan-tracker`** subagent (shipped with this toolkit as `agents/daily-plan-tracker.md`)
-   to enrich it with context — related notes-repo history and current live state (PR/CI/review
+2. For each task, launch the **`daily-plan-tracker`** subagent (named
+   `ainotes:daily-plan-tracker` when AINotes is installed as a plugin; if neither name is available,
+   spawn a general-purpose agent with `model: haiku` and give it the contents of
+   `<skill base dir>/../../agents/daily-plan-tracker.md` as its instructions) to enrich it with context — related notes-repo history and current live state (PR/CI/review
    status, relevant flags, etc.). Launch these in parallel across tasks; the agent is read-only
    and cheap (haiku), and it never edits, commits, merges, or otherwise acts on anything — it only
    researches and reports back. Never substitute a general-purpose or code-editing agent for this
@@ -67,15 +79,15 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
    ```
    If the tracker found nothing relevant, write `Context: no related history or notable live
    state found` — say so plainly rather than omitting the line or inventing filler.
-4. Write `<notes_repo>/db/daily/YYYY-MM-DD.md` with the above (create `db/daily/` if it doesn't exist
-   yet), append its path (`daily/YYYY-MM-DD.md`) under `## daily-plan` in `db/INDEX.md` (and any other domain tags that
-   clearly apply, reusing the `ainotes-notes` taxonomy), and commit on `main`:
-   `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Add daily plan: YYYY-MM-DD"`.
-   (The `notetaker` agent can do this mechanical write/commit step too, same as any other
-   notes-repo change — either is fine, it's the same convention.)
-5. Show the resulting checklist back to the user in chat.
-6. If today's file already exists (a second invocation the same day), **append** new tasks to
-   it rather than overwriting or recreating the file.
+4. Hand the items to `ledger-keeper` as `daily_write {date, items: [{text, context}], domain?, links?}`
+   (`domain` = the day's domains, reusing the `ainotes-notes` taxonomy). It writes
+   `<notes_repo>/db/daily/YYYY-MM-DD.md` with the frontmatter above (creating `db/daily/` if needed),
+   appends `daily/YYYY-MM-DD.md` under `## daily-plan` (and those domain tags) in `db/INDEX.md`, and
+   commits on `main` (`"Add daily plan: YYYY-MM-DD"`), returning `{path, sha}`.
+5. Show the resulting checklist back to the user in chat — from the items you already have, not by
+   re-reading the file.
+6. If today's file already exists (a second invocation the same day), the same `daily_write`
+   **appends** the new tasks rather than overwriting or recreating the file.
 
 ## Marking tasks done
 
@@ -86,8 +98,11 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
 - Match the user's statement to the closest existing checklist line; if more than one plausibly
   matches, ask which one rather than guessing. Flip it to `- [x]`, and if the user gave any detail
   worth keeping, add or update a one-line `Done: ...` note under it.
-- Commit the update the same way as creation:
+- **A single mark-done stays inline** — it's a one-line edit, cheaper than spawning an agent: flip the
+  line (and set `status: done` if it was the last open item), then
   `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Update daily plan: YYYY-MM-DD (mark '<task>' done)"`.
+  Marking several items at once goes to `ledger-keeper` in one call: one
+  `daily_mark {date, item, done, detail?}` per item, with the exact checklist text you matched as `item`.
 - **Bare `"<x> is done"`** (no "task" keyword) is shared with `ainotes-tasks`: prefer today's daily plan
   (`<notes_repo>/db/daily/YYYY-MM-DD.md`) if the item is on it; otherwise hand it to `ainotes-tasks`,
   which moves the matching `db/TASKS.md` Open row to its done status; if it plausibly matches both, or
@@ -102,7 +117,8 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
 - Read today's file and report open vs. done items directly from it — trust the file as the
   source of truth, don't re-derive status from GitHub/CI/anywhere else.
 - If asked to refresh context on a still-open item, re-launch `daily-plan-tracker` for just that
-  item, update its `Context:` bullet, and commit.
+  item and hand the result to `ledger-keeper` as `daily_write` with that one item (same `text`, new
+  `context`) — it replaces the existing `Context:` bullet and commits.
 
 ## End of day
 

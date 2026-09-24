@@ -133,8 +133,18 @@ All hooks exit silently outside an AINotes workspace.
 | `ainotes-pr-review-request` | "ask for review on `<PR>`" | Post a review request to Slack (optional) |
 | `ainotes-report` | "weekly report", "work review" | Compile a report for a date window |
 
-Agents: `notetaker` (cheap, convention-following notes bookkeeping) and `daily-plan-tracker`
-(read-only context lookups for daily plan items).
+Agents:
+
+- `notetaker`: the single writer for notes, plans and their `INDEX.md` entries.
+- `ledger-keeper`: the single writer for `PRS.md`, `TASKS.md`, task files and daily plans; also runs
+  `check-prs.sh` for "check prs".
+- `pr-poller`: polls open PRs for `babysit prs` (state, CI, comments); may rerun failed jobs once and
+  update a branch that's behind, and never comments, merges or pushes.
+- `notes-extractor`: read-only gatherer that turns a date window of notes into compact JSON for reports.
+- `daily-plan-tracker`: read-only context lookups for daily plan items.
+
+**Token use**: routine bookkeeping and polling run on Haiku agents. Approvals, code changes, reviews
+and anything user-facing stay on your main model.
 
 ## Tools (no LLM needed)
 

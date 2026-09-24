@@ -18,10 +18,30 @@ while `README.md`/`CLAUDE.md`/`.gitignore` stay at the repo root and git always 
 If there's no `db/` but those entries sit at the repo root (legacy layout), don't write anything —
 report it back so the caller can offer the migration described in `ainotes-notes`.)
 
-Task files (`db/tasks/*.md`) and `db/TASKS.md` belong to `ainotes-tasks`: their `status:` is one of the
-configurable `task_statuses` keys from `.ai-notes/config.yml` (default `backlog`, `in-progress`, `done`,
-`dropped`), not the plan lifecycle below — and never a tag. If asked to touch them, follow that skill's
-format exactly (including the `Status` column in `TASKS.md`).
+Task files (`db/tasks/*.md`) and `db/TASKS.md` belong to `ainotes-tasks` and are written by the
+`ledger-keeper` agent: their `status:` is one of the configurable `task_statuses` keys from
+`.ai-notes/config.yml` (default `backlog`, `in-progress`, `done`, `dropped`), not the plan lifecycle
+below — and never a tag. If asked to touch them, return `{error: "ledger file — use ledger-keeper"}`.
+
+## Handoff contract
+
+You are the single writer for notes and plans (`db/notes/`, `db/plans/`) and their `db/INDEX.md`
+entries; ledgers (`PRS.md`, `TASKS.md`, `tasks/`, `daily/`) belong to the `ledger-keeper` agent.
+The caller has the conversation, so it decides the epic, writes the body, and passes you everything:
+
+- **Input**: `{type: note|plan, slug, frontmatter fields, body}` — frontmatter fields are the schema
+  below (`date`, `repo`, `domain`, `epic`, `tags`, `jira`, `worktree`, `status`, `links`). To update
+  an existing file instead, the caller passes `{path, frontmatter fields}` with only the fields to
+  change and no body (plan bodies are immutable — see below). A call may carry a list of these to
+  apply in one commit (e.g. an outcome note plus its plan's status flip). The caller may also pass
+  `notes_repo_path` and a `commit_message`; use them when given, otherwise use the messages below.
+- **Output**: `{path, index_sections, sha, flags}` — `path` relative to `db/` (a list when the call
+  wrote several files), `index_sections` the
+  `INDEX.md` tag sections you appended to (or created), `sha` the short commit SHA, and `flags` one
+  line per judgment call you weren't sure about (empty list when none). On failure, return
+  `{error: "<verbatim message>"}` instead of guessing.
+
+Don't rewrite the body you're given beyond fixing formatting; don't ask the user anything.
 
 ## Before writing anything
 

@@ -27,6 +27,21 @@ independent workspaces, each with its own `.ai-notes/`). Read it for the current
 trusting stale copies of those values in prose anywhere, including in this file. The `jira` block is
 optional — when it's absent, leave `jira: null` on every plan and never ask about tickets.
 
+## Who writes the file
+
+Every note/plan write, frontmatter update, `INDEX.md` append and commit goes through the `notetaker`
+agent — this is mandatory, not an optimization you can skip. Spawn the `notetaker` agent (named
+`ainotes:notetaker` when AINotes is installed as a plugin). If neither name is available, spawn a
+general-purpose agent with `model: haiku` and give it the contents of
+`<skill base dir>/../../agents/notetaker.md` as its instructions.
+
+The main thread keeps what needs the conversation: it asks the epic question, picks domain/tags,
+finds related links, and writes the body. It then passes the agent
+`{type: note|plan, slug, frontmatter fields, body, notes_repo_path}` (or `{path, frontmatter fields}`
+for a frontmatter-only update) and gets back `{path, index_sections, sha, flags}`. Don't re-read the
+file the agent wrote; relay `path` and `sha`. If `flags` isn't empty, look at those specific points
+yourself (or tell the user) before moving on. If it returns an `error`, report it verbatim.
+
 ## Trigger phrases
 
 - **Note**: request starts with `Add a note ...` or `note: ...` — a freeform note, not tied to a
@@ -116,23 +131,22 @@ closed.
 
 1. Ask about an epic if not already stated — offer `preferred_epics` from `.ai-notes/config.yml` as
    options, but accept anything the user actually says.
-2. Grep `<notes_repo>/db/` for matching `domain`/`epic`/`repo` to find related earlier notes, and link them
-   via `links: []` if relevant.
-3. Write `<notes_repo>/db/notes/YYYY-MM-DD-slug.md` (`type: note`, `status: n/a`) with the frontmatter above + body.
-4. Append the file under each of its `domain`/`tags` sections in `db/INDEX.md` (create the section if new
-   — don't rewrite the whole file).
-5. Commit directly on `main`: `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Add note: <slug>"`.
+2. Grep `<notes_repo>/db/` for matching `domain`/`epic`/`repo` (filenames only, `grep -l`) to find
+   related earlier notes, and link them via `links: []` if relevant.
+3. Write the body and hand off to `notetaker` with `type: note`, `status: n/a` and the frontmatter
+   above. It writes `<notes_repo>/db/notes/YYYY-MM-DD-slug.md`, appends the file under each of its
+   `domain`/`tags` sections in `db/INDEX.md` (creating a section if new — never rewriting the whole
+   file), and commits directly on `main` (`"Add note: <slug>"`).
 
 ## Adding/updating a plan (including via ainotes-task)
 
 1. Ask about an epic if not already stated, same as step 1 above.
-2. Write `<notes_repo>/db/plans/YYYY-MM-DD-<repo>-slug.md` (`type: plan`, `status: planned`) with the approved plan as
-   the body, `repo`/`worktree` filled in.
-3. Append it to `db/INDEX.md` under its tags.
-4. Commit on `main`, same as a note (`"Add plan: <slug>"`).
-5. When `ainotes-task` reaches its step 6 (Jira ticket, if configured), come back here to update the
-   same plan file's frontmatter only (`jira` when a ticket exists, `status: in-progress`) — commit the update
-   (`"Update plan: <slug> (status -> in-progress)"`). Don't touch the plan's body.
+2. Hand off to `notetaker` with `type: plan`, `status: planned`, `repo`/`worktree` filled in and the
+   approved plan as the body. It writes `<notes_repo>/db/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
+   `db/INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
+3. When `ainotes-task` reaches its step 6 (Jira ticket, if configured), hand `notetaker` a
+   frontmatter-only update of the same plan (`jira` when a ticket exists, `status: in-progress`);
+   it commits `"Update plan: <slug> (status -> in-progress)"`. The plan's body is never touched.
 
 Do not start executing a plan as part of writing it — plans are captured here, executed elsewhere via
 `ainotes-task`.
@@ -144,13 +158,13 @@ approved, so it stays a reliable record of what was agreed. Never append results
 
 Instead, when `ainotes-task` finishes a task:
 
-1. Write a **new** note in `<notes_repo>/db/notes/YYYY-MM-DD-slug.md` (`type: note`) recording what happened: repo,
-   branch/worktree, Jira ticket (if any), review outcome, whether it was committed, and any follow-ups. Give it
-   the same `domain`/`epic` as the plan, plus `links: ["plans/<plan-filename>"]`.
-2. In the plan file, flip `status` to `done` (or `in-review`) and add the new note's filename to its
-   own `links: []` — frontmatter only, body stays untouched.
-3. Append the new note to `db/INDEX.md` under its tags; commit both changes on `main`
-   (`"Complete plan: <slug>"`).
+1. Write the body of a **new** note (`type: note`) recording what happened: repo, branch/worktree,
+   Jira ticket (if any), review outcome, whether it was committed, and any follow-ups. Give it the same
+   `domain`/`epic` as the plan, plus `links: ["plans/<plan-filename>"]`.
+2. Hand `notetaker` both changes in one call: the new note, and a frontmatter-only update of the plan
+   flipping `status` to `done` (or `in-review`) and adding the new note's filename to its `links: []`
+   (body untouched). It writes `<notes_repo>/db/notes/YYYY-MM-DD-slug.md`, appends the new note to
+   `db/INDEX.md` under its tags, and commits both on `main` (`"Complete plan: <slug>"`).
 
 ## INDEX.md format
 

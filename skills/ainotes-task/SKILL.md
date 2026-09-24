@@ -84,7 +84,7 @@ git worktree add .worktrees/<branch-name> -b <branch-name> origin/<default-branc
 
 ### 3. Plan
 
-Launch a `Plan` subagent (Agent tool, `subagent_type: "Plan"`) with a self-contained prompt including:
+Launch a `Plan` subagent (Agent tool, `subagent_type: "Plan"`, `model: "inherit"`) with a self-contained prompt including:
 - The task in the user's own words.
 - The repo name and the worktree path from step 2 (all file exploration should happen there, not in
   the main checkout).
@@ -106,13 +106,17 @@ Invoke the `ainotes-notes` skill's "Adding/updating a plan" procedure to persist
 `<notes_repo>/db/plans/YYYY-MM-DD-<repo>-<slug>.md` (same date/repo/slug as the worktree/branch), including
 its epic question, domain tagging, and commit. `ainotes-notes` owns the frontmatter schema, domain
 taxonomy, and the notes repo's git history — this step just triggers it with: the task, the repo, the
-worktree path, and the approved plan text.
+worktree path, and the approved plan text. You ask the epic question and assemble the fields here;
+the write itself goes to the `notetaker` agent as that skill describes (named `ainotes:notetaker` when
+AINotes is installed as a plugin; if neither name is available, spawn a general-purpose agent with
+`model: haiku` and give it the contents of `<skill base dir>/../../agents/notetaker.md` as its
+instructions). Keep the `path` it returns for steps 6 and 10 — don't re-read the file.
 
 ### 6. Get a Jira ticket (only if Jira is configured)
 
 Read the workspace's `.ai-notes/config.yml`. **If it has no `jira` block, skip the ticket part of this step entirely** —
-don't ask about a ticket, don't create one, and leave the plan's `jira` field `null`. Just invoke
-`ainotes-notes` to flip the plan note's `status` to `in-progress` and move on to step 7.
+don't ask about a ticket, don't create one, and leave the plan's `jira` field `null`. Just hand
+`notetaker` a frontmatter-only update of the plan (`{path, status: in-progress}`) and move on to step 7.
 
 If `jira.project_key` is set, that's the target project. Before execution starts, ask the user: do
 they already have a ticket for this task, or should one be created?
@@ -123,12 +127,15 @@ they already have a ticket for this task, or should one be created?
   it silently). Ask which sprint/epic to use if the project needs one — never assume a default.
 - With Jira configured, never skip this question and never assume — always ask, even if the task looks trivial.
 
-Invoke `ainotes-notes` to update the plan note's frontmatter (`jira: <PROJECT_KEY>-<number>`,
-`status: in-progress`) and commit.
+Hand `notetaker` a frontmatter-only update of the plan note (`{path, jira: <PROJECT_KEY>-<number>,
+status: in-progress}`); it commits. If `ainotes-tasks` has an active task for this session, also spawn
+`ledger-keeper` with `task_link {task, jira}` (same naming and fallback pattern, with
+`<skill base dir>/../../agents/ledger-keeper.md`; pass `notes_repo_path` and `toolkit_dir` =
+`<skill base dir>/../..`).
 
 ### 7. Execute
 
-Launch execution subagent(s) (Agent tool, `subagent_type: "general-purpose"`) — fresh agents, so each
+Launch execution subagent(s) (Agent tool, `subagent_type: "general-purpose"`, `model: "inherit"`) — fresh agents, so each
 prompt must be self-contained:
 - The approved plan (verbatim or faithfully summarized — don't let an agent re-derive it).
 - The worktree path — all edits happen there.
@@ -148,7 +155,8 @@ between agents working in the same worktree.
 
 ### 8. Review
 
-Before anything gets committed, spawn a separate review subagent (Agent tool) with minimal, targeted
+Before anything gets committed, spawn a separate review subagent (Agent tool, `subagent_type: "general-purpose"`,
+`model: "inherit"`) with minimal, targeted
 context — not the full execution transcript:
 - The original task/plan, verbatim.
 - A summary of what was actually done (files touched, approach, test results).
@@ -173,11 +181,13 @@ Only on their yes, commit the finished work on the branch with a proper title + 
 
 - Report what changed and the results of build/lint/test/review.
 - Do **not** push or open a PR automatically — that's always a separate, explicit ask, regardless of
-  how clean the review or how routine the task looks.
+  how clean the review or how routine the task looks. If the user does ask and a PR gets opened,
+  register it right away: spawn `ledger-keeper` with `register_pr {repo, number, url, title, jira?,
+  task_file?}` (see `ainotes-pr-tracker`; `task_file` = the session's active task, if any).
 - Mention the worktree path (and the Jira ticket key, if any) so they know where to look.
-- Invoke `ainotes-notes`'s "When a plan is executed" procedure: it writes a **new** note recording the
-  outcome (don't append results into the plan file yourself — the plan's body stays immutable) and
-  flips the plan's `status` field.
+- Invoke `ainotes-notes`'s "When a plan is executed" procedure: you write the outcome body, and one
+  `notetaker` call writes a **new** note recording it and flips the plan's `status` field (don't append
+  results into the plan file yourself — the plan's body stays immutable).
 
 ## Notes
 
@@ -187,6 +197,11 @@ Only on their yes, commit the finished work on the branch with a proper title + 
 - If the user wants a worktree cleaned up, use `git worktree remove` (from the main checkout) rather
   than deleting the directory by hand. Leave its plan/completion notes in `<notes_repo>/db/` as a
   historical record.
-- All notes-repo content, format, and git mechanics belong to the `ainotes-notes` skill — don't write to
-  `<notes_repo>/` directly from here without going through it, to keep one source of truth for the note
-  format.
+- All notes-repo content, format, and git mechanics belong to the `ainotes-notes` skill (and, for
+  ledgers, `ainotes-pr-tracker`/`ainotes-tasks`) — don't write to `<notes_repo>/` directly from here;
+  every write goes through the `notetaker` or `ledger-keeper` agent, to keep one writer and one source
+  of truth for each format.
+- Subagents are always spawned with an explicit `model`: `inherit` for the Plan, execution and review
+  agents (they do the real engineering), `haiku` for notes-repo bookkeeping. If your Agent tool
+  rejects the literal `inherit`, omit `model` for those three instead — an omitted model inherits the
+  main thread's.

@@ -14,6 +14,17 @@ accumulates the Jira ticket(s) and PR(s) it produces as they appear.
 
 This skill owns `<notes_repo>/db/TASKS.md` and `<notes_repo>/db/tasks/*.md` — `ainotes-notes` doesn't touch them.
 
+**Who writes.** This skill defines the rules; the `ledger-keeper` agent applies every mutation
+(create, status change, Jira/PR link) and commits. Spawn the `ledger-keeper` agent (named
+`ainotes:ledger-keeper` when AINotes is installed as a plugin). If neither name is available, spawn a
+general-purpose agent with `model: haiku` and give it the contents of
+`<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass `notes_repo_path`
+and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields. The agent follows this
+file's rules exactly, so keep them here as the single source of truth. The main thread keeps
+everything conversational: listing tasks ("show tasks" is read inline), fuzzy-matching `<x>` to a
+row, resolving the target status, and asking the user when anything is ambiguous — the agent only
+ever receives resolved values, and you don't re-read the files it wrote.
+
 (`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml` — see
 `ainotes-notes` for the config-discovery rule and the canonical `db/` layout, including what to do
 with a legacy repo that has no `db/`. Jira links are built from `jira.base_url`; if the config
@@ -117,15 +128,14 @@ the SessionStart nudge (below).
    for a deadline only if it's natural in the moment — don't force it; `null`/`—` is a fine default.
 2. Pick the initial status per the default rule in **Statuses** (first status; second non-closed status
    when the user is starting on it right now). If the user names a status, use that instead.
-3. Create `<notes_repo>/db/tasks/YYYY-MM-DD-slug.md` with the frontmatter above and a `## Purpose` section
-   describing the task in the user's terms.
-4. Append a row to the table matching that status (normally **Open**).
-5. Append the path (relative to `db/`, e.g. `tasks/YYYY-MM-DD-slug.md`) under a `## task` tag section
-   in `db/INDEX.md` (plus any domain tags that clearly
-   apply, reusing the `ainotes-notes` taxonomy — never a status).
-6. Commit on `main`:
-   `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Add task: <title>"`.
-7. Confirm back to the user in chat (title, status, file path, deadline if any).
+3. Hand off to `ledger-keeper` as `task_create {title, deadline?, status?, purpose, domain?}`
+   (`purpose` in the user's terms; `domain` best-effort from the `ainotes-notes` taxonomy). It:
+   - creates `<notes_repo>/db/tasks/YYYY-MM-DD-slug.md` with the frontmatter above and a `## Purpose` section;
+   - appends a row to the table matching that status (normally **Open**);
+   - appends the path (relative to `db/`, e.g. `tasks/YYYY-MM-DD-slug.md`) under a `## task` tag
+     section in `db/INDEX.md` (plus the given domain tags — never a status);
+   - commits on `main` (`"Add task: <title>"`) and returns `{task_file, row_moved, sha}`.
+4. Confirm back to the user in chat (title, status, file path, deadline if any).
 
 ## SessionStart nudge
 
@@ -155,7 +165,9 @@ says "this is for task X"):
   different things (PR lifecycle vs. task ownership) and both get updated.
 - Linking a Jira ticket or PR never changes the task's status by itself.
 - Do this before reporting the created Jira ticket/PR back to the user, not as an afterthought.
-- Commit each update: `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Update task: <title> (link <Jira key|PR>)"`.
+- Each link is one `ledger-keeper` call: `task_link {task, jira?|pr?}` (the task file path, plus the
+  Jira key or PR URL); it commits `"Update task: <title> (link <Jira key|PR>)"`. When the PR is also
+  being registered in `PRS.md`, pass `task_file` to `register_pr` instead so both land in one call.
 - If no task is active for the session, don't guess — this only fires for a task you know is the one
   in scope.
 
@@ -190,14 +202,17 @@ table; if it plausibly matches both, or neither clearly, ask the user which one 
 1. Match `<x>` to the closest row in `TASKS.md` (Open first; Completed too when the target status is
    non-closed, i.e. reopening); if ambiguous, ask which one. If it's already in the target status, say
    so and stop.
-2. Set the task file's `status:` to the new key and add an `## Updates` line
+2. Hand off to `ledger-keeper` as `task_status {task, new_status, reason?}` (the matched task file path,
+   the resolved status key, and any reason the user gave). It applies steps 3–5 below exactly and
+   returns `{task_file, row_moved, sha}`.
+3. Set the task file's `status:` to the new key and add an `## Updates` line
    (`YYYY-MM-DD: status <old> -> <new>`, plus any reason the user gave).
-3. Update the `TASKS.md` row:
+4. Update the `TASKS.md` row:
    - non-closed → non-closed: change the `Status` cell in place.
    - non-closed → closed: move the row to **Completed**, setting `Status` and `Completed` to today.
    - closed → closed (e.g. `done` → `dropped`): change the `Status` cell in place; keep the `Completed` date.
    - closed → non-closed (reopened): move the row back to **Open**, dropping the `Completed` date.
-4. Commit: `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "<verb> task: <title>"` —
+5. Commit: `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "<verb> task: <title>"` —
    `Complete` for `done`, `Drop` for `dropped`, `Reopen` for closed → non-closed, otherwise
    `Move task: <title> (<old> -> <new>)`.
 
