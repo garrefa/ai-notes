@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/sidebar"
 import { CommandPalette } from "@/components/command-palette"
 import { NoteDetail } from "@/components/note-detail"
+import { NewVersionBanner } from "@/components/new-version-banner"
 import { PrDetail } from "@/components/pr-detail"
 import { PrList } from "@/components/pr-list"
 import { StatusSettingsDialog } from "@/components/status-settings-dialog"
@@ -83,6 +84,7 @@ export function AppShell() {
           note, view, filters, tag search and palette state never leak from one folder into
           another. The SidebarProvider stays outside so the sidebar's open/closed state does. */}
       <WorkspaceView key={directory.activeWorkspace?.id ?? "none"} directory={directory} statusSettings={statusSettings} />
+      <NewVersionBanner />
     </SidebarProvider>
   )
 }

@@ -38,6 +38,14 @@ npm run preview    # serves dist/ on http://localhost:4173
 `dist/` is plain static files. It can be served from anywhere that uses `localhost` or HTTPS (the
 File System Access API only works in secure contexts).
 
+Each build also writes `dist/version.json` with a build ID (the commit's short SHA plus the build
+time) and bakes the same ID into the bundle. An open tab re-reads that file every 5 minutes and
+whenever the tab regains focus. When the ID on the server differs, a **New version available** notice
+offers a **Reload** button. Reloading stays the user's choice, since it discards an unsaved edit or
+the demo's in-memory changes. For it to work, your host must not cache `version.json` or
+`index.html` for long (the hashed files in `assets/` can be cached forever). `npm run dev` skips the
+check because Vite reloads the page on its own.
+
 ## Try the demo
 
 Not ready to connect a notes repo, or just want to see how it works? Click **Try the demo** in the
