@@ -3,7 +3,7 @@
 Tag → files map. Append the relevant tag section whenever a note or plan is added; never regenerate
 this file from scratch. See the `ainotes-notes` skill for the full workflow.
 
-Format:
+Format (paths are relative to this `db/` folder):
 
 ```markdown
 ## <tag>

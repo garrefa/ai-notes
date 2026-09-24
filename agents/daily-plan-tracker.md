@@ -31,7 +31,7 @@ what's its current state?"* — nothing more.
 ## What to do
 
 1. Read the task text you're given at face value — don't reinterpret or expand its scope.
-2. Look for related history in `<notes_repo>/`: grep `notes/`, `plans/`, and `INDEX.md` for
+2. Look for related history in `<notes_repo>/db/`: grep `db/notes/`, `db/plans/`, and `db/INDEX.md` for
    matching keywords, repo names, PR/ticket numbers, or domain/epic tags. Read anything that
    matches closely enough to be genuinely useful — skip tangential hits.
 3. If the task names a concrete artifact (a PR number, a repo, a file, a feature flag), check

@@ -1,19 +1,92 @@
 import { useId, useState } from "react"
-import { Pencil, Plus, X } from "lucide-react"
+import { ChevronDown, Pencil, Plus, X } from "lucide-react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { TaskStatusDot } from "@/components/task-status-dot"
 import { Button } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { displayTag, withUpdatedTags, type Note } from "@/lib/notes-frontmatter"
+import type { ResolvedTaskStatus } from "@/lib/task-status"
+import type { TaskStatus } from "@/lib/workspace-config"
+
+// Status picker for a task file. Writing goes through onChange, which updates the task file and
+// TASKS.md; a problem with the ledger comes back as a non-blocking notice.
+function TaskStatusControl({
+  status,
+  statuses,
+  onChange,
+}: {
+  status: ResolvedTaskStatus
+  statuses: TaskStatus[]
+  onChange: (key: string) => Promise<string | null>
+}) {
+  const [busy, setBusy] = useState(false)
+  const [notice, setNotice] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function select(key: string) {
+    if (key === status.key && status.known) return
+    setBusy(true)
+    setNotice(null)
+    setError(null)
+    try {
+      setNotice(await onChange(key))
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Couldn't update the status — check the folder is still connected.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mb-4 space-y-1.5">
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild disabled={busy}>
+          <Button size="sm" variant="outline" className="gap-2" aria-label={`Status: ${status.label}. Change status`}>
+            <TaskStatusDot status={status} />
+            {busy ? "Saving…" : status.label}
+            <ChevronDown className="size-3.5 text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="w-44">
+          <DropdownMenuRadioGroup value={status.known ? status.key : ""} onValueChange={select}>
+            {statuses.map((s) => (
+              <DropdownMenuRadioItem key={s.key} value={s.key} className="gap-2">
+                <TaskStatusDot status={s} />
+                {s.label}
+              </DropdownMenuRadioItem>
+            ))}
+          </DropdownMenuRadioGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+      {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  )
+}
 
 export function NoteDetail({
   note,
   onSave,
   allTags,
+  taskStatus,
+  taskStatuses,
+  onSetTaskStatus,
 }: {
   note: Note
   onSave: (path: string, content: string) => Promise<void>
   allTags: string[]
+  // Set only for task files.
+  taskStatus: ResolvedTaskStatus | null
+  taskStatuses: TaskStatus[]
+  onSetTaskStatus: (path: string, statusKey: string) => Promise<string | null>
 }) {
   const tagListId = useId()
   const [editing, setEditing] = useState(false)
@@ -157,6 +230,10 @@ export function NoteDetail({
       <div className="mb-4 font-mono text-xs text-muted-foreground">
         {[note.date, note.type, note.repo].filter(Boolean).join(" · ")}
       </div>
+
+      {taskStatus && !editing && (
+        <TaskStatusControl status={taskStatus} statuses={taskStatuses} onChange={(key) => onSetTaskStatus(note.path, key)} />
+      )}
 
       {saveError && <p className="mb-4 text-sm text-destructive">{saveError}</p>}
 

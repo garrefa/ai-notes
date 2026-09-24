@@ -1,7 +1,7 @@
 ---
 name: ainotes-daily-plan
 description: >-
-  Track a running, manually-checked daily task list in the notes repo (`notes_repo` in .ai-notes/config.yml). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
+  Track a running, manually-checked daily task list in the notes repo (`notes_repo` in .ai-notes/config.yml). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/db/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
 ---
 
 # Daily Plan (ainotes-daily-plan)
@@ -14,10 +14,11 @@ done when the user says so — nothing more automated than that.
 
 For actually doing the engineering work behind a task, use `ainotes-task`. For the notes-repo
 mechanics this skill builds on, see `ainotes-notes` — this is a thin, specialized layer over the
-same store, with its own file convention (below) rather than the `notes/`/`plans/` split.
+same store, with its own file convention (below) rather than the `db/notes/`/`db/plans/` split.
 
 (`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml` —
-see `ainotes-notes` for the config-discovery rule.)
+see `ainotes-notes` for the config-discovery rule and the canonical `db/` layout, including what to
+do with a legacy repo that has no `db/`.)
 
 ## Trigger phrases
 
@@ -29,8 +30,9 @@ see `ainotes-notes` for the config-discovery rule.)
 ## Layout
 
 ```
-<notes_repo>/daily/YYYY-MM-DD.md   # one file per calendar day
-<notes_repo>/INDEX.md              # gets a `daily-plan` tag section, same append-only convention
+<notes_repo>/db/daily/YYYY-MM-DD.md   # one file per calendar day
+<notes_repo>/db/INDEX.md              # gets a `daily-plan` tag section, same append-only convention
+                                      # (entries relative to db/, e.g. `daily/YYYY-MM-DD.md`)
 ```
 
 ## Frontmatter
@@ -43,7 +45,7 @@ domain: []      # union of domains touched by the day's tasks, from the ainotes-
 epic: null
 tags: [daily-plan]
 status: open    # open -> done once every item is checked, or the user says stop tracking for the day
-links: []       # notes/plans/PRs discovered while enriching tasks
+links: []       # notes/plans/PRs discovered while enriching tasks (note/plan paths relative to db/)
 ---
 ```
 
@@ -65,8 +67,8 @@ links: []       # notes/plans/PRs discovered while enriching tasks
    ```
    If the tracker found nothing relevant, write `Context: no related history or notable live
    state found` — say so plainly rather than omitting the line or inventing filler.
-4. Write `<notes_repo>/daily/YYYY-MM-DD.md` with the above (create `daily/` if it doesn't exist
-   yet), append the filename under `## daily-plan` in `INDEX.md` (and any other domain tags that
+4. Write `<notes_repo>/db/daily/YYYY-MM-DD.md` with the above (create `db/daily/` if it doesn't exist
+   yet), append its path (`daily/YYYY-MM-DD.md`) under `## daily-plan` in `db/INDEX.md` (and any other domain tags that
    clearly apply, reusing the `ainotes-notes` taxonomy), and commit on `main`:
    `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Add daily plan: YYYY-MM-DD"`.
    (The `notetaker` agent can do this mechanical write/commit step too, same as any other
@@ -87,9 +89,11 @@ links: []       # notes/plans/PRs discovered while enriching tasks
 - Commit the update the same way as creation:
   `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Update daily plan: YYYY-MM-DD (mark '<task>' done)"`.
 - **Bare `"<x> is done"`** (no "task" keyword) is shared with `ainotes-tasks`: prefer today's daily plan
-  (`<notes_repo>/daily/YYYY-MM-DD.md`) if the item is on it; otherwise mark it in `TASKS.md`'s Open
-  table; if it plausibly matches both, or neither clearly, ask the user which one they mean. Explicit
-  `mark task <x> done` / `complete task <x>` always go to `TASKS.md` (`ainotes-tasks`).
+  (`<notes_repo>/db/daily/YYYY-MM-DD.md`) if the item is on it; otherwise hand it to `ainotes-tasks`,
+  which moves the matching `db/TASKS.md` Open row to its done status; if it plausibly matches both, or
+  neither clearly, ask the user which one they mean. Explicit `mark task <x> done` / `complete task <x>`
+  (and any other task status change — `start task`, `move task … to …`, `drop task`) always go to
+  `ainotes-tasks`. Checking an item off here never changes a task's status.
 - No hooks, no polling, no scheduled re-checks, no `/loop` — this skill never marks something
   done by itself, ever. That's the whole point: it's the user's own tracking.
 

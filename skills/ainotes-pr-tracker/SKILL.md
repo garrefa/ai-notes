@@ -1,22 +1,23 @@
 ---
 name: ainotes-pr-tracker
 description: >-
-  Maintain <notes_repo>/PRS.md (the notes repo is `notes_repo` in .ai-notes/config.yml), a master ledger of every PR opened across this workspace's repos and its merge/close status. Register a row whenever a PR is opened in any workspace repo (gh pr create, ainotes-task, or ad hoc). Triggered on demand by "check prs" / "check PR status" — reconciles every pending row against GitHub, moves the ones that merged or closed, and reports two lists: updated and still pending.
+  Maintain <notes_repo>/db/PRS.md (the notes repo is `notes_repo` in .ai-notes/config.yml), a master ledger of every PR opened across this workspace's repos and its merge/close status. Register a row whenever a PR is opened in any workspace repo (gh pr create, ainotes-task, or ad hoc). Triggered on demand by "check prs" / "check PR status" — reconciles every pending row against GitHub, moves the ones that merged or closed, and reports two lists: updated and still pending.
 ---
 
 # PR Tracker (ainotes-pr-tracker)
 
 Companion to `ainotes-notes`: keeps one always-current ledger of every PR this workspace has opened, so
 "did we ever merge that?" doesn't require re-deriving it from memory or re-scrolling GitHub. This
-skill owns `<notes_repo>/PRS.md` — `ainotes-notes` doesn't touch it.
+skill owns `<notes_repo>/db/PRS.md` — `ainotes-notes` doesn't touch it.
 
 (`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml`, and
-`<vcs.org>` means its `vcs.org` value — see the `ainotes-notes` skill for the config-discovery rule. The
+`<vcs.org>` means its `vcs.org` value — see the `ainotes-notes` skill for the config-discovery rule and the canonical `db/` layout,
+including what to do with a legacy repo that has no `db/`. The
 `Jira` column holds `—` for every row when the config has no `jira` block.)
 
 ## Ledger file
 
-`<notes_repo>/PRS.md` — a single living document, not dated like `notes/`/`plans/` files. Four
+`<notes_repo>/db/PRS.md` — a single living document, not dated like `db/notes/`/`db/plans/` files. Four
 sections, each a table. Edit only the affected rows/section — never regenerate the whole file.
 
 The fourth section, **Pending — Detail**, is script-generated: the optional, non-AI refresh script
@@ -50,7 +51,7 @@ heading to the four tables** — when `check-prs.sh` runs it regenerates everyth
 ```
 
 If the file doesn't exist yet, create it from the bundled template
-(`<skill base dir>/../../templates/notes-repo/PRS.md`), which has all four sections empty, before the
+(`<skill base dir>/../../templates/notes-repo/db/PRS.md`), which has all four sections empty, before the
 first row is appended. If the template isn't reachable, create it with exactly this skeleton:
 
 ```markdown
@@ -97,7 +98,7 @@ from `ainotes-task`, another PR-opening skill, or an ad hoc request — append a
 repo's `main`:
 
 ```bash
-git -C <notes_repo> add PRS.md
+git -C <notes_repo> add db/PRS.md
 git -C <notes_repo> commit -m "Track PR: <repo>#<number>"
 ```
 
@@ -108,7 +109,7 @@ Do this before reporting the opened PR back to the user, not as an afterthought.
 Trigger phrases: `check prs`, `check PR status`, `check pr status`, "check on our PRs", or any
 request to reconcile the ledger.
 
-1. Read `<notes_repo>/PRS.md`'s **Pending (open)** table. If it's empty, report that plainly and stop.
+1. Read `<notes_repo>/db/PRS.md`'s **Pending (open)** table. If it's empty, report that plainly and stop.
 2. For each row, check its real state (independent rows can run in parallel):
    ```bash
    gh pr view <number> --repo <vcs.org>/<repo> --json state,mergedAt,closedAt,url
@@ -119,7 +120,7 @@ request to reconcile the ledger.
    - Still `OPEN` → leave it in **Pending**, refresh `Last checked` to today.
 4. Commit the update — one commit covering every row that moved this pass is fine:
    ```bash
-   git -C <notes_repo> add PRS.md
+   git -C <notes_repo> add db/PRS.md
    git -C <notes_repo> commit -m "Update PR tracker: <repo>#<number> -> merged|closed[, ...]"
    ```
 5. Report back to the user as two lists:
@@ -134,7 +135,7 @@ reconciliation mechanically (no narrative synthesis) and also runs
 `gh search prs --owner <vcs.org> --author @me --state open` to fold in open PRs you authored that
 aren't in the ledger yet (e.g. opened outside Claude). It needs only `gh` (authenticated) and `jq`.
 Usage: `check-prs.sh [--dry-run] [--verbose] [--org ORG] [PRS.md path]` — the `PRS.md` path is optional
-(by default it's found via `.ai-notes/config.yml` as `<workspace>/<notes_repo>/PRS.md`), `--org`
+(by default it's found via `.ai-notes/config.yml` as `<workspace>/<notes_repo>/db/PRS.md`), `--org`
 overrides `vcs.org`, `--dry-run` prints the diff without writing or committing, and `--verbose` logs
 each step.
 
@@ -143,13 +144,13 @@ verbatim; everything after it is regenerated — the Pending (open) table is reb
 state (rows that merged or closed move out, newly discovered PRs are added), the Merged and Closed
 (not merged) tables keep their existing rows and gain the newly moved ones, and the Pending — Detail
 table is rebuilt from scratch. Any non-table content below that heading is dropped. Unless
-`--dry-run` is given, it then commits `PRS.md` in the notes repo. Using it is entirely optional —
+`--dry-run` is given, it then commits `db/PRS.md` in the notes repo (git runs at the notes repo root). Using it is entirely optional —
 nothing in this skill runs it automatically; if you want it on a schedule, set that up yourself (cron,
 launchd, a CI job, etc.). When it has run, treat its changes to `PRS.md` like any other update.
 
 ## Relationship to ad hoc tracking notes
 
-A one-off `notes/YYYY-MM-DD-*-tracking.md` note (e.g. a `/loop`-driven check on a specific handful of
+A one-off `db/notes/YYYY-MM-DD-*-tracking.md` note (e.g. a `/loop`-driven check on a specific handful of
 PRs tied to one incident/epic) can still exist alongside this ledger for its own narrative/running-log
 purpose — but every PR it covers should also get a row here, so this ledger stays the single complete
 record even after the ad hoc note's job ends.

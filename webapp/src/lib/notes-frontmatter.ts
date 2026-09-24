@@ -25,6 +25,13 @@ export interface Note {
   rawFrontmatter: string
 }
 
+// YAML treats " #..." after an unquoted value as a comment (e.g. `status: open   # open -> done`).
+function stripInlineComment(value: string): string {
+  const trimmed = value.trim()
+  if (trimmed.startsWith('"') || trimmed.startsWith("'")) return value
+  return value.replace(/(^|\s)#.*$/, "")
+}
+
 export function parseFrontmatter(raw: string): { frontmatter: Record<string, unknown>; body: string; rawFrontmatter: string } {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
   if (!match) return { frontmatter: {}, body: raw, rawFrontmatter: "" }
@@ -40,7 +47,7 @@ export function parseFrontmatter(raw: string): { frontmatter: Record<string, unk
       continue
     }
     const key = kv[1]
-    const rest = kv[2].trim()
+    const rest = stripInlineComment(kv[2]).trim()
     if (rest === "") {
       const list: string[] = []
       let j = i + 1
@@ -134,6 +141,45 @@ export function withUpdatedTags(rawFrontmatter: string, tags: string[]): string 
   }
 
   return rawFrontmatter.replace(/\r?\n---\r?\n?$/, `\n${inlineValue}\n---\n`)
+}
+
+// Rewrites just the value of the `status:` entry, keeping any trailing comment and every other
+// byte of the frontmatter. A frontmatter with no status field gets one appended before "---".
+const STATUS_LINE_RE = /^(status:[ \t]*)([^#\r\n]*?)([ \t]*(?:#[^\r\n]*)?)$/m
+
+export function withUpdatedStatus(rawFrontmatter: string, status: string): string {
+  if (STATUS_LINE_RE.test(rawFrontmatter)) {
+    return rawFrontmatter.replace(STATUS_LINE_RE, (_m, prefix: string, _old: string, suffix: string) => {
+      // "status:" with nothing after it needs a separating space before the new value.
+      return `${prefix}${prefix.endsWith(":") ? " " : ""}${status}${suffix}`
+    })
+  }
+  return rawFrontmatter.replace(/\r?\n---\r?\n?$/, `\nstatus: ${status}\n---\n`)
+}
+
+// Appends "- <line>" as the last entry of the body's "## Updates" section, if it has one;
+// otherwise returns the body unchanged.
+const UPDATES_HEADING_RE = /^##[ \t]+Updates[ \t]*$/m
+const NEXT_HEADING_RE = /^#{1,2}[ \t]/m
+
+export function withAppendedUpdate(body: string, line: string): string {
+  const heading = UPDATES_HEADING_RE.exec(body)
+  if (!heading) return body
+  const eol = body.includes("\r\n") ? "\r\n" : "\n"
+  const sectionStart = heading.index + heading[0].length
+  const nextHeading = NEXT_HEADING_RE.exec(body.slice(sectionStart))
+  const sectionEnd = nextHeading ? sectionStart + nextHeading.index : body.length
+  const section = body.slice(sectionStart, sectionEnd)
+  const content = section.replace(/\s+$/, "")
+  const trailing = section.slice(content.length)
+  // Keep the whitespace that separated this section from whatever followed it.
+  const after = trailing.includes("\n") ? trailing : eol + trailing
+  return body.slice(0, sectionStart) + content + eol + `- ${line}` + after + body.slice(sectionEnd)
+}
+
+export function localIsoDate(date = new Date()): string {
+  const pad = (n: number) => String(n).padStart(2, "0")
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`
 }
 
 export function sortNotes(notes: Note[]): Note[] {

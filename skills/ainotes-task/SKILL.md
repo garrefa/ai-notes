@@ -103,7 +103,7 @@ tweaks) and re-confirm.
 ### 5. Record the plan in the notes repo
 
 Invoke the `ainotes-notes` skill's "Adding/updating a plan" procedure to persist the approved plan as
-`<notes_repo>/plans/YYYY-MM-DD-<repo>-<slug>.md` (same date/repo/slug as the worktree/branch), including
+`<notes_repo>/db/plans/YYYY-MM-DD-<repo>-<slug>.md` (same date/repo/slug as the worktree/branch), including
 its epic question, domain tagging, and commit. `ainotes-notes` owns the frontmatter schema, domain
 taxonomy, and the notes repo's git history — this step just triggers it with: the task, the repo, the
 worktree path, and the approved plan text.
@@ -181,11 +181,11 @@ Only on their yes, commit the finished work on the branch with a proper title + 
 
 ## Notes
 
-- One task = one worktree = one branch = one plan note in `<notes_repo>/plans/` = at most one Jira
+- One task = one worktree = one branch = one plan note in `<notes_repo>/db/plans/` = at most one Jira
   ticket (when Jira is configured). Don't
   reuse a worktree or plan across unrelated tasks.
 - If the user wants a worktree cleaned up, use `git worktree remove` (from the main checkout) rather
-  than deleting the directory by hand. Leave its plan/completion notes in `<notes_repo>/` as a
+  than deleting the directory by hand. Leave its plan/completion notes in `<notes_repo>/db/` as a
   historical record.
 - All notes-repo content, format, and git mechanics belong to the `ainotes-notes` skill — don't write to
   `<notes_repo>/` directly from here without going through it, to keep one source of truth for the note

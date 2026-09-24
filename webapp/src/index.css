@@ -49,6 +49,9 @@
  */
 
 :root {
+  /* Native widgets (date-picker icon and popup, scrollbars) follow the active mode, including
+     "system", since the ThemeProvider resolves that to the .dark class too. */
+  color-scheme: light;
   --radius: 0.625rem;
   --background: #fafafa; --foreground: #171717;
   --card: #ffffff; --card-foreground: #171717;
@@ -109,6 +112,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #0a0a0a; --foreground: #fafafa;
   --card: #171717; --card-foreground: #fafafa;
   --popover: #171717; --popover-foreground: #fafafa;

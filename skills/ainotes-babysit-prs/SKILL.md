@@ -1,6 +1,6 @@
 ---
 name: ainotes-babysit-prs
-description: Loop over every PR we have open across the workspace (from <notes_repo>/PRS.md's Pending table, where the notes repo is `notes_repo` in .ai-notes/config.yml) and drive each one toward merge — update it against its base branch, resolve conflicts, rerun failed CI jobs, reply to and fix review comments that make sense, then (only if `ci.deploy_trigger_comment` is configured) ask before posting that deploy comment. Never merges. Use when the user says "babysit prs", "babysit open prs", or "keep an eye on our PRs" — usually run under the `loop` skill so it keeps checking until nothing is left.
+description: Loop over every PR we have open across the workspace (from <notes_repo>/db/PRS.md's Pending table, where the notes repo is `notes_repo` in .ai-notes/config.yml) and drive each one toward merge — update it against its base branch, resolve conflicts, rerun failed CI jobs, reply to and fix review comments that make sense, then (only if `ci.deploy_trigger_comment` is configured) ask before posting that deploy comment. Never merges. Use when the user says "babysit prs", "babysit open prs", or "keep an eye on our PRs" — usually run under the `loop` skill so it keeps checking until nothing is left.
 ---
 
 # Babysit PRs
@@ -16,7 +16,7 @@ pass or stops because nothing is left to do.
 `<vcs.org>` its `vcs.org` value, and `<deploy comment>` its `ci.deploy_trigger_comment` value — see
 `ainotes-notes` for the config-discovery rule.)
 
-Read `<notes_repo>/PRS.md`'s **Pending (open)** table (see `ainotes-pr-tracker`) — that's the list of
+Read `<notes_repo>/db/PRS.md`'s **Pending (open)** table (see `ainotes-pr-tracker`) — that's the list of
 PRs we opened and haven't resolved yet. If the user names a specific PR ("babysit PR #42"), scope to
 just that row instead of the whole table.
 
@@ -64,7 +64,7 @@ For each pending PR, in whichever repo it lives in:
 
 6. **Update the ledger.** Whenever a PR's status changed this pass (merged, closed, or just needed a
    base-branch update / CI rerun / comment fix worth recording), hand off to `ainotes-pr-tracker` to
-   update `<notes_repo>/PRS.md` and commit.
+   update `<notes_repo>/db/PRS.md` and commit.
 
 ## Looping
 

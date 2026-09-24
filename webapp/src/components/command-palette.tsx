@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { FileText, ListChecks, ListTodo } from "lucide-react"
+import { FileText, FolderOpen, FolderPlus, ListChecks, ListTodo } from "lucide-react"
 
 import {
   CommandDialog,
@@ -8,7 +8,11 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
+  CommandSeparator,
 } from "@/components/ui/command"
+import { TaskStatusDot } from "@/components/task-status-dot"
+import type { WorkspaceSummary } from "@/hooks/use-notes-directory"
+import type { ResolvedTaskStatus } from "@/lib/task-status"
 import { displayTag, type Note } from "@/lib/notes-frontmatter"
 
 // cmdk's default filter runs a fuzzy-match scoring algorithm over `value` + every
@@ -28,15 +32,34 @@ function containsFilter(value: string, search: string, keywords?: string[]): num
 
 export function CommandPalette({
   notes,
+  taskStatusByPath,
+  workspaces,
+  activeWorkspaceId,
   open,
   onOpenChange,
   onSelectNote,
+  onSwitchWorkspace,
+  onAddWorkspace,
 }: {
   notes: Note[]
+  taskStatusByPath: Map<string, ResolvedTaskStatus>
+  workspaces: WorkspaceSummary[]
+  activeWorkspaceId: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
   onSelectNote: (path: string) => void
+  onSwitchWorkspace: (id: string) => void
+  onAddWorkspace: () => void
 }) {
+  const otherWorkspaces = workspaces.filter((ws) => ws.id !== activeWorkspaceId)
+
+  // Selecting runs inside the click/keypress handler, so the permission prompt (for a
+  // folder whose access lapsed) or folder picker still counts as user-initiated.
+  function runAndClose(action: () => void) {
+    action()
+    onOpenChange(false)
+  }
+
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
@@ -53,31 +76,50 @@ export function CommandPalette({
       open={open}
       onOpenChange={onOpenChange}
       title="Search notes"
-      description="Jump to a note or plan"
+      description="Jump to a note or plan, or switch notes folder"
       filter={containsFilter}
       className="top-[15%] translate-y-0 sm:max-w-2xl"
     >
       <CommandInput placeholder="Search titles and note content…" />
       <CommandList className="max-h-[65vh]">
         <CommandEmpty>No notes found.</CommandEmpty>
+        <CommandGroup heading="Notes folders">
+          {otherWorkspaces.map((ws) => (
+            <CommandItem
+              key={ws.id}
+              value={`workspace:${ws.id}`}
+              keywords={[`Switch to ${ws.label}`, "folder", "workspace"]}
+              onSelect={() => runAndClose(() => onSwitchWorkspace(ws.id))}
+            >
+              <FolderOpen />
+              Switch to {ws.label}
+            </CommandItem>
+          ))}
+          <CommandItem value="workspace:add" keywords={["Add folder", "workspace", "connect"]} onSelect={() => runAndClose(onAddWorkspace)}>
+            <FolderPlus />
+            Add folder…
+          </CommandItem>
+        </CommandGroup>
+        <CommandSeparator />
         <CommandGroup heading="Notes & plans">
           {notes.map((note) => {
             const Icon = note.source === "plans" ? ListTodo : note.source === "tasks" ? ListChecks : FileText
+            const taskStatus = taskStatusByPath.get(note.path)
             return (
               <CommandItem
                 key={note.path}
                 value={note.title}
                 keywords={[...note.tags, note.body]}
-                onSelect={() => {
-                  onSelectNote(note.path)
-                  onOpenChange(false)
-                }}
+                onSelect={() => runAndClose(() => onSelectNote(note.path))}
                 className="items-start gap-3 py-2.5"
               >
                 <Icon className="mt-0.5" />
                 <div className="flex min-w-0 flex-1 flex-col gap-1">
                   <div className="flex items-center justify-between gap-2">
-                    <span className="truncate font-medium">{note.title}</span>
+                    <span className="flex min-w-0 items-center gap-2">
+                      {taskStatus && <TaskStatusDot status={taskStatus} />}
+                      <span className="truncate font-medium">{note.title}</span>
+                    </span>
                     <span className="shrink-0 font-mono text-xs text-muted-foreground">{note.date}</span>
                   </div>
                   {note.excerpt && <p className="line-clamp-1 text-xs text-muted-foreground">{note.excerpt}</p>}

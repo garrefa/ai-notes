@@ -1,6 +1,6 @@
 ---
 name: ainotes-setup
-description: Creates or updates a workspace's .ai-notes/config.yml — the shared config every ainotes-* skill reads. Full setup mode creates .ai-notes/ if missing and interactively asks about each setting (org name, notes repo, VCS org, optional Jira, Slack, CI deploy comment), creating the notes repo from the bundled template if needed and explaining what each is used for. Repo-registration mode scans the workspace root for cloned git repos and, for any repo that's neither tagged in domain_taxonomy nor listed in ignored_repos, asks the user to tag it (suggesting domains based on name/stack similarity to existing ones) or ignore it. Also invoked automatically by two hooks — at SessionStart when the current repo is unregistered, and right after a `git clone` lands a new top-level repo in the workspace. Trigger on "setup ainotes", "init ainotes config", "configure ainotes", "register new repos", "check for unregistered repos", or a hook nudge naming an unregistered repo.
+description: Creates or updates a workspace's .ai-notes/config.yml — the shared config every ainotes-* skill reads. Full setup mode creates .ai-notes/ if missing and interactively asks about each setting (org name, notes repo, VCS org, optional Jira, Slack, CI deploy comment, task statuses), creating the notes repo from the bundled template if needed and explaining what each is used for. Repo-registration mode scans the workspace root for cloned git repos and, for any repo that's neither tagged in domain_taxonomy nor listed in ignored_repos, asks the user to tag it (suggesting domains based on name/stack similarity to existing ones) or ignore it. Also invoked automatically by two hooks — at SessionStart when the current repo is unregistered, and right after a `git clone` lands a new top-level repo in the workspace. Trigger on "setup ainotes", "init ainotes config", "configure ainotes", "register new repos", "check for unregistered repos", or a hook nudge naming an unregistered repo.
 ---
 
 # ainotes-setup
@@ -51,6 +51,12 @@ Run when no `.ai-notes/config.yml` is found by walking up from the current direc
      preview environments by commenting on a PR (e.g. `/deploy`), ask for that exact comment text.
      `ainotes-babysit-prs` only ever posts it after asking. Otherwise write `null` —
      `ainotes-babysit-prs` then just reports a PR as ready and stops.
+   - **Task statuses** (`task_statuses`, optional): the workflow statuses `ainotes-tasks` uses. Show
+     the four defaults (`backlog` → `in-progress` → `done` / `dropped`, the last two closed) and ask
+     one question: "keep these defaults?" If yes, write them as-is. If not, take the user's edits
+     (rename, add, remove, reorder, recolor) in a single round — don't interview status by status.
+     Remind them the first entry is the default for new tasks, and refuse to write a list without
+     at least one closed and one non-closed status.
    - **`ignored_repos`** and **`domain_taxonomy`**: don't ask about these as raw config — populate
      them via the **repo scan** below instead.
    - **`preferred_epics`**: leave empty. It's explained in `ainotes-notes` as a living list grown
@@ -66,7 +72,7 @@ Write keys in this order, with these names — every `ainotes-*` skill and hook 
 
 ```yaml
 org_name: "Acme"                 # used in generated prose only
-notes_repo: notes                # dir (its own git repo) at the workspace root holding notes/plans/ledgers
+notes_repo: notes                # dir (its own git repo) at the workspace root holding notes/plans/ledgers under db/
 vcs:
   org: acme                      # GitHub org/user for `gh`; GitHub is the only supported VCS
 jira:                            # OPTIONAL. Omit the whole block to disable all Jira steps.
@@ -77,9 +83,19 @@ slack:
   pr_review_channel: null        # null/absent disables ainotes-pr-review-request
 ci:
   deploy_trigger_comment: null   # e.g. "/deploy"; null => ainotes-babysit-prs never posts a deploy comment
+task_statuses:                   # ainotes-tasks statuses; order matters: first = default for new tasks
+  - { key: backlog,     label: Backlog,     color: "#9ca3af" }
+  - { key: in-progress, label: In progress, color: "#3b82f6" }
+  - { key: done,        label: Done,        color: "#22c55e", closed: true }   # closed: true = finished
+  - { key: dropped,     label: Dropped,     color: "#ef4444", closed: true }
 ignored_repos: []
 domain_taxonomy: {}              # domain -> [repos]; populated by the repo scan
 ```
+
+`task_statuses` rules: `key` is what's written in task frontmatter and `db/TASKS.md`; `label` + `color`
+drive the viewer's status dot; `closed: true` marks a finished status (Completed table). At least one
+closed and one non-closed status are required. If the key is absent, skills use exactly the four
+defaults above.
 
 A commented copy lives at `<skill base dir>/../../tools/config.example.yml`.
 
@@ -93,16 +109,41 @@ When the user wants `notes_repo` created fresh (it doesn't exist yet at `<worksp
    base directory when it loads) into it — including dotfiles (`.gitignore`):
    ```bash
    cp -R "<skill base dir>/../../templates/notes-repo/." "<workspace-root>/<notes_repo>/"
-   mkdir -p "<workspace-root>/<notes_repo>"/{notes,plans,tasks,daily}
+   mkdir -p "<workspace-root>/<notes_repo>"/db/{notes,plans,tasks,daily}
    ```
-   That gives it `README.md`, `CLAUDE.md`, `INDEX.md`, `PRS.md`, `TASKS.md` (headers and empty
-   tables only) and `.gitignore`. If the template directory can't be found, stop and tell the user
+   That gives it `README.md`, `CLAUDE.md`, and `.gitignore` at the root, plus the `db/` data folder
+   (the canonical layout defined in `ainotes-notes`): `db/INDEX.md`, `db/PRS.md`, `db/TASKS.md`
+   (headers and empty tables only) and empty `db/notes/`, `db/plans/`, `db/tasks/`, `db/daily/`
+   (each holding a `.gitkeep` so git tracks it). If the template directory can't be found, stop and tell the user
    rather than hand-writing a divergent skeleton.
 3. Make an initial commit: `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Initialize notes repo"`.
    Don't add a remote or push — that's the user's call.
 
 If the directory already exists but isn't a git repo, ask before running `git init` in it, and never
 overwrite existing files with template copies.
+
+### Migrating a legacy notes repo
+
+Older notes repos kept their data (`notes/`, `plans/`, `tasks/`, `daily/`, `INDEX.md`, `PRS.md`,
+`TASKS.md`) directly at the repo root instead of under `db/`. Whenever this skill runs (full setup or
+repo registration) and finds `<workspace-root>/<notes_repo>` with no `db/` but any of those entries at
+its root, tell the user and offer to migrate — never move anything without an explicit yes. On
+request, do it as a single commit at the notes repo root:
+
+```bash
+cd "<workspace-root>/<notes_repo>"
+mkdir -p db
+for p in notes plans tasks daily INDEX.md PRS.md TASKS.md; do
+  [ -e "$p" ] && git mv "$p" "db/$p"
+done
+git commit -m "Move notes data under db/"
+```
+
+Entries that aren't tracked by git yet (`git mv` refuses them) should be `git add`ed first, or moved
+with plain `mv` and then added. Links inside the ledgers/`INDEX.md`/frontmatter need no rewriting:
+they were already relative to the data root (`notes/...`, `tasks/...`), which is now `db/`. Afterwards
+create any missing `db/` subfolder or ledger from the template (without overwriting) so the layout is
+complete. Don't push — that's the user's call.
 
 ## Repo registration
 

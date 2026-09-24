@@ -24,7 +24,8 @@
 # Configuration comes from the ainotes workspace's .ai-notes/config.yml,
 # found by walking up (from the PRS.md path if given, else the current
 # directory, else this script's own directory) until a directory containing
-# .ai-notes/ turns up. The default PRS.md is <workspace>/<notes_repo>/PRS.md.
+# .ai-notes/ turns up. The default PRS.md is <workspace>/<notes_repo>/db/PRS.md.
+# The commit is made at the notes repo's git root (not the db/ folder).
 # If the config has a `jira.project_key`, the first matching ticket key in a
 # newly discovered PR's title fills its Jira column; otherwise it's "—".
 #
@@ -120,7 +121,7 @@ if [[ -n "$CONFIG" ]]; then
   JIRA_KEY="$(config_value "$CONFIG" jira project_key)"
   if [[ -z "$PRS_FILE" ]]; then
     NOTES_REPO="$(config_value "$CONFIG" notes_repo)"
-    PRS_FILE="$WORKSPACE_ROOT/${NOTES_REPO:-notes}/PRS.md"
+    PRS_FILE="$WORKSPACE_ROOT/${NOTES_REPO:-notes}/db/PRS.md"
   fi
 fi
 
@@ -133,7 +134,7 @@ warn() { echo "[check-prs] WARNING: $*" >&2; }
 command -v gh >/dev/null 2>&1 || { echo "gh CLI not found on PATH" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq not found on PATH" >&2; exit 1; }
 [[ -f "$PRS_FILE" ]] || { echo "PRS.md not found at $PRS_FILE" >&2; exit 1; }
-NOTES_DIR="$(cd "$(dirname "$PRS_FILE")" && pwd)"
+NOTES_DIR="$(cd "$(dirname "$PRS_FILE")" && pwd -P)"
 
 # Fail loudly and immediately if gh isn't actually authenticated — e.g. when
 # invoked by cron/launchd without the shell env that carries GH_TOKEN. This
@@ -595,14 +596,19 @@ fi
 
 cp "$NEW_FILE" "$PRS_FILE"
 
-pushd "$NOTES_DIR" >/dev/null
-if git diff --quiet -- "$(basename "$PRS_FILE")"; then
+# Run git at the notes repo root (PRS.md normally sits in its db/ folder), with
+# the ledger addressed by its path relative to that root.
+NOTES_GIT_ROOT="$(git -C "$NOTES_DIR" rev-parse --show-toplevel)" \
+  || { echo "check-prs: $NOTES_DIR is not inside a git repo — not committing." >&2; exit 1; }
+PRS_REL="${NOTES_DIR#"$NOTES_GIT_ROOT"}/$(basename "$PRS_FILE")"
+PRS_REL="${PRS_REL#/}"
+
+if git -C "$NOTES_GIT_ROOT" diff --quiet -- "$PRS_REL"; then
   echo "check-prs: file rewritten but git sees no diff (unexpected) — nothing to commit."
-  popd >/dev/null
   exit 0
 fi
 
-git add "$(basename "$PRS_FILE")"
+git -C "$NOTES_GIT_ROOT" add -- "$PRS_REL"
 
 commit_msg="check-prs (automated): refresh PR tracker"$'\n'
 [[ $new_count -gt 0 ]] && commit_msg+=$'\n'"- folded in $new_count previously-untracked PR(s) discovered org-wide"
@@ -610,6 +616,5 @@ commit_msg="check-prs (automated): refresh PR tracker"$'\n'
 [[ -s "$CLOSED_TSV" ]] && commit_msg+=$'\n'"- $(wc -l < "$CLOSED_TSV" | tr -d ' ') PR(s) moved to Closed"
 commit_msg+=$'\n\n'"Generated mechanically by tools/check-prs.sh — no AI involved."
 
-git commit -m "$commit_msg" >/dev/null
-echo "check-prs: committed $(git rev-parse --short HEAD)."
-popd >/dev/null
+git -C "$NOTES_GIT_ROOT" commit -m "$commit_msg" >/dev/null
+echo "check-prs: committed $(git -C "$NOTES_GIT_ROOT" rev-parse --short HEAD)."
