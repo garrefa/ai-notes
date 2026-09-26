@@ -58,6 +58,9 @@ WS="$(cd "$WS" && pwd)"
 DEST="$WS/.claude"
 SETTINGS="$DEST/settings.json"
 HOOK_SCRIPTS=(session-start-task-prompt.sh detect-unregistered-repo.sh detect-repo-clone.sh)
+# In tools/ but not part of a workspace install: release.sh cuts releases of this repo. Older
+# versions of this script installed it anyway, so install and uninstall both remove a stale copy.
+MAINTAINER_TOOLS=(release.sh)
 
 # Stable per-workspace identifier for the optional schedule below, so re-running install replaces
 # its own entry instead of duplicating it, and installing into more than one workspace never
@@ -208,6 +211,22 @@ maybe_schedule_snapshot_agents() {
   esac
 }
 
+is_maintainer_tool() {
+  local name
+  for name in "${MAINTAINER_TOOLS[@]}"; do [ "$1" = "$name" ] && return 0; done
+  return 1
+}
+
+remove_stale_maintainer_tools() {
+  local name
+  for name in "${MAINTAINER_TOOLS[@]}"; do
+    if [ -e "$DEST/tools/$name" ]; then
+      run rm -f "$DEST/tools/$name"
+      [ "$DRY_RUN" = 1 ] || log "removed $DEST/tools/$name (not part of a workspace install)"
+    fi
+  done
+}
+
 # Copy one directory, refusing to clobber an existing one unless --force.
 copy_dir() {
   local from="$1" to="$2"
@@ -290,6 +309,7 @@ if [ "$UNINSTALL" = 1 ]; then
   for a in "$SRC"/agents/*.md; do run rm -f "$DEST/agents/$(basename "$a")"; done
   for h in "${HOOK_SCRIPTS[@]}"; do run rm -f "$DEST/hooks/$h"; done
   for t in "$SRC"/tools/*; do run rm -f "$DEST/tools/$(basename "$t")"; done
+  remove_stale_maintainer_tools
   run rm -rf "$DEST/templates/notes-repo"
   for d in tools templates agents hooks skills; do [ -d "$DEST/$d" ] && run rmdir "$DEST/$d" 2>/dev/null || true; done
   [ -f "$SETTINGS" ] && edit_settings remove
@@ -302,7 +322,11 @@ migrate_notes_repo
 for s in "$SRC"/skills/ainotes-*; do copy_dir "$s" "$DEST/skills/$(basename "$s")"; done
 for a in "$SRC"/agents/*.md; do copy_file "$a" "$DEST/agents/$(basename "$a")"; done
 for h in "${HOOK_SCRIPTS[@]}"; do copy_file "$SRC/hooks/scripts/$h" "$DEST/hooks/$h"; done
-for t in "$SRC"/tools/*; do copy_file "$t" "$DEST/tools/$(basename "$t")"; done
+for t in "$SRC"/tools/*; do
+  is_maintainer_tool "$(basename "$t")" && continue
+  copy_file "$t" "$DEST/tools/$(basename "$t")"
+done
+remove_stale_maintainer_tools
 copy_dir "$SRC/templates/notes-repo" "$DEST/templates/notes-repo"
 # When this script runs from the npm package (`npx ainotes-viewer install`), the template's
 # .gitignore arrives as "gitignore" — npm drops dotted .gitignore files from tarballs — so put the

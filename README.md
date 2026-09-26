@@ -86,6 +86,13 @@ launch `claude` from the root, not from inside one of the repos. To upgrade, re-
 `--force` (with `npx ...@latest` that picks up the newest release; from a clone, pull first). This
 overwrites local edits to the toolkit's own files; your other files are untouched.
 
+**Installed from a clone before and want to switch to `npx`?** Just run the `npx` install with
+`--force` over the same workspace. Both write the same files to the same places, hooks aren't
+duplicated, and a schedule `install` set up is replaced, not doubled. Nothing in the workspace
+points back at the clone afterwards, so you can delete it — unless you scheduled
+`snapshot-agents.sh` yourself from the clone's path, in which case repoint that job at
+`<workspace>/.claude/tools/snapshot-agents.sh` (or re-run `install` and let it schedule that copy).
+
 Run from a real terminal (not `--dry-run`), `install` also asks once whether to schedule
 `tools/snapshot-agents.sh` to run every 60 seconds — needed for the [viewer](#viewer)'s Agents view
 to have anything to show. Say yes and it sets up a per-user launchd job (macOS) or a crontab line
