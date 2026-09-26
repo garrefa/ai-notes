@@ -78,6 +78,7 @@ export function NoteDetail({
   taskStatus,
   taskStatuses,
   onSetTaskStatus,
+  flatLayout = false,
 }: {
   note: Note
   onSave: (path: string, content: string) => Promise<void>
@@ -86,6 +87,10 @@ export function NoteDetail({
   taskStatus: TaskStatus | null
   taskStatuses: TaskStatus[]
   onSetTaskStatus: (path: string, statusKey: string) => Promise<string | null>
+  // The workspace has no notes/plans/db convention to hang tags off of — the tag editor's
+  // "add" affordance is hidden (existing tags, if any, can still be removed), and the note's
+  // path relative to the added folder is shown instead of the date/type/repo line.
+  flatLayout?: boolean
 }) {
   const tagListId = useId()
   const [editing, setEditing] = useState(false)
@@ -161,42 +166,43 @@ export function NoteDetail({
               </button>
             </span>
           ))}
-          {addingTag ? (
-            <>
-              <input
-                autoFocus
-                list={tagListId}
-                value={tagInput}
-                onChange={(e) => setTagInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") addTag()
-                  if (e.key === "Escape") {
-                    setAddingTag(false)
-                    setTagInput("")
-                  }
-                }}
-                onBlur={addTag}
-                placeholder="tag name"
-                className="w-32 rounded-full border border-border bg-background px-2 py-px font-mono text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              />
-              <datalist id={tagListId}>
-                {allTags
-                  .filter((t) => !note.tags.includes(t))
-                  .map((t) => (
-                    <option key={t} value={t} />
-                  ))}
-              </datalist>
-            </>
-          ) : (
-            <button
-              onClick={() => setAddingTag(true)}
-              disabled={tagBusy}
-              className="flex items-center gap-0.5 rounded-full border border-dashed border-border px-1.5 py-px font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
-            >
-              <Plus className="size-2.5" />
-              Tag
-            </button>
-          )}
+          {!flatLayout &&
+            (addingTag ? (
+              <>
+                <input
+                  autoFocus
+                  list={tagListId}
+                  value={tagInput}
+                  onChange={(e) => setTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") addTag()
+                    if (e.key === "Escape") {
+                      setAddingTag(false)
+                      setTagInput("")
+                    }
+                  }}
+                  onBlur={addTag}
+                  placeholder="tag name"
+                  className="w-32 rounded-full border border-border bg-background px-2 py-px font-mono text-[11px] outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                />
+                <datalist id={tagListId}>
+                  {allTags
+                    .filter((t) => !note.tags.includes(t))
+                    .map((t) => (
+                      <option key={t} value={t} />
+                    ))}
+                </datalist>
+              </>
+            ) : (
+              <button
+                onClick={() => setAddingTag(true)}
+                disabled={tagBusy}
+                className="flex items-center gap-0.5 rounded-full border border-dashed border-border px-1.5 py-px font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
+              >
+                <Plus className="size-2.5" />
+                Tag
+              </button>
+            ))}
         </div>
         {editing ? (
           <div className="flex shrink-0 gap-1.5">
@@ -227,7 +233,7 @@ export function NoteDetail({
 
       <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{note.title}</h1>
       <div className="mb-4 font-mono text-xs text-muted-foreground">
-        {[note.date, note.type, note.repo].filter(Boolean).join(" · ")}
+        {flatLayout ? note.path : [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
       </div>
 
       {taskStatus && !editing && (
