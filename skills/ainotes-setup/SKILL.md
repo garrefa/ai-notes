@@ -134,8 +134,9 @@ explicit yes. On request, do it as a single commit at the notes repo root:
 
 ```bash
 cd "<workspace-root>/<notes_repo>"
-for p in notes plans tasks daily INDEX.md PRS.md TASKS.md; do
-  [ -e "db/$p" ] && git mv "db/$p" "$p"
+for p in db/* db/.[!.]*; do
+  [ -e "$p" ] || continue
+  git mv "$p" "$(basename "$p")" 2>/dev/null || mv "$p" "$(basename "$p")"
 done
 rmdir db 2>/dev/null || true
 git commit -m "Flatten notes data out of db/"

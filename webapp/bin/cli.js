@@ -20,6 +20,16 @@ const pkg = require("../package.json")
 
 const packageRoot = fileURLToPath(new URL("..", import.meta.url))
 const distDir = join(packageRoot, "dist")
+const toolsDir = join(packageRoot, "tools")
+
+// The ainotes-aware, no-LLM-needed tools bundled alongside the viewer (see
+// webapp/scripts/copy-tools.mjs) — the only two that read .ai-notes/config.yml and don't assume a
+// clone of the whole repo. Run from inside an ainotes workspace so they can auto-discover it, same
+// as running them from a checkout.
+const TOOLS = {
+  "snapshot-agents": "snapshot-agents.sh",
+  "check-prs": "check-prs.sh",
+}
 
 const MIME_TYPES = {
   ".html": "text/html; charset=utf-8",
@@ -58,6 +68,32 @@ async function resolvePath(urlPath) {
   }
 }
 
+// Runs a bundled tool script via bash (regardless of the copied file's own execute bit) with
+// stdio inherited, so it behaves exactly like running it from a checkout — live output, the same
+// exit code, Ctrl+C reaches it. Resolves once the child exits.
+async function runTool(name, args) {
+  const script = join(toolsDir, TOOLS[name])
+  try {
+    await stat(script)
+  } catch {
+    console.error(`ainotes-viewer: missing tools/${TOOLS[name]} — this published package is broken; please report it.`)
+    process.exitCode = 1
+    return
+  }
+  await new Promise((resolve) => {
+    const child = spawn("bash", [script, ...args], { stdio: "inherit" })
+    child.on("exit", (code) => {
+      process.exitCode = code ?? 1
+      resolve()
+    })
+    child.on("error", (error) => {
+      console.error(`ainotes-viewer: couldn't run ${TOOLS[name]}: ${error.message}`)
+      process.exitCode = 1
+      resolve()
+    })
+  })
+}
+
 function parseArgs(argv) {
   const options = { port: 4173, open: true }
   for (let i = 0; i < argv.length; i++) {
@@ -71,6 +107,12 @@ function parseArgs(argv) {
 }
 
 async function main() {
+  const [subcommand, ...rest] = process.argv.slice(2)
+  if (subcommand && Object.hasOwn(TOOLS, subcommand)) {
+    await runTool(subcommand, rest)
+    return
+  }
+
   const options = parseArgs(process.argv.slice(2))
 
   if (options.printVersionOnly) {
@@ -83,10 +125,19 @@ async function main() {
         `ainotes-viewer v${pkg.version}`,
         "",
         "Usage: npx ainotes-viewer [--port <n>] [--no-open]",
+        "       npx ainotes-viewer snapshot-agents [args...]",
+        "       npx ainotes-viewer check-prs [args...]",
         "",
-        "  --port, -p   Port to serve on (default: 4173)",
-        "  --no-open    Don't open the default browser automatically",
-        "  --version    Print the version and exit",
+        "  (no subcommand)  Serve the viewer on localhost and open it in the browser.",
+        "  --port, -p       Port to serve on (default: 4173)",
+        "  --no-open        Don't open the default browser automatically",
+        "  --version        Print the version and exit",
+        "",
+        "  snapshot-agents  Run tools/snapshot-agents.sh (writes AGENTS.json for the Agents view).",
+        "  check-prs        Run tools/check-prs.sh (the mechanical part of \"check prs\").",
+        "  Both need bash + jq, auto-discover the ainotes workspace from the current directory",
+        "  (run them from inside one), and take the same arguments as running them from a clone —",
+        "  pass --help to either for its own usage.",
       ].join("\n"),
     )
     return

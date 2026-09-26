@@ -86,8 +86,8 @@ After a full pass over every pending PR:
 
 ## What this skill will NOT do without asking first
 
-- Post the configured deploy comment (step 5 — always a per-PR yes/no; never at all when
-  `ci.deploy_trigger_comment` is unset).
+- Post the configured deploy comment (always a per-PR yes/no — see the `ready_for_deploy` bullet
+  under "One pass" above — never at all when `ci.deploy_trigger_comment` is unset).
 - Resolve a conflict where both sides touched real logic and the right merge isn't obvious.
 
 ## What this skill will never do

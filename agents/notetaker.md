@@ -128,4 +128,3 @@ domain, content that seems like it needs a judgment call beyond formatting/taggi
 your best reasonable call, document *why* in the note body or your final report, and flag it
 explicitly rather than silently inventing a new convention. Your caller may route flagged
 items to a stronger review pass.
-</content>

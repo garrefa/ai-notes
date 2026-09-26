@@ -125,7 +125,7 @@ they already have a ticket for this task, or should one be created?
 - **They want one created**: create it under that project (use whatever Jira skill or Atlassian MCP
   tools are available — follow any review/approval flow they define before publishing; don't create
   it silently). Ask which sprint/epic to use if the project needs one — never assume a default.
-- With Jira configured, never skip this question and never assume — always ask, even if the task looks trivial.
+- With Jira configured, always ask this — even for a task that looks trivial.
 
 Hand `notetaker` a frontmatter-only update of the plan note (`{path, jira: <PROJECT_KEY>-<number>,
 status: in-progress}`); it commits. If `ainotes-tasks` has an active task for this session, also spawn

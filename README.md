@@ -155,16 +155,10 @@ and anything user-facing stay on your main model.
 
 ## Tools (no LLM needed)
 
-Run these from a clone of this repo, or from `<workspace>/.claude/tools/` if you used `install.sh`
-(which can also schedule `snapshot-agents.sh` for you — see below). The plugin install keeps its
-copy in Claude Code's plugin cache, which isn't a good path for cron.
-
-`npx ainotes-viewer@latest` does **not** include these — that command only fetches the packaged
-webapp (`dist/` + a tiny CLI), not `tools/`. If all you've done is run the viewer via `npx`, there's
-nothing scheduling `snapshot-agents.sh` and the Agents view stays empty. To get it working, install
-the toolkit itself somewhere (`install.sh`, below, or the Claude Code plugin) — it doesn't have to
-be the same machine you run the viewer on, since `snapshot-agents.sh` just needs to write
-`AGENTS.json` into the same notes-repo folder the viewer has open.
+Run these from a clone of this repo, from `<workspace>/.claude/tools/` if you used `install.sh`
+(which can also schedule `snapshot-agents.sh` for you — see below), or via `npx ainotes-viewer` —
+see the last bullet below. The plugin install keeps its copy in Claude Code's plugin cache, which
+isn't a good path for cron.
 
 - `tools/check-prs.sh [--org ORG] [--dry-run] [--verbose] [path/to/PRS.md]`: the mechanical part of
   "check prs" (reconcile, refresh status, commit), using only `gh` and `jq`. The org and the PRS.md
@@ -179,6 +173,16 @@ be the same machine you run the viewer on, since `snapshot-agents.sh` just needs
 - `tools/clean-merged-worktrees.sh`: lists worktrees whose branches have been merged, including
   squash and rebase merges when `gh` is available. It's a dry run unless you pass `--delete`.
 - `tools/config.example.yml`: every config key, with comments.
+- **No clone, no `install.sh`**: `ainotes-viewer` (the same package `npx ainotes-viewer@latest`
+  runs) bundles `check-prs.sh` and `snapshot-agents.sh` (not `clean-merged-worktrees.sh` or
+  `release.sh` — see [`webapp/scripts/copy-tools.mjs`](webapp/scripts/copy-tools.mjs)) as
+  subcommands: `ainotes-viewer snapshot-agents [args...]` / `ainotes-viewer check-prs [args...]`,
+  run from inside the workspace so they can auto-discover it, same as running them from a clone.
+  This is what makes the Agents view work for a pure-npm setup. For one-off or occasional use, `npx
+  ainotes-viewer snapshot-agents` is fine; for the every-60-seconds schedule the Agents view wants,
+  `npx` re-resolving the package against the registry on every invocation is unnecessary overhead
+  (and a network dependency) — `npm install -g ainotes-viewer` once instead, and point
+  cron/launchd at the installed `ainotes-viewer snapshot-agents`.
 
 ## Viewer
 
