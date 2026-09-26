@@ -144,6 +144,13 @@ repo root. Older, un-flattened repos that still keep their data nested one level
 folder still work: pick the repo root (the viewer finds its `db/` subfolder and uses that as the
 data folder) or pick the `db/` folder itself — either way. Missing directories are simply skipped.
 
+Picking a folder with none of the above (no `notes/`, `plans/` or `db/`) falls back to a **flat**
+layout instead of refusing the folder: every `.md` file anywhere under it (any depth, skipping
+dotfiles/dot-directories and `node_modules`) is read as a note, using its real path. Since arbitrary
+files rarely carry the `date`/`tags` frontmatter the Date range and Tags filters assume — and the
+date filter's "last 7 days" default would otherwise hide everything undated — both are hidden for a
+flat folder and every note just shows. Editing and saving works the same as any other note.
+
 ## Pull requests
 
 **Pull requests** in the sidebar's Library lists the PRs in `PRS.md`, in the same list and

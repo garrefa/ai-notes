@@ -3,7 +3,16 @@
 // FolderUnavailableError instead of an exception or a promise that never settles.
 
 import { parseAgentsSnapshot, type AgentsSnapshot } from "@/lib/agents"
-import { assertReadableDirectory, loadAgentsFile, loadAllNotes, loadPrsFile, resolveWorkspace, type ResolvedWorkspace } from "@/lib/notes-fs"
+import {
+  assertReadableDirectory,
+  loadAgentsFile,
+  loadAllNotes,
+  loadAllNotesFlat,
+  loadPrsFile,
+  resolveWorkspace,
+  type DataLayout,
+  type ResolvedWorkspace,
+} from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
 import { parsePrLedger, type PrLedger } from "@/lib/prs-parser"
 import { toFolderUnavailable, withTimeout } from "@/lib/folder-errors"
@@ -27,8 +36,12 @@ export interface LoadedWorkspace extends WorkspaceData {
   resolved: ResolvedWorkspace
 }
 
-export async function readWorkspaceData(dataDir: FileSystemDirectoryHandle): Promise<WorkspaceData> {
-  const [notes, prsRaw, agentsRaw] = await Promise.all([loadAllNotes(dataDir), loadPrsFile(dataDir), loadAgentsFile(dataDir)])
+export async function readWorkspaceData(dataDir: FileSystemDirectoryHandle, layout: DataLayout): Promise<WorkspaceData> {
+  const [notes, prsRaw, agentsRaw] = await Promise.all([
+    layout === "flat" ? loadAllNotesFlat(dataDir) : loadAllNotes(dataDir),
+    loadPrsFile(dataDir),
+    loadAgentsFile(dataDir),
+  ])
   return {
     notes,
     prLedger: prsRaw === null ? null : parsePrLedger(prsRaw),
@@ -49,16 +62,22 @@ export function loadWorkspace(handle: FileSystemDirectoryHandle, label: string, 
   return guarded(
     (async (): Promise<LoadedWorkspace> => {
       const resolved = await resolveWorkspace(handle)
-      return { resolved, ...(await readWorkspaceData(resolved.dir)) }
+      return { resolved, ...(await readWorkspaceData(resolved.dir, resolved.layout)) }
     })(),
     label,
     timeoutMs,
   )
 }
 
-// Re-reads an already open workspace's data dir (after a file-watch event or a save).
-export function reloadWorkspace(dataDir: FileSystemDirectoryHandle, label: string, timeoutMs = FOLDER_TIMEOUT_MS) {
-  return guarded(readWorkspaceData(dataDir), label, timeoutMs)
+// Re-reads an already open workspace's data dir (after a file-watch event or a save). Needs the
+// layout from the original resolveWorkspace call — a reload never re-resolves it.
+export function reloadWorkspace(
+  dataDir: FileSystemDirectoryHandle,
+  layout: DataLayout,
+  label: string,
+  timeoutMs = FOLDER_TIMEOUT_MS,
+) {
+  return guarded(readWorkspaceData(dataDir, layout), label, timeoutMs)
 }
 
 export function queryFolderPermission(handle: FileSystemDirectoryHandle, label: string, timeoutMs = FOLDER_TIMEOUT_MS) {

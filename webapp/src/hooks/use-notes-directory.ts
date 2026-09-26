@@ -97,6 +97,9 @@ export function useNotesDirectory() {
   const workspacesRef = useRef<Workspace[]>([])
   const activeRef = useRef<Workspace | null>(null)
   const dataDirRef = useRef<FileSystemDirectoryHandle | null>(null)
+  // Mirrors `layout` state for reload(), which runs from a debounced timer/observer callback and
+  // so can't just close over the latest state — same reason dataDirRef/activeRef exist.
+  const layoutRef = useRef<DataLayout | null>(null)
   const observerRef = useRef<FileSystemObserver | null>(null)
   const reloadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   // Bumped on every open/close so async work started for a previous workspace
@@ -142,6 +145,7 @@ export function useNotesDirectory() {
     generationRef.current++
     stopObserving()
     dataDirRef.current = null
+    layoutRef.current = null
     setLayout(null)
     applyWorkspaceData(EMPTY_WORKSPACE_DATA)
     setError(null)
@@ -164,10 +168,11 @@ export function useNotesDirectory() {
   const reload = useCallback(async () => {
     const dataDir = dataDirRef.current
     const ws = activeRef.current
-    if (!dataDir || !ws) return
+    const layout = layoutRef.current
+    if (!dataDir || !ws || !layout) return
     const generation = generationRef.current
     try {
-      const next = await reloadWorkspace(dataDir, ws.label)
+      const next = await reloadWorkspace(dataDir, layout, ws.label)
       if (generation !== generationRef.current) return
       applyWorkspaceData(next)
     } catch (e) {
@@ -221,6 +226,7 @@ export function useNotesDirectory() {
         const loaded = await loadWorkspace(ws.handle, ws.label)
         if (isStale()) return "stale"
         dataDirRef.current = loaded.resolved.dir
+        layoutRef.current = loaded.resolved.layout
         setLayout(loaded.resolved.layout)
         applyWorkspaceData(loaded)
         setStatus("connected")
