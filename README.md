@@ -30,7 +30,8 @@ to it as you work:
 - **Slack review requests** (optional): post a review ask for your PRs, @mentioning pending code
   owners.
 - **Viewer**: a local web app that browses and edits every workspace's notes, tasks and PRs, and
-  switches between workspaces in one click (see [Viewer](#viewer)).
+  switches between workspaces in one click. Run with `npx ainotes-viewer@latest` — no clone, no
+  install (see [Viewer](#viewer)).
 
 Everything workspace-specific (GitHub org, Jira project, Slack channel, repo → domain mapping) lives
 in that workspace's `.ai-notes/config.yml`. The skills themselves never change, so one install
@@ -47,6 +48,11 @@ serves every workspace.
 GitHub is the only supported VCS today.
 
 ## Install
+
+Both options below install the **Claude Code toolkit** — the skills, agents and hooks that write to
+your notes repo as you work. If all you want is to **browse an existing notes repo visually**, you
+don't need either of them or a clone: skip straight to `npx ainotes-viewer@latest` in
+[Viewer](#viewer).
 
 ### Option A: Claude Code plugin (recommended)
 
