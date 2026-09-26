@@ -35,8 +35,8 @@ The same package also bundles the whole Claude Code toolkit, so it doubles as it
 agents, hooks, tools and templates into `<workspace-dir>/.claude/`, plus the offer to schedule
 `snapshot-agents.sh`, which feeds the Agents view). The two workspace-aware tools also run directly:
 `npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs [args...]`, from inside
-the workspace. See the root README's [Install](../README.md#install) and
-[Tools](../README.md#tools-no-llm-needed) sections.
+the workspace. See the root README's [Quick start](../README.md#quick-start) and
+[Tools](../README.md#tools) sections.
 
 To work on the source instead:
 
