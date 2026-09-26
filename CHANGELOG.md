@@ -23,7 +23,9 @@ Baseline release. Established the current shape of the toolkit:
 - The `webapp/` viewer — a local, file-system-backed app for browsing and editing notes, plans,
   tasks, PRs and agents across one or more notes repos, run with `npm run dev` from a clone.
 - A published `ainotes-viewer` npm package (`webapp/`), runnable with `npx ainotes-viewer@latest`
-  without cloning the repo, and an in-app version label in Settings.
+  without cloning the repo, and an in-app version label in Settings. It bundles the whole toolkit,
+  so `npx ainotes-viewer install <workspace>` installs it with no clone, and `snapshot-agents` /
+  `check-prs` run as subcommands.
 
 [Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.1.0

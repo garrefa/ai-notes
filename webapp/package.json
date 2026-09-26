@@ -12,7 +12,7 @@
   "files": [
     "dist",
     "bin",
-    "tools"
+    "toolkit"
   ],
   "engines": {
     "node": ">=18"
@@ -22,8 +22,8 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "copy-tools": "node scripts/copy-tools.mjs",
-    "prepublishOnly": "npm run build && npm run copy-tools"
+    "copy-toolkit": "node scripts/copy-toolkit.mjs",
+    "prepublishOnly": "npm run build && npm run copy-toolkit"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

@@ -304,6 +304,12 @@ for a in "$SRC"/agents/*.md; do copy_file "$a" "$DEST/agents/$(basename "$a")"; 
 for h in "${HOOK_SCRIPTS[@]}"; do copy_file "$SRC/hooks/scripts/$h" "$DEST/hooks/$h"; done
 for t in "$SRC"/tools/*; do copy_file "$t" "$DEST/tools/$(basename "$t")"; done
 copy_dir "$SRC/templates/notes-repo" "$DEST/templates/notes-repo"
+# When this script runs from the npm package (`npx ainotes-viewer install`), the template's
+# .gitignore arrives as "gitignore" — npm drops dotted .gitignore files from tarballs — so put the
+# dot back. A no-op for an install from a clone, where the file already has its real name.
+if [ -f "$DEST/templates/notes-repo/gitignore" ] && [ ! -e "$DEST/templates/notes-repo/.gitignore" ]; then
+  run mv "$DEST/templates/notes-repo/gitignore" "$DEST/templates/notes-repo/.gitignore"
+fi
 edit_settings add
 maybe_schedule_snapshot_agents
 

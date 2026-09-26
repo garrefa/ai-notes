@@ -50,9 +50,9 @@ GitHub is the only supported VCS today.
 ## Install
 
 Both options below install the **Claude Code toolkit** — the skills, agents and hooks that write to
-your notes repo as you work. If all you want is to **browse an existing notes repo visually**, you
-don't need either of them or a clone: skip straight to `npx ainotes-viewer@latest` in
-[Viewer](#viewer).
+your notes repo as you work — and neither needs a clone. If all you want is to **browse an existing
+notes repo visually**, you don't need the toolkit at all: skip straight to `npx ainotes-viewer@latest`
+in [Viewer](#viewer).
 
 ### Option A: Claude Code plugin (recommended)
 
@@ -70,19 +70,23 @@ trigger phrases work too. To upgrade later, run `claude plugin update ainotes` (
 ### Option B: copy into a workspace
 
 ```bash
-git clone https://github.com/garrefa/ai-notes.git
-./ai-notes/install.sh ~/projects/my-workspace          # --dry-run to preview, --force to overwrite
-./ai-notes/install.sh --uninstall ~/projects/my-workspace
+npx ainotes-viewer@latest install ~/projects/my-workspace    # --dry-run to preview, --force to overwrite
+npx ainotes-viewer@latest install --uninstall ~/projects/my-workspace
 ```
+
+The `ainotes-viewer` npm package bundles the whole toolkit, and `install` runs the same `install.sh`
+this repo ships — so from a clone, `./install.sh ~/projects/my-workspace` (same flags) does exactly
+the same thing, if you'd rather work from a checkout.
 
 This copies the skills, agents, hooks, tools and templates into `<workspace>/.claude/` and merges the
 hook wiring into `<workspace>/.claude/settings.json`, keeping whatever is already there. Choose this
 if you want to commit the toolkit alongside a shared workspace or customize the skills in place.
 Claude Code only reads `<workspace>/.claude/` when it starts at the workspace root, so in this mode
-launch `claude` from the root, not from inside one of the repos. To upgrade, pull and re-run with
-`--force` (this overwrites local edits to the toolkit's own files; your other files are untouched).
+launch `claude` from the root, not from inside one of the repos. To upgrade, re-run it with
+`--force` (with `npx ...@latest` that picks up the newest release; from a clone, pull first). This
+overwrites local edits to the toolkit's own files; your other files are untouched.
 
-Run from a real terminal (not `--dry-run`), it also asks once whether to schedule
+Run from a real terminal (not `--dry-run`), `install` also asks once whether to schedule
 `tools/snapshot-agents.sh` to run every 60 seconds — needed for the [viewer](#viewer)'s Agents view
 to have anything to show. Say yes and it sets up a per-user launchd job (macOS) or a crontab line
 (everywhere else) for you; say no, or pass `--no-schedule` to skip the question outright (e.g. in a
@@ -161,10 +165,10 @@ and anything user-facing stay on your main model.
 
 ## Tools (no LLM needed)
 
-Run these from a clone of this repo, from `<workspace>/.claude/tools/` if you used `install.sh`
-(which can also schedule `snapshot-agents.sh` for you — see below), or via `npx ainotes-viewer` —
-see the last bullet below. The plugin install keeps its copy in Claude Code's plugin cache, which
-isn't a good path for cron.
+Option B (`npx ainotes-viewer install`, or `install.sh` from a clone) puts these in
+`<workspace>/.claude/tools/` and offers to schedule `snapshot-agents.sh` for you; run them from
+there, or from a clone. The plugin install keeps its copy in Claude Code's plugin cache, which isn't
+a good path for cron — and without installing anything, see the last bullet below.
 
 - `tools/check-prs.sh [--org ORG] [--dry-run] [--verbose] [path/to/PRS.md]`: the mechanical part of
   "check prs" (reconcile, refresh status, commit), using only `gh` and `jq`. The org and the PRS.md
@@ -174,21 +178,19 @@ isn't a good path for cron.
   snapshot of the Claude Code sessions and background jobs working in the workspace (status, repo and
   worktree, last status line, tokens, linked PRs), read from `~/.claude/sessions/` and `~/.claude/jobs/`.
   It needs only `jq`. Schedule it every 60 seconds with launchd or cron to keep the viewer's Agents
-  view current — `install.sh` offers to set this up for you (launchd on macOS, cron elsewhere); see
-  Option B below. The file changes every run, so the notes-repo template keeps it out of git.
+  view current — Option B's install offers to set this up for you (launchd on macOS, cron
+  elsewhere). The file changes every run, so the notes-repo template keeps it out of git.
 - `tools/clean-merged-worktrees.sh`: lists worktrees whose branches have been merged, including
   squash and rebase merges when `gh` is available. It's a dry run unless you pass `--delete`.
 - `tools/config.example.yml`: every config key, with comments.
-- **No clone, no `install.sh`**: `ainotes-viewer` (the same package `npx ainotes-viewer@latest`
-  runs) bundles `check-prs.sh` and `snapshot-agents.sh` (not `clean-merged-worktrees.sh` or
-  `release.sh` — see [`webapp/scripts/copy-tools.mjs`](webapp/scripts/copy-tools.mjs)) as
-  subcommands: `ainotes-viewer snapshot-agents [args...]` / `ainotes-viewer check-prs [args...]`,
-  run from inside the workspace so they can auto-discover it, same as running them from a clone.
-  This is what makes the Agents view work for a pure-npm setup. For one-off or occasional use, `npx
-  ainotes-viewer snapshot-agents` is fine; for the every-60-seconds schedule the Agents view wants,
-  `npx` re-resolving the package against the registry on every invocation is unnecessary overhead
-  (and a network dependency) — `npm install -g ainotes-viewer` once instead, and point
-  cron/launchd at the installed `ainotes-viewer snapshot-agents`.
+- **Without installing anything**: the `ainotes-viewer` npm package bundles the whole toolkit (see
+  [`webapp/scripts/copy-toolkit.mjs`](webapp/scripts/copy-toolkit.mjs); everything but `release.sh`,
+  which only matters for releasing this repo), and exposes the two workspace-aware tools as
+  subcommands: `npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs
+  [args...]`. Run them from inside the workspace so they can find it, same as from a clone. Fine
+  for occasional use; for the every-60-seconds schedule the Agents view wants, prefer Option B
+  (which schedules the copy it installs), since `npx` re-resolves the package against the registry
+  on every invocation.
 
 ## Viewer
 

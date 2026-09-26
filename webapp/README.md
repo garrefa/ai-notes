@@ -30,11 +30,13 @@ It builds nothing at runtime (the published package ships a prebuilt `dist/`), s
 (`--no-open` to skip that). Pin a version instead of always getting the latest with
 `npx ainotes-viewer@0.1.0`, and check what's running with `npx ainotes-viewer --version`.
 
-The same package also bundles the two `tools/*.sh` scripts that read `.ai-notes/config.yml`
-(`snapshot-agents.sh`, which feeds the Agents view, and `check-prs.sh`) as subcommands —
-`npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs [args...]`, run from
-inside the workspace so they can auto-discover it. Root README's [Tools](../README.md#tools-no-llm-needed)
-section has the details, including why `npm install -g` beats `npx` for scheduling one every 60s.
+The same package also bundles the whole Claude Code toolkit, so it doubles as its installer:
+`npx ainotes-viewer install <workspace-dir>` does what `install.sh` does from a clone (skills,
+agents, hooks, tools and templates into `<workspace-dir>/.claude/`, plus the offer to schedule
+`snapshot-agents.sh`, which feeds the Agents view). The two workspace-aware tools also run directly:
+`npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs [args...]`, from inside
+the workspace. See the root README's [Install](../README.md#install) and
+[Tools](../README.md#tools-no-llm-needed) sections.
 
 To work on the source instead:
 
