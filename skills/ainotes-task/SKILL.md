@@ -103,7 +103,7 @@ tweaks) and re-confirm.
 ### 5. Record the plan in the notes repo
 
 Invoke the `ainotes-notes` skill's "Adding/updating a plan" procedure to persist the approved plan as
-`<notes_repo>/db/plans/YYYY-MM-DD-<repo>-<slug>.md` (same date/repo/slug as the worktree/branch), including
+`<notes_repo>/plans/YYYY-MM-DD-<repo>-<slug>.md` (same date/repo/slug as the worktree/branch), including
 its epic question, domain tagging, and commit. `ainotes-notes` owns the frontmatter schema, domain
 taxonomy, and the notes repo's git history — this step just triggers it with: the task, the repo, the
 worktree path, and the approved plan text. You ask the epic question and assemble the fields here;
@@ -125,7 +125,7 @@ they already have a ticket for this task, or should one be created?
 - **They want one created**: create it under that project (use whatever Jira skill or Atlassian MCP
   tools are available — follow any review/approval flow they define before publishing; don't create
   it silently). Ask which sprint/epic to use if the project needs one — never assume a default.
-- With Jira configured, never skip this question and never assume — always ask, even if the task looks trivial.
+- With Jira configured, always ask this — even for a task that looks trivial.
 
 Hand `notetaker` a frontmatter-only update of the plan note (`{path, jira: <PROJECT_KEY>-<number>,
 status: in-progress}`); it commits. If `ainotes-tasks` has an active task for this session, also spawn
@@ -191,11 +191,11 @@ Only on their yes, commit the finished work on the branch with a proper title + 
 
 ## Notes
 
-- One task = one worktree = one branch = one plan note in `<notes_repo>/db/plans/` = at most one Jira
+- One task = one worktree = one branch = one plan note in `<notes_repo>/plans/` = at most one Jira
   ticket (when Jira is configured). Don't
   reuse a worktree or plan across unrelated tasks.
 - If the user wants a worktree cleaned up, use `git worktree remove` (from the main checkout) rather
-  than deleting the directory by hand. Leave its plan/completion notes in `<notes_repo>/db/` as a
+  than deleting the directory by hand. Leave its plan/completion notes in `<notes_repo>/` as a
   historical record.
 - All notes-repo content, format, and git mechanics belong to the `ainotes-notes` skill (and, for
   ledgers, `ainotes-pr-tracker`/`ainotes-tasks`) — don't write to `<notes_repo>/` directly from here;

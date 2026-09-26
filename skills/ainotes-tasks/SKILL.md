@@ -1,7 +1,7 @@
 ---
 name: ainotes-tasks
 description: >-
-  Track open work as tasks in the notes repo (`notes_repo` in .ai-notes/config.yml) — a master ledger (<notes_repo>/db/TASKS.md, open vs. completed, same "see it like open PRs" pattern as ainotes-pr-tracker) plus one detail file per task (<notes_repo>/db/tasks/YYYY-MM-DD-slug.md) with an optional deadline and a workflow status taken from the configurable `task_statuses` list (default backlog / in-progress / done / dropped). A SessionStart hook nudges Claude to ask, near the top of a session, whether to track that session's purpose as a task; when a task is active for a session and a Jira ticket or PR gets created, this skill updates the task with it. Trigger on "new task: ...", "add a task ...", "track this as a task", "what are my open tasks", "show tasks", "start task <x>", "move task <x> to <status>", "drop task <x>", "mark task <x> done", "complete task <x>", or a bare "<x> is done" when <x> isn't on today's daily plan (ainotes-daily-plan takes it if it is; ask if ambiguous).
+  Track open work as tasks in the notes repo (`notes_repo` in .ai-notes/config.yml) — a master ledger (<notes_repo>/TASKS.md, open vs. completed, same "see it like open PRs" pattern as ainotes-pr-tracker) plus one detail file per task (<notes_repo>/tasks/YYYY-MM-DD-slug.md) with an optional deadline and a workflow status taken from the configurable `task_statuses` list (default backlog / in-progress / done / dropped). A SessionStart hook nudges Claude to ask, near the top of a session, whether to track that session's purpose as a task; when a task is active for a session and a Jira ticket or PR gets created, this skill updates the task with it. Trigger on "new task: ...", "add a task ...", "track this as a task", "what are my open tasks", "show tasks", "start task <x>", "move task <x> to <status>", "drop task <x>", "mark task <x> done", "complete task <x>", or a bare "<x> is done" when <x> isn't on today's daily plan (ainotes-daily-plan takes it if it is; ask if ambiguous).
 ---
 
 # Task Tracker (ainotes-tasks)
@@ -12,7 +12,7 @@ memory or scrollback. Unlike `ainotes-daily-plan` (one calendar day, manually ch
 a task here can span multiple sessions and days, moves through a configurable set of statuses, and
 accumulates the Jira ticket(s) and PR(s) it produces as they appear.
 
-This skill owns `<notes_repo>/db/TASKS.md` and `<notes_repo>/db/tasks/*.md` — `ainotes-notes` doesn't touch them.
+This skill owns `<notes_repo>/TASKS.md` and `<notes_repo>/tasks/*.md` — `ainotes-notes` doesn't touch them.
 
 **Who writes.** This skill defines the rules; the `ledger-keeper` agent applies every mutation
 (create, status change, Jira/PR link) and commits. Spawn the `ledger-keeper` agent (named
@@ -26,8 +26,8 @@ row, resolving the target status, and asking the user when anything is ambiguous
 ever receives resolved values, and you don't re-read the files it wrote.
 
 (`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml` — see
-`ainotes-notes` for the config-discovery rule and the canonical `db/` layout, including what to do
-with a legacy repo that has no `db/`. Jira links are built from `jira.base_url`; if the config
+`ainotes-notes` for the config-discovery rule and the canonical layout, including what to do
+with a legacy repo that still has its data under `db/`. Jira links are built from `jira.base_url`; if the config
 has no `jira` block, the `Jira` column and `jira:` field simply stay `—`/`[]` and Jira linking is skipped.)
 
 ## Statuses
@@ -64,14 +64,14 @@ task_statuses:
 ## Files
 
 ```
-<notes_repo>/db/TASKS.md                   # ledger: Open + Completed tables, same convention as PRS.md
-<notes_repo>/db/tasks/YYYY-MM-DD-slug.md   # one file per task
+<notes_repo>/TASKS.md                   # ledger: Open + Completed tables, same convention as PRS.md
+<notes_repo>/tasks/YYYY-MM-DD-slug.md   # one file per task
 ```
 
-### `db/TASKS.md`
+### `TASKS.md`
 
-A single living document, not dated. The `File` column links are relative to `db/` (where `TASKS.md`
-itself lives), i.e. `tasks/YYYY-MM-DD-slug.md` — never `db/tasks/...`.
+A single living document, not dated. The `File` column links are relative to the repo root (where
+`TASKS.md` itself lives), i.e. `tasks/YYYY-MM-DD-slug.md`.
 Edit only the affected rows — never regenerate the whole file.
 If it doesn't exist yet, create it with these two empty sections before the first row is appended.
 
@@ -97,7 +97,7 @@ comma-separated list of links (never a bare key/number).
 insert the `Status` column into both tables, filling it from each task file's `status:` (legacy
 `open`/`done` mapped as in **Statuses**). Don't add rows in the new shape to an old-shape table.
 
-### `<notes_repo>/db/tasks/YYYY-MM-DD-slug.md`
+### `<notes_repo>/tasks/YYYY-MM-DD-slug.md`
 
 ```markdown
 ---
@@ -109,7 +109,7 @@ domain: []        # ainotes-notes taxonomy, best-effort
 jira: []          # e.g. ["PROJ-123"]
 prs: []           # e.g. ["acme/api-gateway#12"]
 tags: [task]
-links: []         # related notes/plans discovered along the way, relative to db/ (e.g. "notes/...md")
+links: []         # related notes/plans discovered along the way, relative to the repo root (e.g. "notes/...md")
 ---
 
 ## Purpose
@@ -130,10 +130,10 @@ the SessionStart nudge (below).
    when the user is starting on it right now). If the user names a status, use that instead.
 3. Hand off to `ledger-keeper` as `task_create {title, deadline?, status?, purpose, domain?}`
    (`purpose` in the user's terms; `domain` best-effort from the `ainotes-notes` taxonomy). It:
-   - creates `<notes_repo>/db/tasks/YYYY-MM-DD-slug.md` with the frontmatter above and a `## Purpose` section;
+   - creates `<notes_repo>/tasks/YYYY-MM-DD-slug.md` with the frontmatter above and a `## Purpose` section;
    - appends a row to the table matching that status (normally **Open**);
-   - appends the path (relative to `db/`, e.g. `tasks/YYYY-MM-DD-slug.md`) under a `## task` tag
-     section in `db/INDEX.md` (plus the given domain tags — never a status);
+   - appends the path (relative to the repo root, e.g. `tasks/YYYY-MM-DD-slug.md`) under a `## task` tag
+     section in `INDEX.md` (plus the given domain tags — never a status);
    - commits on `main` (`"Add task: <title>"`) and returns `{task_file, row_moved, sha}`.
 4. Confirm back to the user in chat (title, status, file path, deadline if any).
 
@@ -195,7 +195,7 @@ Jira ticket, or activity in the session on your own initiative; if something sug
 on, ask rather than assume.
 
 **Bare `"<x> is done"`** (no "task" keyword) is shared with `ainotes-daily-plan`: prefer today's daily plan
-(`<notes_repo>/db/daily/YYYY-MM-DD.md`) if the item is on it; otherwise mark it done in `TASKS.md`'s Open
+(`<notes_repo>/daily/YYYY-MM-DD.md`) if the item is on it; otherwise mark it done in `TASKS.md`'s Open
 table; if it plausibly matches both, or neither clearly, ask the user which one they mean. Explicit
 `mark task <x> done` / `complete task <x>` always go to `TASKS.md` (`ainotes-tasks`).
 

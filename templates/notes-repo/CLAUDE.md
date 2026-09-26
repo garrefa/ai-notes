@@ -15,19 +15,17 @@ There is no build/lint/test tooling here — it's plain Markdown content, not co
 
 ```
 README.md  CLAUDE.md  .gitignore   # repo docs stay at the root
-db/                                # all data lives here
-  notes/YYYY-MM-DD-slug.md
-  plans/YYYY-MM-DD-slug.md
-  tasks/YYYY-MM-DD-slug.md
-  daily/YYYY-MM-DD.md
-  INDEX.md    # tag -> files map
-  PRS.md      # PR ledger (ainotes-pr-tracker)
-  TASKS.md    # task ledger (ainotes-tasks)
+notes/YYYY-MM-DD-slug.md
+plans/YYYY-MM-DD-slug.md
+tasks/YYYY-MM-DD-slug.md
+daily/YYYY-MM-DD.md
+INDEX.md    # tag -> files map
+PRS.md      # PR ledger (ainotes-pr-tracker)
+TASKS.md    # task ledger (ainotes-tasks)
 ```
 
-Links inside `db/INDEX.md`, the ledgers, and frontmatter `links:` are relative to `db/` (e.g.
-`notes/2026-09-03-slug.md`, `tasks/2026-09-10-slug.md`) — never prefixed with `db/`. Git commands run
-at this repo's root.
+Links inside `INDEX.md`, the ledgers, and frontmatter `links:` are relative to this repo's root (e.g.
+`notes/2026-09-03-slug.md`, `tasks/2026-09-10-slug.md`). Git commands run at this repo's root.
 
 ## Workflow
 
@@ -39,5 +37,5 @@ at this repo's root.
 - A plan's body is immutable once written. When it's later executed (via `ainotes-task`), the outcome is
   recorded as a **new** note that links back, and only the plan's `status` frontmatter field is flipped
   — its body is never rewritten with results.
-- `db/PRS.md`, `db/TASKS.md`, and `db/INDEX.md` are edited in place — touch only the affected rows/sections,
+- `PRS.md`, `TASKS.md`, and `INDEX.md` are edited in place — touch only the affected rows/sections,
   never regenerate them from scratch.

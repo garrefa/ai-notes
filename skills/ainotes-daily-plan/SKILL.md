@@ -1,7 +1,7 @@
 ---
 name: ainotes-daily-plan
 description: >-
-  Track a running, manually-checked daily task list in the notes repo (`notes_repo` in .ai-notes/config.yml). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/db/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
+  Track a running, manually-checked daily task list in the notes repo (`notes_repo` in .ai-notes/config.yml). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
 ---
 
 # Daily Plan (ainotes-daily-plan)
@@ -14,15 +14,15 @@ done when the user says so — nothing more automated than that.
 
 For actually doing the engineering work behind a task, use `ainotes-task`. For the notes-repo
 mechanics this skill builds on, see `ainotes-notes` — this is a thin, specialized layer over the
-same store, with its own file convention (below) rather than the `db/notes/`/`db/plans/` split.
+same store, with its own file convention (below) rather than the `notes/`/`plans/` split.
 
 (`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml` —
-see `ainotes-notes` for the config-discovery rule and the canonical `db/` layout, including what to
-do with a legacy repo that has no `db/`.)
+see `ainotes-notes` for the config-discovery rule and the canonical layout, including what to
+do with a legacy repo that still has its data under `db/`.)
 
 ## Who writes the file
 
-Writes to `db/daily/` and its `INDEX.md` entries go through the `ledger-keeper` agent. Spawn the
+Writes to `daily/` and its `INDEX.md` entries go through the `ledger-keeper` agent. Spawn the
 `ledger-keeper` agent (named `ainotes:ledger-keeper` when AINotes is installed as a plugin). If
 neither name is available, spawn a general-purpose agent with `model: haiku` and give it the contents
 of `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass
@@ -40,9 +40,9 @@ stay in the main thread; don't re-read the file the agent wrote.
 ## Layout
 
 ```
-<notes_repo>/db/daily/YYYY-MM-DD.md   # one file per calendar day
-<notes_repo>/db/INDEX.md              # gets a `daily-plan` tag section, same append-only convention
-                                      # (entries relative to db/, e.g. `daily/YYYY-MM-DD.md`)
+<notes_repo>/daily/YYYY-MM-DD.md   # one file per calendar day
+<notes_repo>/INDEX.md              # gets a `daily-plan` tag section, same append-only convention
+                                      # (entries relative to the repo root, e.g. `daily/YYYY-MM-DD.md`)
 ```
 
 ## Frontmatter
@@ -55,7 +55,7 @@ domain: []      # union of domains touched by the day's tasks, from the ainotes-
 epic: null
 tags: [daily-plan]
 status: open    # open -> done once every item is checked, or the user says stop tracking for the day
-links: []       # notes/plans/PRs discovered while enriching tasks (note/plan paths relative to db/)
+links: []       # notes/plans/PRs discovered while enriching tasks (note/plan paths relative to the repo root)
 ---
 ```
 
@@ -81,8 +81,8 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
    state found` — say so plainly rather than omitting the line or inventing filler.
 4. Hand the items to `ledger-keeper` as `daily_write {date, items: [{text, context}], domain?, links?}`
    (`domain` = the day's domains, reusing the `ainotes-notes` taxonomy). It writes
-   `<notes_repo>/db/daily/YYYY-MM-DD.md` with the frontmatter above (creating `db/daily/` if needed),
-   appends `daily/YYYY-MM-DD.md` under `## daily-plan` (and those domain tags) in `db/INDEX.md`, and
+   `<notes_repo>/daily/YYYY-MM-DD.md` with the frontmatter above (creating `daily/` if needed),
+   appends `daily/YYYY-MM-DD.md` under `## daily-plan` (and those domain tags) in `INDEX.md`, and
    commits on `main` (`"Add daily plan: YYYY-MM-DD"`), returning `{path, sha}`.
 5. Show the resulting checklist back to the user in chat — from the items you already have, not by
    re-reading the file.
@@ -104,8 +104,8 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
   Marking several items at once goes to `ledger-keeper` in one call: one
   `daily_mark {date, item, done, detail?}` per item, with the exact checklist text you matched as `item`.
 - **Bare `"<x> is done"`** (no "task" keyword) is shared with `ainotes-tasks`: prefer today's daily plan
-  (`<notes_repo>/db/daily/YYYY-MM-DD.md`) if the item is on it; otherwise hand it to `ainotes-tasks`,
-  which moves the matching `db/TASKS.md` Open row to its done status; if it plausibly matches both, or
+  (`<notes_repo>/daily/YYYY-MM-DD.md`) if the item is on it; otherwise hand it to `ainotes-tasks`,
+  which moves the matching `TASKS.md` Open row to its done status; if it plausibly matches both, or
   neither clearly, ask the user which one they mean. Explicit `mark task <x> done` / `complete task <x>`
   (and any other task status change — `start task`, `move task … to …`, `drop task`) always go to
   `ainotes-tasks`. Checking an item off here never changes a task's status.

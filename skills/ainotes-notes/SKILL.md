@@ -53,28 +53,28 @@ yourself (or tell the user) before moving on. If it returns an `error`, report i
 
 ```
 <notes_repo>/
-  README.md  CLAUDE.md  .gitignore   # repo docs stay at the root
-  db/                                # all data lives under db/
-    notes/YYYY-MM-DD-slug.md
-    plans/YYYY-MM-DD-slug.md
-    tasks/YYYY-MM-DD-slug.md         # owned by ainotes-tasks
-    daily/YYYY-MM-DD.md              # owned by ainotes-daily-plan
-    INDEX.md    # tag -> files map, kept up to date incrementally
-    PRS.md      # PR ledger, owned by ainotes-pr-tracker
-    TASKS.md    # task ledger, owned by ainotes-tasks
+  README.md  CLAUDE.md  .gitignore   # repo docs
+  notes/YYYY-MM-DD-slug.md
+  plans/YYYY-MM-DD-slug.md
+  tasks/YYYY-MM-DD-slug.md         # owned by ainotes-tasks
+  daily/YYYY-MM-DD.md              # owned by ainotes-daily-plan
+  INDEX.md    # tag -> files map, kept up to date incrementally
+  PRS.md      # PR ledger, owned by ainotes-pr-tracker
+  TASKS.md    # task ledger, owned by ainotes-tasks
 ```
 
-This is the canonical layout every `ainotes-*` skill and agent uses: all data paths are
-`<notes_repo>/db/...`, while git commands always run at the notes repo root
-(`git -C <notes_repo> ...`, never `git -C <notes_repo>/db`). Links stored *inside* the data — in
-frontmatter `links:`, `INDEX.md`, `PRS.md`, `TASKS.md` — are relative to `db/`
-(`notes/...md`, `plans/...md`, `tasks/...md`), never prefixed with `db/`.
+This is the canonical layout every `ainotes-*` skill and agent uses: all data paths are directly
+`<notes_repo>/...`, and git commands always run at that same notes repo root
+(`git -C <notes_repo> ...`). Links stored *inside* the data — in
+frontmatter `links:`, `INDEX.md`, `PRS.md`, `TASKS.md` — are relative to the repo root
+(`notes/...md`, `plans/...md`, `tasks/...md`).
 
-**Legacy layout**: older notes repos kept `notes/`, `plans/`, `tasks/`, `daily/`, `INDEX.md`,
-`PRS.md`, and `TASKS.md` directly at the repo root. If `<notes_repo>/db/` doesn't exist but any of
-those do, don't silently write to either location — tell the user the repo uses the legacy layout
-and offer to migrate it: `mkdir -p <notes_repo>/db` then `git -C <notes_repo> mv` each of those
-entries that exists into `db/`, committed as one commit (e.g. `"Move notes data under db/"`). Links
+**Legacy layout**: older notes repos (from before this layout was flattened) kept all of the above
+nested one level under a `db/` folder (`db/notes/`, `db/plans/`, `db/tasks/`, `db/daily/`,
+`db/INDEX.md`, `db/PRS.md`, `db/TASKS.md`). If `<notes_repo>/db/` exists and holds those entries,
+don't silently write to either location — tell the user the repo uses the legacy layout and offer
+to migrate it: `git -C <notes_repo> mv` each entry out of `db/` up to the repo root, then remove the
+now-empty `db/` folder, committed as one commit (e.g. `"Flatten notes data out of db/"`). Links
 need no rewriting since they're already relative to the data root. The `ainotes-setup` skill can
 also perform this migration on request. Only proceed with the write once the layout is settled.
 
@@ -94,7 +94,7 @@ tags: []                    # free-form, on top of domain/epic — required, at 
 jira: null                  # plans only, once ainotes-task step 6 gets/creates a ticket (stays null without a jira config block)
 worktree: null              # plans only: <repo>/.worktrees/<branch-name>
 status: n/a                 # notes: n/a. plans: planned -> in-progress -> done (or in-review)
-links: []                   # related notes/plans, relative to db/, e.g. "plans/2026-09-01-api-gateway-fix-token-expiry.md"
+links: []                   # related notes/plans, relative to the repo root, e.g. "plans/2026-09-01-api-gateway-fix-token-expiry.md"
 ---
 ```
 
@@ -131,19 +131,19 @@ closed.
 
 1. Ask about an epic if not already stated — offer `preferred_epics` from `.ai-notes/config.yml` as
    options, but accept anything the user actually says.
-2. Grep `<notes_repo>/db/` for matching `domain`/`epic`/`repo` (filenames only, `grep -l`) to find
+2. Grep `<notes_repo>/` for matching `domain`/`epic`/`repo` (filenames only, `grep -l`) to find
    related earlier notes, and link them via `links: []` if relevant.
 3. Write the body and hand off to `notetaker` with `type: note`, `status: n/a` and the frontmatter
-   above. It writes `<notes_repo>/db/notes/YYYY-MM-DD-slug.md`, appends the file under each of its
-   `domain`/`tags` sections in `db/INDEX.md` (creating a section if new — never rewriting the whole
+   above. It writes `<notes_repo>/notes/YYYY-MM-DD-slug.md`, appends the file under each of its
+   `domain`/`tags` sections in `INDEX.md` (creating a section if new — never rewriting the whole
    file), and commits directly on `main` (`"Add note: <slug>"`).
 
 ## Adding/updating a plan (including via ainotes-task)
 
 1. Ask about an epic if not already stated, same as step 1 above.
 2. Hand off to `notetaker` with `type: plan`, `status: planned`, `repo`/`worktree` filled in and the
-   approved plan as the body. It writes `<notes_repo>/db/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
-   `db/INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
+   approved plan as the body. It writes `<notes_repo>/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
+   `INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
 3. When `ainotes-task` reaches its step 6 (Jira ticket, if configured), hand `notetaker` a
    frontmatter-only update of the same plan (`jira` when a ticket exists, `status: in-progress`);
    it commits `"Update plan: <slug> (status -> in-progress)"`. The plan's body is never touched.
@@ -163,12 +163,12 @@ Instead, when `ainotes-task` finishes a task:
    `domain`/`epic` as the plan, plus `links: ["plans/<plan-filename>"]`.
 2. Hand `notetaker` both changes in one call: the new note, and a frontmatter-only update of the plan
    flipping `status` to `done` (or `in-review`) and adding the new note's filename to its `links: []`
-   (body untouched). It writes `<notes_repo>/db/notes/YYYY-MM-DD-slug.md`, appends the new note to
-   `db/INDEX.md` under its tags, and commits both on `main` (`"Complete plan: <slug>"`).
+   (body untouched). It writes `<notes_repo>/notes/YYYY-MM-DD-slug.md`, appends the new note to
+   `INDEX.md` under its tags, and commits both on `main` (`"Complete plan: <slug>"`).
 
 ## INDEX.md format
 
-`<notes_repo>/db/INDEX.md`; entries are paths relative to `db/` (no `db/` prefix):
+`<notes_repo>/INDEX.md`; entries are paths relative to the repo root:
 
 ```markdown
 ## <tag>

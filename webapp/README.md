@@ -19,6 +19,28 @@ It only reads the notes repo you pick; it never reads your workspace's `.ai-note
 
 ## Run it
 
+Quickest, with nothing to clone — always the latest published version:
+
+```bash
+npx ainotes-viewer@latest
+```
+
+It builds nothing at runtime (the published package ships a prebuilt `dist/`), serves it on
+`http://localhost:4173` by default (`--port <n>` to change), and opens it in your default browser
+(`--no-open` to skip that). Pin a version instead of always getting the latest with
+`npx ainotes-viewer@0.1.0`, and check what's running with `npx ainotes-viewer --version`.
+
+The same package also bundles the whole Claude Code toolkit, so it doubles as its installer:
+`npx ainotes-viewer install <workspace-dir>` does what `install.sh` does from a clone (skills,
+agents, hooks, tools and templates into `<workspace-dir>/.claude/`, a `run-viewer.sh` at the
+workspace root that opens this viewer, and the offer to schedule `snapshot-agents.sh`, which feeds
+the Agents view). The two workspace-aware tools also run directly:
+`npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs [args...]`, from inside
+the workspace. See the root README's [Quick start](../README.md#quick-start) and
+[Tools](../README.md#tools) sections.
+
+To work on the source instead:
+
 ```bash
 cd webapp
 npm install
@@ -64,7 +86,7 @@ changes last until you reload or exit the demo, and nothing is written to disk o
 saved folder list. Its dates are shifted on load so it always looks like recent work. **Exit demo**
 (in the banner, the folder switcher or the command palette) removes both sample workspaces.
 
-The sample files live in `src/demo/<workspace>/db/`, in the same layout as a real notes repo. They
+The sample files live in `src/demo/<workspace>/`, in the same layout as a real notes repo. They
 are written as if today were 2026-03-18 (`FIXTURE_TODAY` in `src/lib/demo-workspaces.ts`); keep
 new ones relative to that date, and avoid weekday or month names, which the date shift can't update.
 
@@ -72,8 +94,7 @@ new ones relative to that date, and avoid weekday or month names, which the date
 
 1. Open the app and click **Connect folder** in the sidebar.
 2. In the folder picker, choose your **notes repo**: the folder named by `notes_repo` in your
-   workspace config (it has a `db/` folder inside). The viewer opens its `db/` folder. Picking the
-   `db/` folder itself works too.
+   workspace config (it has `notes/`, `plans/` and the rest of the layout directly inside it).
 3. Grant read/write access when the browser asks. Write access is only used when you edit a note's
    body, tags or a task's status from the viewer.
 
@@ -86,9 +107,9 @@ new ones relative to that date, and avoid weekday or month names, which the date
   **Switch to &lt;name&gt;**. Switching clears the selected note, filters and search, so nothing
   carries over from one repo to another.
 - **Rename, locate or remove:** use the `›` next to a folder in the switcher. **Rename…** only
-  changes the name shown in the app (it defaults to the folder's name, so rename a folder you picked
-  as `db/`). **Locate…** points the entry at a folder that moved. **Remove from list** makes the app
-  forget the folder. Nothing on disk is touched.
+  changes the name shown in the app (it defaults to the folder's name). **Locate…** points the entry
+  at a folder that moved. **Remove from list** makes the app forget the folder. Nothing on disk is
+  touched.
 
 The list of folders and the one you had open are stored in the browser's IndexedDB. The last active
 folder opens automatically on your next visit, and the view refreshes live as files change on disk.
@@ -106,30 +127,36 @@ loads, it opens the most recently used folder that is available instead.
 
 ## Data layout
 
-Notes repos keep all their data under `db/` (see `templates/notes-repo/`):
+Notes repos keep all their data directly at the repo root (see `templates/notes-repo/`):
 
 ```
 <notes_repo>/
-  db/
-    notes/     dated notes (YYYY-MM-DD-*.md)
-    plans/     dated plans
-    daily/     daily plans (YYYY-MM-DD.md)
-    tasks/     one file per task
-    INDEX.md   tag index (maintained by ainotes-notes)
-    PRS.md     PR ledger: the "Pending (open)", "Merged" and "Closed (not merged)"
-               tables, plus the optional "Pending — Detail" table that
-               tools/check-prs.sh generates (shown in the Pull requests view)
-    TASKS.md   task ledger (shown in the Tasks view with the task files)
+  notes/     dated notes (YYYY-MM-DD-*.md)
+  plans/     dated plans
+  daily/     daily plans (YYYY-MM-DD.md)
+  tasks/     one file per task
+  INDEX.md   tag index (maintained by ainotes-notes)
+  PRS.md     PR ledger: the "Pending (open)", "Merged" and "Closed (not merged)"
+             tables, plus the optional "Pending — Detail" table that
+             tools/check-prs.sh generates (shown in the Pull requests view)
+  TASKS.md   task ledger (shown in the Tasks view with the task files)
 ```
 
-Whether you pick the repo root or `db/` itself, the viewer reads and writes everything (note edits,
-`PRS.md`, tasks, daily plans) inside `db/`. Older repos without a `db/` folder, with `notes/` and
-`plans/` directly at the root, still work: the root is used as the data folder. Missing directories
-are simply skipped.
+The viewer reads and writes everything (note edits, `PRS.md`, tasks, daily plans) directly at the
+repo root. Older, un-flattened repos that still keep their data nested one level under a `db/`
+folder still work: pick the repo root (the viewer finds its `db/` subfolder and uses that as the
+data folder) or pick the `db/` folder itself — either way. Missing directories are simply skipped.
+
+Picking a folder with none of the above (no `notes/`, `plans/` or `db/`) falls back to a **flat**
+layout instead of refusing the folder: every `.md` file anywhere under it (any depth, skipping
+dotfiles/dot-directories and `node_modules`) is read as a note, using its real path. Since arbitrary
+files rarely carry the `date`/`tags` frontmatter the Date range and Tags filters assume — and the
+date filter's "last 7 days" default would otherwise hide everything undated — both are hidden for a
+flat folder and every note just shows. Editing and saving works the same as any other note.
 
 ## Pull requests
 
-**Pull requests** in the sidebar's Library lists the PRs in `db/PRS.md`, in the same list and
+**Pull requests** in the sidebar's Library lists the PRs in `PRS.md`, in the same list and
 detail panes the notes use.
 
 - **List:** PRs are grouped by repo and sorted by number. Each row shows the PR title,
@@ -154,7 +181,7 @@ chosen state), the list says so; `check prs` (the ainotes-pr-tracker skill) and
 
 ## Task statuses
 
-Each task file in `db/tasks/` has a frontmatter `status:`. The viewer has four built-in statuses:
+Each task file in `tasks/` has a frontmatter `status:`. The viewer has four built-in statuses:
 
 | Status        | Label       | Default color | Closed |
 |---------------|-------------|---------------|--------|
@@ -176,7 +203,7 @@ statuses count as finished.
 - In a task's detail pane, the status button changes the status. It offers the same list as the
   filter: the built-ins plus the other statuses found in this folder's tasks. Changing it rewrites only the `status:`
   line of the task file, adds `- YYYY-MM-DD: status → <label>` under its `## Updates` section (if it
-  has one), and updates the task's row in `db/TASKS.md`. A task that moves between open and closed
+  has one), and updates the task's row in `TASKS.md`. A task that moves between open and closed
   moves between the Open and Completed tables, and its Completed date is set or cleared. If
   `TASKS.md` or the row is missing, only the task file is updated and the viewer says so.
 

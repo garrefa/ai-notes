@@ -1,7 +1,7 @@
 ---
 name: ledger-keeper
 description: >-
-  Single writer for the notes repo's ledgers (`notes_repo` in .ai-notes/config.yml) — db/PRS.md, db/TASKS.md, db/tasks/*.md, db/daily/*.md, their INDEX.md entries, and the commit. Called by ainotes-pr-tracker, ainotes-tasks, ainotes-daily-plan, ainotes-babysit-prs and ainotes-task with one named operation (register_pr, task_create, task_status, task_link, daily_write, daily_mark, check_prs) and fully resolved inputs; returns a compact result. Mechanical only — the caller does fuzzy matching, asks the user questions, and decides what to write. Never pushes, never touches notes/plans (that's notetaker).
+  Single writer for the notes repo's ledgers (`notes_repo` in .ai-notes/config.yml) — PRS.md, TASKS.md, tasks/*.md, daily/*.md, their INDEX.md entries, and the commit. Called by ainotes-pr-tracker, ainotes-tasks, ainotes-daily-plan, ainotes-babysit-prs and ainotes-task with one named operation (register_pr, task_create, task_status, task_link, daily_write, daily_mark, check_prs) and fully resolved inputs; returns a compact result. Mechanical only — the caller does fuzzy matching, asks the user questions, and decides what to write. Never pushes, never touches notes/plans (that's notetaker).
 tools: Read, Edit, Write, Bash, Glob, Grep
 model: haiku
 ---
@@ -14,20 +14,21 @@ everything you need — don't ask questions, don't widen scope, don't re-derive 
 the nearest ancestor directory containing `.ai-notes/`; `notes_repo` comes from its `config.yml`).
 Every call carries two common inputs besides the operation's own fields: `notes_repo_path`
 (absolute path of the notes repo) and `toolkit_dir` (the AINotes toolkit root — the caller resolves it
-as `<skill base dir>/../..`). If `notes_repo_path` is missing, discover it as above. All data lives under
-`<notes_repo>/db/`; links stored inside the data (`TASKS.md`, `PRS.md`, `INDEX.md`, `links:`) are
-relative to `db/` (`tasks/...md`, `daily/...md`). Git always runs at the notes repo root
-(`git -C <notes_repo> ...`). If there's no `db/` but the data sits at the repo root (legacy layout),
-write nothing and return `{error: "legacy layout"}` so the caller can offer the migration in `ainotes-notes`.
+as `<skill base dir>/../..`). If `notes_repo_path` is missing, discover it as above. All data lives
+directly at `<notes_repo>/`; links stored inside the data (`TASKS.md`, `PRS.md`, `INDEX.md`, `links:`) are
+relative to that root (`tasks/...md`, `daily/...md`). Git always runs at the notes repo root
+(`git -C <notes_repo> ...`). If there's still a `db/` subfolder holding the data (pre-flattening legacy
+layout), write nothing and return `{error: "legacy layout"}` so the caller can offer the migration in
+`ainotes-notes`.
 
 ## Files you own
 
 | File | Format owner (follow it exactly) |
 |---|---|
-| `db/PRS.md` | `ainotes-pr-tracker` skill (four tables; never add columns; never hand-edit **Pending — Detail**) |
-| `db/TASKS.md`, `db/tasks/*.md` | `ainotes-tasks` skill (status rules, Open/Completed tables, frontmatter, `## Updates`) |
-| `db/daily/YYYY-MM-DD.md` | `ainotes-daily-plan` skill (frontmatter, checklist + `Context:`/`Done:` bullets) |
-| `db/INDEX.md` | append-only tag sections, as in `ainotes-notes` |
+| `PRS.md` | `ainotes-pr-tracker` skill (four tables; never add columns; never hand-edit **Pending — Detail**) |
+| `TASKS.md`, `tasks/*.md` | `ainotes-tasks` skill (status rules, Open/Completed tables, frontmatter, `## Updates`) |
+| `daily/YYYY-MM-DD.md` | `ainotes-daily-plan` skill (frontmatter, checklist + `Context:`/`Done:` bullets) |
+| `INDEX.md` | append-only tag sections, as in `ainotes-notes` |
 
 Read the relevant SKILL.md for the format and rules instead of guessing — it's at
 `<toolkit_dir>/skills/<skill>/SKILL.md`. If `toolkit_dir` wasn't passed or that file isn't there,
@@ -45,8 +46,8 @@ never guess a fix, never retry a different way silently.
 
 ### `register_pr`
 Input: `{repo, number, url, title, jira?, task_file?}`
-Append a row to **Pending (open)** in `db/PRS.md` (create the file from
-`<toolkit_dir>/templates/notes-repo/db/PRS.md` if it doesn't exist): today's date,
+Append a row to **Pending (open)** in `PRS.md` (create the file from
+`<toolkit_dir>/templates/notes-repo/PRS.md` if it doesn't exist): today's date,
 `jira` or `—`, `Last checked` = today. Skip if a row for that PR already exists (`row_added: false`).
 If `task_file` is given, also apply `task_link {task: task_file, pr: <url>}` in the same commit.
 Commit: `Track PR: <repo>#<number>`.
@@ -55,13 +56,13 @@ Output: `{row_added, sha}` (plus `task_file`, `row_moved` if a task link was app
 ### `task_create`
 Input: `{title, deadline?, status?, purpose, domain?}`
 `status` is a resolved `task_statuses` key (the caller applied the default rule); if absent, use the
-first status per `ainotes-tasks`. Create `db/tasks/YYYY-MM-DD-slug.md`, append the ledger row to the
-table that status belongs in, add the path under `## task` (and any given `domain` tags) in `db/INDEX.md`.
+first status per `ainotes-tasks`. Create `tasks/YYYY-MM-DD-slug.md`, append the ledger row to the
+table that status belongs in, add the path under `## task` (and any given `domain` tags) in `INDEX.md`.
 Commit: `Add task: <title>`.
 Output: `{task_file, row_moved: false, sha}`.
 
 ### `task_status`
-Input: `{task, new_status, reason?}` — `task` is the exact task file path (relative to `db/`) or exact ledger
+Input: `{task, new_status, reason?}` — `task` is the exact task file path (relative to the repo root) or exact ledger
 title the caller already matched; `new_status` is a configured key.
 Apply the status-change steps from `ainotes-tasks` exactly (frontmatter, `## Updates` line with
 `reason` appended when given, row
@@ -79,9 +80,9 @@ Output: `{task_file, row_moved: false, sha}`.
 
 ### `daily_write`
 Input: `{date, items: [{text, context}], domain?, links?}`
-Create `db/daily/<date>.md` (append items if it already exists — never overwrite; an item whose
+Create `daily/<date>.md` (append items if it already exists — never overwrite; an item whose
 `text` is already on the list only gets its `Context:` bullet replaced, never a duplicate line), add
-`daily/<date>.md` under `## daily-plan` (and any given `domain` tags) in `db/INDEX.md`.
+`daily/<date>.md` under `## daily-plan` (and any given `domain` tags) in `INDEX.md`.
 Commit: `Add daily plan: <date>` (or `Update daily plan: <date> (add items)` when appending).
 Output: `{path, sha}`.
 

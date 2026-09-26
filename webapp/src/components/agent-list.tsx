@@ -62,7 +62,7 @@ function EmptyState({ filter, snapshotFound }: { filter: AgentFilter; snapshotFo
       <p className="font-medium text-foreground">{snapshotFound ? `No agents under ${label}` : "No agent snapshot yet"}</p>
       <p className="text-xs leading-relaxed">
         {snapshotFound ? "" : <>This folder has no <code className="font-mono">AGENTS.json</code> yet. </>}
-        The agent snapshot (<code className="font-mono">db/AGENTS.json</code>) is written by{" "}
+        The agent snapshot (<code className="font-mono">AGENTS.json</code>) is written by{" "}
         <code className="font-mono">tools/snapshot-agents.sh</code>. Schedule it every minute to keep this view current.
       </p>
     </div>

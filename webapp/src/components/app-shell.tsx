@@ -34,7 +34,7 @@ import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-direct
 import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
 import { DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
-import type { LibraryView } from "@/lib/library-order"
+import { useSelectedView, type LibraryView } from "@/lib/library-order"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
 import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
 import type { LedgerPr, PrState } from "@/lib/prs-parser"
@@ -132,7 +132,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const inDemo = activeWorkspace?.demo ?? false
   const addFolder = supported ? addWorkspace : null
 
-  const [view, setView] = useState<View>("all")
+  const [view, setView] = useSelectedView()
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [tagQuery, setTagQuery] = useState("")
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE)
@@ -189,14 +189,20 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         return !status || allowed.has(status.key) || n.path === selectedPath
       })
     }
-    if (activeTag) list = list.filter((n) => n.tags.includes(activeTag) || n.path === selectedPath)
-    if (dateFrom || dateTo) {
-      list = list.filter(
-        (n) => (n.date && (!dateFrom || n.date >= dateFrom) && (!dateTo || n.date <= dateTo)) || n.path === selectedPath,
-      )
+    // Flat layout (no notes/plans/db convention): files rarely carry the date/tags frontmatter
+    // these filters assume, and the date filter's "last 7 days" default would otherwise hide
+    // everything undated — so tag/date filtering is disabled entirely rather than silently
+    // filtering out a folder's worth of undated notes.
+    if (layout !== "flat") {
+      if (activeTag) list = list.filter((n) => n.tags.includes(activeTag) || n.path === selectedPath)
+      if (dateFrom || dateTo) {
+        list = list.filter(
+          (n) => (n.date && (!dateFrom || n.date >= dateFrom) && (!dateTo || n.date <= dateTo)) || n.path === selectedPath,
+        )
+      }
     }
     return list
-  }, [notes, view, effectiveStatusFilter, taskStatusByPath, activeTag, dateFrom, dateTo, selectedPath])
+  }, [notes, view, effectiveStatusFilter, taskStatusByPath, layout, activeTag, dateFrom, dateTo, selectedPath])
 
   const selected = notes.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
   const connected = status === "connected"
@@ -344,9 +350,11 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             </SidebarGroup>
           )}
 
-          {view !== "agents" && <DateRangeFilter value={dateRange} onChange={setDateRange} />}
+          {view !== "agents" && !(layout === "flat" && isNoteView(view)) && (
+            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          )}
 
-          {isNoteView(view) && (
+          {isNoteView(view) && layout !== "flat" && (
             <CollapsibleSidebarGroup
               title="Tags"
               storageKey={TAGS_COLLAPSE_KEY}
@@ -529,11 +537,11 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   )}
                 </div>
               )}
-              {connected && layout === "unrecognized" && notes.length === 0 && (
+              {connected && layout === "flat" && notes.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">
-                  "{folderName}" has no <code className="font-mono">db/</code>, <code className="font-mono">notes/</code> or{" "}
-                  <code className="font-mono">plans/</code> folder. Pick your notes repo (or its{" "}
-                  <code className="font-mono">db/</code> folder) with <strong>Add folder</strong>.
+                  No Markdown files found anywhere under "{folderName}". Pick your notes repo (or
+                  any folder with <code className="font-mono">.md</code> files) with{" "}
+                  <strong>Add folder</strong>.
                 </p>
               )}
               {connected && view === "prs" && (
@@ -572,9 +580,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   now={now}
                 />
               )}
-              {connected && isNoteView(view) && layout !== "unrecognized" && filtered.length === 0 && (
+              {connected && isNoteView(view) && !(layout === "flat" && notes.length === 0) && filtered.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">
-                  {dateRangeSummary && notes.some((n) => viewMatchesSource(view, n.source))
+                  {layout !== "flat" && dateRangeSummary && notes.some((n) => viewMatchesSource(view, n.source))
                     ? `Nothing here in the selected range (${dateRangeSummary}). Widen the date range to see older notes.`
                     : "No notes in this view yet."}
                 </p>

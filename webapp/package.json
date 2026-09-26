@@ -1,13 +1,29 @@
 {
   "name": "ainotes-viewer",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Local viewer for an ainotes second-brain: notes, plans, tasks, PRs and agents, read straight from your notes repo in the browser.",
+  "homepage": "https://github.com/garrefa/ai-notes",
+  "repository": "github:garrefa/ai-notes",
+  "license": "MIT",
   "type": "module",
+  "bin": {
+    "ainotes-viewer": "bin/cli.js"
+  },
+  "files": [
+    "dist",
+    "bin",
+    "toolkit"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "oxlint",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "copy-toolkit": "node scripts/copy-toolkit.mjs",
+    "prepublishOnly": "npm run build && npm run copy-toolkit"
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.3",

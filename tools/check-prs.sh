@@ -24,8 +24,8 @@
 # Configuration comes from the ainotes workspace's .ai-notes/config.yml,
 # found by walking up (from the PRS.md path if given, else the current
 # directory, else this script's own directory) until a directory containing
-# .ai-notes/ turns up. The default PRS.md is <workspace>/<notes_repo>/db/PRS.md.
-# The commit is made at the notes repo's git root (not the db/ folder).
+# .ai-notes/ turns up. The default PRS.md is <workspace>/<notes_repo>/PRS.md.
+# The commit is made at the notes repo's git root.
 # If the config has a `jira.project_key`, the first matching ticket key in a
 # newly discovered PR's title fills its Jira column; otherwise it's "—".
 #
@@ -90,7 +90,7 @@ if [[ -n "$CONFIG" ]]; then
   JIRA_KEY="$(config_value "$CONFIG" jira project_key)"
   if [[ -z "$PRS_FILE" ]]; then
     NOTES_REPO="$(config_value "$CONFIG" notes_repo)"
-    PRS_FILE="$WORKSPACE_ROOT/${NOTES_REPO:-notes}/db/PRS.md"
+    PRS_FILE="$WORKSPACE_ROOT/${NOTES_REPO:-notes}/PRS.md"
   fi
 fi
 
@@ -565,7 +565,7 @@ fi
 
 cp "$NEW_FILE" "$PRS_FILE"
 
-# Run git at the notes repo root (PRS.md normally sits in its db/ folder), with
+# Run git at the notes repo root (PRS.md normally sits directly at that root), with
 # the ledger addressed by its path relative to that root.
 NOTES_GIT_ROOT="$(git -C "$NOTES_DIR" rev-parse --show-toplevel)" \
   || { echo "check-prs: $NOTES_DIR is not inside a git repo — not committing." >&2; exit 1; }

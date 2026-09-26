@@ -1,6 +1,6 @@
 # Index
 
-Tag → files map, maintained by the `ainotes-notes` skill. Paths are relative to this `db/` folder.
+Tag → files map, maintained by the `ainotes-notes` skill. Paths are relative to this repo's root.
 
 ## incident
 - notes/2026-03-18-checkout-latency-spike-investigation.md

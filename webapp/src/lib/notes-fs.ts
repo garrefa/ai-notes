@@ -4,8 +4,8 @@ import type { TaskStatus } from "@/lib/task-status"
 
 // Every note path below is relative to the workspace's *data dir* — see resolveWorkspace.
 const WATCHED_DIRS: NoteSource[] = ["notes", "plans", "daily", "tasks"]
-const DATA_DIR_NAME = "db"
-const LEGACY_MARKER_DIRS = ["notes", "plans"]
+const LEGACY_DATA_DIR_NAME = "db"
+const ROOT_MARKER_DIRS = ["notes", "plans"]
 // Ledger files that sit at the data dir's root rather than inside one of WATCHED_DIRS.
 const PRS_FILE = "PRS.md"
 const AGENTS_FILE = "AGENTS.json"
@@ -14,11 +14,13 @@ const TASKS_LEDGER_FILE = "TASKS.md"
 const MISSING_ENTRY_ERRORS = new Set(["NotFoundError", "TypeMismatchError"])
 
 // How the picked folder maps onto the data dir:
-// - "repo-root":    the notes repo root was picked; data lives in its db/ subfolder
-// - "db-folder":    the db/ folder itself was picked
-// - "legacy":       an older repo with notes/, plans/, ... directly at its root
-// - "unrecognized": none of the above; treated as the data dir, but likely the wrong folder
-export type DataLayout = "repo-root" | "db-folder" | "legacy" | "unrecognized"
+// - "repo-root": the (current, flattened) notes repo root was picked; data lives directly here
+// - "legacy-db": an older, un-flattened repo — data lives in its db/ subfolder
+// - "db-folder": the db/ subfolder of an older repo was picked directly
+// - "flat":      none of the above — an arbitrary folder with no notes/plans/db structure.
+//                Every .md file anywhere under it is read as a note (loadAllNotesFlat), and the
+//                UI disables tag/date filtering, since there's no convention to filter by.
+export type DataLayout = "repo-root" | "legacy-db" | "db-folder" | "flat"
 
 export interface ResolvedWorkspace {
   dir: FileSystemDirectoryHandle
@@ -60,15 +62,16 @@ async function hasAnySubdirectory(root: FileSystemDirectoryHandle, names: string
   return found.some(Boolean)
 }
 
-// Accepts a notes repo root (→ its db/), the db/ folder itself, or a legacy repo with notes/ and
-// plans/ at its root. Throws if the picked folder itself can't be read.
+// Accepts a notes repo root with notes/plans/... directly inside it (the current layout), an older
+// repo's db/ subfolder picked directly, or an older repo root whose data still lives under db/.
+// Throws if the picked folder itself can't be read.
 export async function resolveWorkspace(picked: FileSystemDirectoryHandle): Promise<ResolvedWorkspace> {
   await assertReadableDirectory(picked)
-  const dbDir = await getSubdirectory(picked, DATA_DIR_NAME)
-  if (dbDir) return { dir: dbDir, layout: "repo-root" }
-  if (picked.name === DATA_DIR_NAME) return { dir: picked, layout: "db-folder" }
-  if (await hasAnySubdirectory(picked, LEGACY_MARKER_DIRS)) return { dir: picked, layout: "legacy" }
-  return { dir: picked, layout: "unrecognized" }
+  if (await hasAnySubdirectory(picked, ROOT_MARKER_DIRS)) return { dir: picked, layout: "repo-root" }
+  if (picked.name === LEGACY_DATA_DIR_NAME) return { dir: picked, layout: "db-folder" }
+  const dbDir = await getSubdirectory(picked, LEGACY_DATA_DIR_NAME)
+  if (dbDir) return { dir: dbDir, layout: "legacy-db" }
+  return { dir: picked, layout: "flat" }
 }
 
 async function readMarkdownFilesIn(dir: FileSystemDirectoryHandle, source: NoteSource): Promise<Note[]> {
@@ -103,6 +106,37 @@ export async function loadAllNotes(dataDir: FileSystemDirectoryHandle): Promise<
   return sortNotes(results.flat())
 }
 
+// Directory names skipped by loadAllNotesFlat, on top of every dotfile/dot-directory: junk that's
+// certain to be irrelevant and, for node_modules, potentially huge — picking the wrong folder by
+// mistake shouldn't mean walking a dependency tree.
+const FLAT_IGNORED_DIR_NAMES = new Set(["node_modules"])
+
+async function collectMarkdownFilesFlat(dir: FileSystemDirectoryHandle, prefix: string, out: Note[]): Promise<void> {
+  for await (const [name, handle] of dir.entries()) {
+    if (name.startsWith(".")) continue
+    const relPath = prefix ? `${prefix}/${name}` : name
+    if (handle.kind === "directory") {
+      if (FLAT_IGNORED_DIR_NAMES.has(name)) continue
+      await collectMarkdownFilesFlat(handle as FileSystemDirectoryHandle, relPath, out)
+    } else if (name.endsWith(".md")) {
+      const file = await (handle as FileSystemFileHandle).getFile()
+      // Tagged "notes" (not derived from any real notes/ folder) so the flat layout shows
+      // everything in one list, under the same view a real notes/ folder's files would use.
+      out.push(toNote(relPath, "notes", await file.text(), file.lastModified))
+    }
+  }
+}
+
+// Flat layout: no notes/plans/db convention to rely on, so every .md file anywhere under the
+// picked folder is read as a note, `path` is its real relative path (however deep), and there's no
+// separate ledger to load — TASKS.md, if one happens to exist, is just another matched file.
+export async function loadAllNotesFlat(dataDir: FileSystemDirectoryHandle): Promise<Note[]> {
+  await assertReadableDirectory(dataDir)
+  const notes: Note[] = []
+  await collectMarkdownFilesFlat(dataDir, "", notes)
+  return sortNotes(notes)
+}
+
 // PRS.md lives at the data dir's root, alongside notes/plans/daily, not inside one of them.
 export async function loadPrsFile(dataDir: FileSystemDirectoryHandle): Promise<string | null> {
   const file = await getFileIn(dataDir, PRS_FILE)
@@ -115,13 +149,17 @@ export async function loadAgentsFile(dataDir: FileSystemDirectoryHandle): Promis
   return file ? file.text() : null
 }
 
-// A note path is "<dir>/<file>.md", or a bare "<file>.md" for ledger files at the data dir's root.
+// A note path is "<dir>/<file>.md", a bare "<file>.md" for ledger files at the data dir's root, or
+// (flat layout only) an arbitrarily nested "<a>/<b>/.../<file>.md".
 async function getNoteFileHandle(dataDir: FileSystemDirectoryHandle, notePath: string): Promise<FileSystemFileHandle> {
   const parts = notePath.split("/")
-  if (parts.length > 2 || parts.some((p) => !p || p === "." || p === "..")) {
+  if (parts.length < 1 || parts.some((p) => !p || p === "." || p === "..")) {
     throw new Error(`Not a valid note path: ${notePath}`)
   }
-  const dir = parts.length === 2 ? await dataDir.getDirectoryHandle(parts[0], { create: false }) : dataDir
+  let dir = dataDir
+  for (const segment of parts.slice(0, -1)) {
+    dir = await dir.getDirectoryHandle(segment, { create: false })
+  }
   return dir.getFileHandle(parts[parts.length - 1], { create: false })
 }
 

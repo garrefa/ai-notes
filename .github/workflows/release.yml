@@ -1,0 +1,71 @@
+# Runs when tools/release.sh's tag (vX.Y.Z) is pushed. Builds webapp/, publishes it to npm as
+# `ainotes-viewer` so `npx ainotes-viewer@latest` picks it up, and creates a GitHub Release whose
+# body is that version's section of CHANGELOG.md.
+#
+# One-time setup this workflow depends on:
+#   - Reserve the `ainotes-viewer` name on npmjs.com (npm login && cd webapp && npm publish --dry-run
+#     to check availability, or just watch the first real run fail if someone beat us to it).
+#   - Add an npm automation token as the repo secret NPM_TOKEN (Settings → Secrets and variables →
+#     Actions). Generate it at npmjs.com → Access Tokens → Granular Access Token, scoped to publish
+#     `ainotes-viewer` only.
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write # to create the GitHub Release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      - name: Build webapp
+        working-directory: webapp
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verify tag matches package versions
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PLUGIN_VERSION=$(node -p "require('./.claude-plugin/plugin.json').version")
+          WEBAPP_VERSION=$(node -p "require('./webapp/package.json').version")
+          if [ "$TAG_VERSION" != "$PLUGIN_VERSION" ] || [ "$TAG_VERSION" != "$WEBAPP_VERSION" ]; then
+            echo "::error::tag $GITHUB_REF_NAME doesn't match plugin.json ($PLUGIN_VERSION) / webapp/package.json ($WEBAPP_VERSION) — release with tools/release.sh, not a hand-made tag."
+            exit 1
+          fi
+
+      - name: Publish ainotes-viewer to npm
+        working-directory: webapp
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && (/^## \[/ || /^\[[^]]+\]: /) { exit }
+            found { print }
+          ' CHANGELOG.md > /tmp/release-notes.md
+          if [ ! -s /tmp/release-notes.md ]; then
+            echo "::error::no CHANGELOG.md section found for version $VERSION"
+            exit 1
+          fi
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: /tmp/release-notes.md
+          generate_release_notes: false

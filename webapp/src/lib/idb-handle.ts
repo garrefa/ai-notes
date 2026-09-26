@@ -16,8 +16,8 @@ export interface Workspace {
   id: string
   // Defaults to the picked folder's name; the user can rename it.
   label: string
-  // The folder the user picked: either the notes repo root or its db/ folder.
-  // The data dir inside it is resolved on every open (see resolveDataDir).
+  // The folder the user picked: the notes repo root (or, for an older, un-flattened repo, its
+  // db/ folder). The data dir inside it is resolved on every open (see resolveWorkspace).
   handle: FileSystemDirectoryHandle
   addedAt: number
   lastOpenedAt: number

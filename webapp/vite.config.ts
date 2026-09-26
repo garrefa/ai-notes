@@ -1,8 +1,11 @@
 import { execSync } from "node:child_process"
+import { readFileSync } from "node:fs"
 import path from "node:path"
 import tailwindcss from "@tailwindcss/vite"
 import react from "@vitejs/plugin-react"
 import { defineConfig, type Plugin } from "vite"
+
+const packageVersion: string = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")).version
 
 // Published next to index.html. A running tab polls it and offers a reload when the ID in it
 // differs from the one baked into its own bundle (see src/hooks/use-new-version.ts).
@@ -46,6 +49,9 @@ export default defineConfig({
   define: {
     __APP_BUILD_ID__: JSON.stringify(buildId),
     __APP_VERSION_FILE__: JSON.stringify(VERSION_FILE),
+    // Package version, shown in Settings — kept in lockstep with .claude-plugin/plugin.json by
+    // tools/release.sh so both halves of the toolkit report the same release number.
+    __APP_VERSION__: JSON.stringify(packageVersion),
   },
   resolve: {
     alias: {

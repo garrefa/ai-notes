@@ -1,212 +1,242 @@
 # AINotes
 
-A git-backed second brain for [Claude Code](https://claude.com/claude-code), built for people who work
-across many repositories at once.
+A git-backed second brain for [Claude Code](https://claude.com/claude-code), for people who work
+across many repositories at once. It keeps dated notes, plans, tasks, a PR ledger and reports in a
+small **notes repo** inside each **workspace** (a folder holding related repos side by side), and
+comes with a local viewer to browse it all.
 
-You organize your work into **workspaces**, each a folder holding related repos cloned side by side.
-You can have as many workspaces as you like, each fully separate from the others:
+## Contents
 
-```text
-~/work/       <- your job: service repos, a notes repo, work Jira and Slack settings
-~/personal/   <- side projects, with their own notes, tasks and PR ledger
-~/study/      <- courses and experiments; plans and daily checklists, no Jira at all
+- [Quick start](#quick-start) — [install](#install) · [update](#update) · [uninstall](#uninstall)
+- [What you get](#what-you-get)
+- [Requirements](#requirements)
+- [Other ways to install](#other-ways-to-install) — [plugin](#claude-code-plugin) · [from a clone](#from-a-clone) · [install options](#install-options)
+- [How it works](#how-it-works) — [layout](#workspace-layout) · [skills](#skills) · [agents](#agents) · [hooks](#hooks)
+- [Tools](#tools)
+- [Viewer](#viewer)
+- [Development](#development) — [releasing](#releasing)
+- [License](#license)
+
+## Quick start
+
+### Install
+
+```bash
+npx ainotes-viewer@latest install ~/projects/my-workspace   # install into a workspace
+cd ~/projects/my-workspace && claude                         # then say: setup ainotes
+./run-viewer.sh                                              # open the viewer, any time
 ```
 
-In each workspace, AINotes adds a small **notes repo**, plus a set of Claude Code skills that write
-to it as you work:
+Say **yes** when the installer offers to schedule the agents snapshot (it fills the viewer's Agents
+view), and always start `claude` from the workspace root.
+
+### Update
+
+```bash
+npx ainotes-viewer@latest install --force ~/projects/my-workspace
+```
+
+This also upgrades an older install made from a clone; you can delete the clone afterwards.
+
+### Uninstall
+
+```bash
+npx ainotes-viewer@latest install --uninstall ~/projects/my-workspace
+```
+
+Your notes repo and `.ai-notes/` are left untouched.
+
+## What you get
 
 - **Notes and plans**: `note: ...` / `plan: ...` become dated, tagged Markdown files, indexed by tag
   and domain.
-- **Task workflow**: `ainotes-task` runs a real change end to end. It creates a fresh worktree off the
-  latest default branch, has a subagent write a plan, waits for your approval, records the plan,
-  optionally opens a Jira ticket, executes, and runs an independent review. It never commits, pushes
-  or opens a PR without asking.
-- **PR ledger**: `db/PRS.md` tracks every PR you open across the workspace. `check prs` reconciles it
-  against GitHub. `babysit prs` (under `/loop`) keeps PRs current with their base branch, reruns
-  failed CI and handles review comments. It never merges.
-- **Tasks and daily plans**: `db/TASKS.md` holds work that spans sessions. `db/daily/YYYY-MM-DD.md` is a
+- **Task workflow**: `ainotes-task` runs a change end to end: fresh worktree, a written plan, your
+  approval, execution, an independent review. It never commits, pushes or opens a PR without asking.
+- **PR ledger**: `PRS.md` tracks every PR you open. `check prs` reconciles it with GitHub;
+  `babysit prs` keeps PRs moving (updates branches, reruns CI, handles review comments). It never
+  merges.
+- **Tasks and daily plans**: `TASKS.md` for work that spans sessions, `daily/YYYY-MM-DD.md` for a
   checklist you tick off by hand.
-- **Reports**: weekly, monthly or quarterly reviews compiled from everything above.
-- **Slack review requests** (optional): post a review ask for your PRs, @mentioning pending code
-  owners.
-- **Viewer**: a local web app that browses and edits every workspace's notes, tasks and PRs, and
-  switches between workspaces in one click (see [Viewer](#viewer)).
+- **Reports**: weekly, monthly or quarterly reviews compiled from all of the above.
+- **Slack review requests** (optional): ask for reviews, @mentioning pending code owners.
+- **Viewer**: browse and edit every workspace's notes, tasks, PRs and running agents in the browser.
 
-Everything workspace-specific (GitHub org, Jira project, Slack channel, repo → domain mapping) lives
-in that workspace's `.ai-notes/config.yml`. The skills themselves never change, so one install
-serves every workspace.
+Workspaces stay fully separate — for example `~/work/` with Jira and Slack, `~/personal/`, and
+`~/study/` with no Jira at all. Everything workspace-specific lives in that workspace's
+`.ai-notes/config.yml`, so one toolkit serves them all.
 
 ## Requirements
 
-- Claude Code
-- `git`, and the [GitHub CLI](https://cli.github.com/) (`gh`), authenticated
-- `jq` and `python3` (used by the hooks and tools)
-- For the viewer: Node.js 20.19+ or 22.12+ and a Chromium-based browser (Chrome, Edge, Arc, Brave)
-- Optional: a Jira MCP connector (for ticket creation) and a Slack MCP connector (for review requests)
+| For | You need |
+|---|---|
+| The toolkit | Claude Code, `git`, the [GitHub CLI](https://cli.github.com/) (`gh`, authenticated), `jq`, `python3` |
+| The viewer and `npx` | Node.js 20.19+ or 22.12+, and a Chromium-based browser (Chrome, Edge, Arc, Brave) |
+| Optional | A Jira MCP connector (ticket creation) and a Slack MCP connector (review requests) |
 
 GitHub is the only supported VCS today.
 
-## Install
+## Other ways to install
 
-### Option A: Claude Code plugin (recommended)
+### Claude Code plugin
 
 ```text
 /plugin marketplace add garrefa/ai-notes
 /plugin install ainotes@ainotes
 ```
 
-Skills, agents and hooks load from the plugin, so one install serves every workspace you have, and
-they work wherever you launch Claude inside a workspace (the root or any repo in it). Plugin skills
-and agents are namespaced (`ainotes:ainotes-setup`, `ainotes:notetaker`), but the plain names and
-trigger phrases work too.
+One install serves every workspace, and it works wherever you launch Claude inside one. Update with
+`claude plugin update ainotes`. Skills and agents are namespaced (`ainotes:ainotes-setup`), but the
+plain names and trigger phrases work too. The plugin doesn't install the [tools](#tools) into your
+workspace or schedule the agents snapshot; the Tools section covers running them without an install.
 
-### Option B: copy into a workspace
+### From a clone
 
 ```bash
 git clone https://github.com/garrefa/ai-notes.git
-./ai-notes/install.sh ~/projects/my-workspace          # --dry-run to preview, --force to overwrite
-./ai-notes/install.sh --uninstall ~/projects/my-workspace
+./ai-notes/install.sh ~/projects/my-workspace
 ```
 
-This copies the skills, agents, hooks, tools and templates into `<workspace>/.claude/` and merges the
-hook wiring into `<workspace>/.claude/settings.json`, keeping whatever is already there. Choose this
-if you want to commit the toolkit alongside a shared workspace or customize the skills in place.
-Claude Code only reads `<workspace>/.claude/` when it starts at the workspace root, so in this mode
-launch `claude` from the root, not from inside one of the repos. To upgrade, pull and re-run with
-`--force` (this overwrites local edits to the toolkit's own files; your other files are untouched).
+`npx ainotes-viewer install` runs this same script, so the flags below apply to both. To update,
+`git pull` and re-run with `--force`.
 
-### Then, in either case
+### Install options
 
-```bash
-cd ~/projects/my-workspace && claude
-```
+The installer copies the skills, agents, hooks, tools and templates into `<workspace>/.claude/`,
+adds its hooks to `<workspace>/.claude/settings.json` (keeping everything else there), and puts
+`run-viewer.sh` at the workspace root — a one-liner that runs `npx ainotes-viewer@latest`, passing
+along any arguments (`--port`, `--no-open`).
 
-Then say **`setup ainotes`**. The `ainotes-setup` skill explains each setting as it asks about it,
-writes `.ai-notes/config.yml`, can create the notes repo from `templates/notes-repo/`, and asks you to
-tag each cloned repo with a domain (or ignore it). Repeat this in every workspace you want to track.
+| Flag | Effect |
+|---|---|
+| `--dry-run` | Show what would change, change nothing |
+| `--force` | Overwrite existing toolkit files (this is how you update; local edits to them are lost) |
+| `--no-schedule` | Don't ask about scheduling the agents snapshot (for scripts and CI) |
+| `--uninstall` | Remove everything it installed, including a schedule it set up (a `run-viewer.sh` you wrote yourself is left alone) |
 
-## How it fits together
+**Scheduling**: in an interactive terminal, the installer offers to run `tools/snapshot-agents.sh`
+every 60 seconds — a launchd job on macOS, a crontab line elsewhere. Re-running replaces its own
+entry instead of adding another. If you scheduled it yourself from a clone's path, point that job
+at `<workspace>/.claude/tools/snapshot-agents.sh` before deleting the clone.
+
+Older notes repos that keep their data under a `db/` folder are flattened automatically on install.
+
+## How it works
+
+### Workspace layout
 
 ```text
 ~/projects/my-workspace/          <- workspace root: wherever .ai-notes/ lives
 ├── .ai-notes/config.yml          <- per-workspace settings (see tools/config.example.yml)
 ├── notes/                        <- the notes repo (name set by notes_repo); its own git repo
-│   ├── README.md  CLAUDE.md
-│   └── db/                       <- all the data lives here
-│       ├── notes/  plans/  tasks/  daily/
-│       ├── INDEX.md              <- tag -> files
-│       ├── PRS.md                <- PR ledger
-│       └── TASKS.md              <- task ledger
+│   ├── notes/  plans/  tasks/  daily/
+│   ├── INDEX.md                  <- tag -> files
+│   ├── PRS.md                    <- PR ledger
+│   └── TASKS.md                  <- task ledger
 ├── api-gateway/                  <- your repos, cloned side by side
-├── web-app/
-└── mobile-app/
+└── web-app/
 ```
 
-Skills find the workspace the same way git finds `.git`: they walk up from the current directory
-until they reach a folder containing `.ai-notes/`. That's what keeps workspaces separate: a note
-written while you're in `~/study/` never lands in your work notes.
-
-Commits to the notes repo go straight to `main`: no branches or PRs, since it's a journal. Code
-changes in your actual repos always go through worktrees and your normal review process.
-
-### Hooks
-
-| Event | Script | What it does |
-|---|---|---|
-| SessionStart | `session-start-task-prompt.sh` | Nudges Claude to ask whether to track this session as a task |
-| SessionStart | `detect-unregistered-repo.sh` | If you're in a repo that isn't in `domain_taxonomy` or `ignored_repos`, suggests registering it |
-| PostToolUse (Bash) | `detect-repo-clone.sh` | After a `git clone` lands a new repo in the workspace, suggests registering it |
-
-All hooks exit silently outside an AINotes workspace.
+Skills find the workspace the way git finds `.git`: they walk up from the current directory to the
+nearest folder containing `.ai-notes/`, so a note written in `~/study/` never lands in your work
+notes. The notes repo is a journal, so its commits go straight to `main`; code changes in your repos
+always go through worktrees and your normal review.
 
 ### Skills
 
-| Skill | Trigger | Purpose |
+| Skill | Say | Does |
 |---|---|---|
-| `ainotes-setup` | "setup ainotes", "register new repos" | Create or update `.ai-notes/config.yml` and the notes repo |
-| `ainotes-notes` | `note: ...`, `plan: ...` | Write dated, tagged notes and plans, and keep `INDEX.md` current |
-| `ainotes-task` | "work on X in `<repo>`" | Worktree → plan → approve → execute → review → ask before committing |
+| `ainotes-setup` | "setup ainotes", "register new repos" | Creates or updates `.ai-notes/config.yml` and the notes repo |
+| `ainotes-notes` | `note: ...`, `plan: ...` | Writes dated, tagged notes and plans; keeps `INDEX.md` current |
+| `ainotes-task` | "work on X in `<repo>`" | Worktree → plan → approve → execute → review → asks before committing |
 | `ainotes-tasks` | `new task: ...`, "what are my open tasks" | Cross-session task ledger |
 | `ainotes-daily-plan` | "daily plan: ...", "`<task>` is done" | One day's checklist, checked off by hand |
-| `ainotes-pr-tracker` | "check prs" | Reconcile `PRS.md` with GitHub |
-| `ainotes-babysit-prs` | `/loop babysit prs` | Push open PRs toward merge; always asks before a deploy comment; never merges |
-| `ainotes-pr-review-request` | "ask for review on `<PR>`" | Post a review request to Slack (optional) |
-| `ainotes-report` | "weekly report", "work review" | Compile a report for a date window |
+| `ainotes-pr-tracker` | "check prs" | Reconciles `PRS.md` with GitHub |
+| `ainotes-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment; never merges |
+| `ainotes-pr-review-request` | "ask for review on `<PR>`" | Posts a review request to Slack (optional) |
+| `ainotes-report` | "weekly report", "work review" | Compiles a report for a date window |
 
-Agents:
+### Agents
 
-- `notetaker`: the single writer for notes, plans and their `INDEX.md` entries.
-- `ledger-keeper`: the single writer for `PRS.md`, `TASKS.md`, task files and daily plans; also runs
-  `check-prs.sh` for "check prs".
-- `pr-poller`: polls open PRs for `babysit prs` (state, CI, comments); may rerun failed jobs once and
-  update a branch that's behind, and never comments, merges or pushes.
-- `notes-extractor`: read-only gatherer that turns a date window of notes into compact JSON for reports.
-- `daily-plan-tracker`: read-only context lookups for daily plan items.
+Routine bookkeeping and polling run on cheap Haiku agents; approvals, code changes, reviews and
+anything user-facing stay on your main model.
 
-**Token use**: routine bookkeeping and polling run on Haiku agents. Approvals, code changes, reviews
-and anything user-facing stay on your main model.
+| Agent | Role |
+|---|---|
+| `notetaker` | The only writer for notes, plans and their `INDEX.md` entries |
+| `ledger-keeper` | The only writer for `PRS.md`, `TASKS.md`, task files and daily plans; runs `check-prs.sh` |
+| `pr-poller` | Polls open PRs for `babysit prs`; may rerun a failed job or update a stale branch; never comments, merges or pushes |
+| `notes-extractor` | Read-only: turns a date window of notes into compact JSON for reports |
+| `daily-plan-tracker` | Read-only: looks up context for daily plan items |
 
-## Tools (no LLM needed)
+### Hooks
 
-Run these from a clone of this repo, or from `<workspace>/.claude/tools/` if you used `install.sh`.
-The plugin install keeps its copy in Claude Code's plugin cache, which isn't a good path for cron.
+| When | Script | Does |
+|---|---|---|
+| Session start | `session-start-task-prompt.sh` | Asks whether to track the session as a task |
+| Session start | `detect-unregistered-repo.sh` | Suggests registering a repo missing from the config |
+| After a `git clone` | `detect-repo-clone.sh` | Suggests registering the newly cloned repo |
 
-- `tools/check-prs.sh [--org ORG] [--dry-run] [--verbose] [path/to/PRS.md]`: the mechanical part of
-  "check prs" (reconcile, refresh status, commit), using only `gh` and `jq`. The org and the PRS.md
-  path come from `.ai-notes/config.yml` when omitted. It's idempotent, so you can schedule it with
-  cron, launchd or CI at whatever cadence you like.
-- `tools/snapshot-agents.sh [--all] [--verbose] [path/to/AGENTS.json]`: writes `db/AGENTS.json`, a
-  snapshot of the Claude Code sessions and background jobs working in the workspace (status, repo and
-  worktree, last status line, tokens, linked PRs), read from `~/.claude/sessions/` and `~/.claude/jobs/`.
-  It needs only `jq`. Schedule it every 60 seconds with launchd or cron to keep the viewer's Agents
-  view current. The file changes every run, so the notes-repo template keeps it out of git.
-- `tools/clean-merged-worktrees.sh`: lists worktrees whose branches have been merged, including
-  squash and rebase merges when `gh` is available. It's a dry run unless you pass `--delete`.
-- `tools/config.example.yml`: every config key, with comments.
+All hooks do nothing outside an AINotes workspace.
+
+## Tools
+
+Plain scripts, no LLM needed. The installer puts them in `<workspace>/.claude/tools/`.
+
+| Tool | Does |
+|---|---|
+| `snapshot-agents.sh` | Writes `AGENTS.json` (the Claude Code sessions and jobs in the workspace) for the viewer's Agents view. Needs `jq`; meant to run every 60 seconds (the installer can schedule it). |
+| `check-prs.sh` | The mechanical part of "check prs": reconciles `PRS.md` with GitHub and commits. Needs `gh` and `jq`; safe to schedule. |
+| `clean-merged-worktrees.sh` | Lists worktrees whose branches were merged (squash and rebase merges too); deletes them only with `--delete`. |
+| `config.example.yml` | Every config key, with comments. |
+
+Every script takes `--help`. Without installing anything, run the first two from inside a workspace
+with `npx ainotes-viewer snapshot-agents` or `npx ainotes-viewer check-prs`. That's fine now and
+then, but `npx` checks the registry on every run, so for a 60-second schedule use the installed copy
+— or `npm install -g ainotes-viewer` once and schedule `ainotes-viewer snapshot-agents`.
 
 ## Viewer
 
-`webapp/` is a local web app for browsing and working with your notes repos: read and edit notes
-and plans, see open tasks, pending PRs and the agents at work, and search or filter by tag. It reads and writes the Markdown
-files directly through the browser's File System Access API. Nothing leaves your machine and there is
-no server-side storage.
+Click **Add folder…** and pick a workspace's notes repo. Add as many as you like; switch between them
+from the sidebar or the command palette (`Cmd/Ctrl+K`). Everything happens locally, in the browser:
+it reads and writes the Markdown files directly and nothing leaves your machine.
 
-Start it from a clone of this repo:
+- **Any folder works**: without `notes/` or `plans/`, every `.md` file under it is listed as a note,
+  with the date and tag filters turned off.
+- **Tasks**: colored status dots; changing a status updates both the task file and `TASKS.md`.
+  Change colors, or which statuses count as closed, in **Settings**.
+- **Filters**: a date range (last 7 days by default, or custom) and tags, for notes and PRs.
+- **Library**: counts per item; drag to reorder. The order and your last selection are remembered.
+- **Agents**: who's working, idle, or waiting on you. Empty until the agents snapshot is scheduled
+  (see [Install options](#install-options)).
+- **Pull requests**: the `PRS.md` ledger with CI, review and merge hints.
+- **Version**: shown in **Settings**.
+
+More detail in [`webapp/README.md`](webapp/README.md).
+
+## Development
+
+Run the viewer from source:
 
 ```bash
-cd webapp
-npm install
-npm run dev        # then open the URL it prints (http://localhost:5173 by default)
+cd webapp && npm install
+npm run dev                            # http://localhost:5173
+npm run build && npm run preview       # production build, http://localhost:4173
 ```
 
-Click **Add folder…** and pick a workspace's notes repo (or its `db/` folder). Add as many as you
-like, for example work, personal and study. The viewer remembers them, reopens the last one you used,
-and switches between them from the switcher at the top of the sidebar or the command palette, with no
-re-picking.
+### Releasing
 
-- **Task statuses**: every task shows a colored dot for its status. The Tasks view filters by status,
-  and changing a task's status in the detail pane updates both the task file and `db/TASKS.md`.
-  Backlog, in progress, done and dropped have built-in colors, and any other status shows in gray.
-  Use **Settings** to change a status's color or mark it as closed. These viewer preferences are
-  stored in your browser; the statuses the skills use are defined in `task_statuses` in
-  `.ai-notes/config.yml`.
-- **Date range**: a collapsible filter for notes and PRs: the *Last N days* (the default, 7 days
-  counting today), or a *Custom* range picked with From and To dates. **Reset** goes back to the last
-  7 days. It and the Tags section fold away; when folded, the header still shows the active range or
-  tag.
-- **Library**: each item shows a count (notes, open tasks, pending PRs, running agents). Drag the
-  items into the order you like (the grip appears after the count on hover), or move the focused
-  one with Alt+↑/↓. The order is stored in your browser.
-- **Agents**: lists the Claude Code agents working in the workspace, grouped by status: *Needs you*
-  (waiting on your reply, highlighted and counted in the Library), *Working*, *Idle* and *Stopped*. The detail pane shows the agent's last
-  status line, repo, worktree, tokens and linked PRs, which open in the Pull requests view. It reads
-  `db/AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes.
-- **Permissions**: if the browser drops a folder's permission, click **Grant access** to restore it.
-- **Missing folders**: a folder that was moved or deleted shows as *Missing*, with Locate… and
-  Remove options, instead of blocking the app.
+The plugin and the npm package share one version and one [`CHANGELOG.md`](CHANGELOG.md)
+([Keep a Changelog](https://keepachangelog.com/en/1.1.0/), [semver](https://semver.org/)).
 
-For a static build, run `npm run build && npm run preview` (http://localhost:4173). See [`webapp/README.md`](webapp/README.md)
-for details.
+1. Add entries under `## [Unreleased]` as you go.
+2. Run `tools/release.sh 0.2.0`. It bumps `.claude-plugin/plugin.json` and `webapp/package.json`,
+   dates the changelog section, commits and tags. It never pushes.
+3. Review, then `git push && git push origin v0.2.0`. The tag runs
+   [`.github/workflows/release.yml`](.github/workflows/release.yml), which publishes
+   `ainotes-viewer` to npm (needs a one-time `NPM_TOKEN` repo secret) and creates a GitHub Release.
+
+Plugin users get it with `claude plugin update ainotes`; everyone else with the
+[update command](#update).
 
 ## License
 

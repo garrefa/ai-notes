@@ -10,7 +10,10 @@
 #                                   (state, last status line, tokens, links)
 # A background job and its session are joined on jobId; interactive sessions
 # have no job and appear on their own. A session whose pid is no longer alive
-# is reported with running=false instead of being dropped.
+# is reported with running=false instead of being dropped. An agent with
+# neither a session activity (busy/idle) nor a job state (running/blocked/
+# done) is dropped entirely — there's nothing to show, and leaving it in would
+# default it to a misleading "idle".
 #
 # Only agents whose working directory is inside the workspace are kept, unless
 # --all is given. The output is overwritten atomically on every run; it changes
@@ -25,9 +28,10 @@
 #
 # The workspace is found by walking up (from the output path if given, else
 # the current directory, else this script's own directory) until a directory
-# containing .ai-notes/ turns up. The default output is the notes repo's data
-# dir: <workspace>/<notes_repo>/db/AGENTS.json, or <notes_repo>/AGENTS.json
-# for an older repo with no db/ folder (the same rule the viewer uses).
+# containing .ai-notes/ turns up. The default output is the notes repo's root:
+# <workspace>/<notes_repo>/AGENTS.json, or <notes_repo>/db/AGENTS.json for an
+# older (pre-flattening) repo that still keeps its data under a db/ folder
+# (the same rule the viewer uses).
 #
 # Exit status is 0 on success, non-zero only on a genuine failure to run.
 
@@ -42,7 +46,7 @@ while [[ $# -gt 0 ]]; do
     --all) ALL_AGENTS=1 ;;
     --verbose|-v) VERBOSE=1 ;;
     -h|--help)
-      sed -n '2,32p' "$0"
+      sed -n '2,36p' "$0"
       exit 0
       ;;
     -*) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -163,6 +167,9 @@ jq -n \
   ( [ $jobs[] as $j | agent($j; $sessionByJob[$j.daemonShort // ($j._file | split("/")[-2])]) ]
     + [ $sessions[] | select(.jobId == null or (.jobId as $id | $jobIds | index($id) | not)) | agent(null; .) ]
     | map(select($allAgents == 1 or (.cwd | in_workspace)))
+    # Neither source reported anything (no session activity, no job state) — nothing to show,
+    # so drop it rather than have it default to a misleading "idle".
+    | map(select(.activity != null or .state != null))
   ) as $agents
   | {
       generatedAt: (now | floor | todateiso8601),

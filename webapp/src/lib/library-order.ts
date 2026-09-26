@@ -59,3 +59,37 @@ export function useLibraryOrder() {
 
   return { order, move }
 }
+
+const LAST_VIEW_KEY = "ainotes-last-view"
+const DEFAULT_VIEW: LibraryView = "all"
+
+function loadLastView(): LibraryView {
+  try {
+    const stored = localStorage.getItem(LAST_VIEW_KEY)
+    return stored && (DEFAULT_LIBRARY_ORDER as string[]).includes(stored) ? (stored as LibraryView) : DEFAULT_VIEW
+  } catch {
+    return DEFAULT_VIEW
+  }
+}
+
+function saveLastView(view: LibraryView): void {
+  try {
+    if (view === DEFAULT_VIEW) localStorage.removeItem(LAST_VIEW_KEY)
+    else localStorage.setItem(LAST_VIEW_KEY, view)
+  } catch {
+    // Not persisted (storage unavailable); the new selection still applies for this session.
+  }
+}
+
+// The last Library item selected, remembered per browser so a refresh or a new tab reopens it
+// instead of always falling back to "all".
+export function useSelectedView() {
+  const [view, setViewState] = useState<LibraryView>(loadLastView)
+
+  const setView = useCallback((next: LibraryView) => {
+    setViewState(next)
+    saveLastView(next)
+  }, [])
+
+  return [view, setView] as const
+}
