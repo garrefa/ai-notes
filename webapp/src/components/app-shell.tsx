@@ -682,6 +682,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                 taskStatus={taskStatusByPath.get(selected.path) ?? null}
                 taskStatuses={statusCatalog}
                 onSetTaskStatus={setTaskStatusByKey}
+                flatLayout={layout === "flat"}
               />
             ) : (
               <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
