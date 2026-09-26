@@ -209,7 +209,8 @@ it reads and writes the Markdown files directly and nothing leaves your machine.
 - **Agents**: who's working, idle, or waiting on you. Empty until the agents snapshot is scheduled
   (see [Install options](#install-options)).
 - **Pull requests**: the `PRS.md` ledger with CI, review and merge hints.
-- **Version**: shown in **Settings**.
+- **Version**: the release number sits at the bottom of the sidebar. When a newer one is deployed,
+  a notice names it and offers to reload.
 
 More detail in [`webapp/README.md`](webapp/README.md).
 
