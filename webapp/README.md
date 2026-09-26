@@ -32,8 +32,9 @@ It builds nothing at runtime (the published package ships a prebuilt `dist/`), s
 
 The same package also bundles the whole Claude Code toolkit, so it doubles as its installer:
 `npx ainotes-viewer install <workspace-dir>` does what `install.sh` does from a clone (skills,
-agents, hooks, tools and templates into `<workspace-dir>/.claude/`, plus the offer to schedule
-`snapshot-agents.sh`, which feeds the Agents view). The two workspace-aware tools also run directly:
+agents, hooks, tools and templates into `<workspace-dir>/.claude/`, a `run-viewer.sh` at the
+workspace root that opens this viewer, and the offer to schedule `snapshot-agents.sh`, which feeds
+the Agents view). The two workspace-aware tools also run directly:
 `npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs [args...]`, from inside
 the workspace. See the root README's [Quick start](../README.md#quick-start) and
 [Tools](../README.md#tools) sections.

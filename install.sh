@@ -13,6 +13,7 @@
 #   hooks/scripts/*.sh      -> <ws>/.claude/hooks/
 #   tools/*                 -> <ws>/.claude/tools/
 #   templates/notes-repo    -> <ws>/.claude/templates/notes-repo/
+#   templates/workspace/run-viewer.sh -> <ws>/run-viewer.sh (opens the viewer via npx)
 #   hook wiring             -> merged into <ws>/.claude/settings.json (existing settings are kept)
 #   notes repo's db/ layout -> migrated up a level in place, if an older repo still has one
 #   tools/snapshot-agents.sh -> offered on a schedule (launchd on macOS, cron elsewhere) — see below
@@ -36,7 +37,7 @@ set -euo pipefail
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FORCE=0 DRY_RUN=0 UNINSTALL=0 NO_SCHEDULE=0 WS=""
 
-usage() { sed -n '2,33p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -211,6 +212,21 @@ maybe_schedule_snapshot_agents() {
   esac
 }
 
+RUN_VIEWER="$WS/run-viewer.sh"
+# A line only the shipped run-viewer.sh carries, so uninstall removes the file it installed — from
+# any version — and never a script of the user's own that happens to have the same name.
+RUN_VIEWER_MARKER="ainotes: installed by install.sh"
+
+remove_run_viewer() {
+  [ -f "$RUN_VIEWER" ] || return 0
+  if grep -qF "$RUN_VIEWER_MARKER" "$RUN_VIEWER"; then
+    run rm -f "$RUN_VIEWER"
+    [ "$DRY_RUN" = 1 ] || log "removed $RUN_VIEWER"
+  else
+    log "left $RUN_VIEWER in place (not the one this script installs)"
+  fi
+}
+
 is_maintainer_tool() {
   local name
   for name in "${MAINTAINER_TOOLS[@]}"; do [ "$1" = "$name" ] && return 0; done
@@ -310,6 +326,7 @@ if [ "$UNINSTALL" = 1 ]; then
   for h in "${HOOK_SCRIPTS[@]}"; do run rm -f "$DEST/hooks/$h"; done
   for t in "$SRC"/tools/*; do run rm -f "$DEST/tools/$(basename "$t")"; done
   remove_stale_maintainer_tools
+  remove_run_viewer
   run rm -rf "$DEST/templates/notes-repo"
   for d in tools templates agents hooks skills; do [ -d "$DEST/$d" ] && run rmdir "$DEST/$d" 2>/dev/null || true; done
   [ -f "$SETTINGS" ] && edit_settings remove
@@ -334,6 +351,7 @@ copy_dir "$SRC/templates/notes-repo" "$DEST/templates/notes-repo"
 if [ -f "$DEST/templates/notes-repo/gitignore" ] && [ ! -e "$DEST/templates/notes-repo/.gitignore" ]; then
   run mv "$DEST/templates/notes-repo/gitignore" "$DEST/templates/notes-repo/.gitignore"
 fi
+copy_file "$SRC/templates/workspace/run-viewer.sh" "$RUN_VIEWER"
 edit_settings add
 maybe_schedule_snapshot_agents
 
@@ -342,4 +360,5 @@ cat <<EOF
 Done. Next steps:
   1. cd "$WS" && claude
   2. Say "setup ainotes" — it creates .ai-notes/config.yml and (optionally) your notes repo.
+  3. Open the viewer any time with ./run-viewer.sh from the workspace root.
 EOF
