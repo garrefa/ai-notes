@@ -4,8 +4,8 @@ import type { TaskStatus } from "@/lib/task-status"
 
 // Every note path below is relative to the workspace's *data dir* — see resolveWorkspace.
 const WATCHED_DIRS: NoteSource[] = ["notes", "plans", "daily", "tasks"]
-const DATA_DIR_NAME = "db"
-const LEGACY_MARKER_DIRS = ["notes", "plans"]
+const LEGACY_DATA_DIR_NAME = "db"
+const ROOT_MARKER_DIRS = ["notes", "plans"]
 // Ledger files that sit at the data dir's root rather than inside one of WATCHED_DIRS.
 const PRS_FILE = "PRS.md"
 const AGENTS_FILE = "AGENTS.json"
@@ -14,11 +14,11 @@ const TASKS_LEDGER_FILE = "TASKS.md"
 const MISSING_ENTRY_ERRORS = new Set(["NotFoundError", "TypeMismatchError"])
 
 // How the picked folder maps onto the data dir:
-// - "repo-root":    the notes repo root was picked; data lives in its db/ subfolder
-// - "db-folder":    the db/ folder itself was picked
-// - "legacy":       an older repo with notes/, plans/, ... directly at its root
+// - "repo-root":    the (current, flattened) notes repo root was picked; data lives directly here
+// - "legacy-db":    an older, un-flattened repo — data lives in its db/ subfolder
+// - "db-folder":    the db/ subfolder of an older repo was picked directly
 // - "unrecognized": none of the above; treated as the data dir, but likely the wrong folder
-export type DataLayout = "repo-root" | "db-folder" | "legacy" | "unrecognized"
+export type DataLayout = "repo-root" | "legacy-db" | "db-folder" | "unrecognized"
 
 export interface ResolvedWorkspace {
   dir: FileSystemDirectoryHandle
@@ -60,14 +60,15 @@ async function hasAnySubdirectory(root: FileSystemDirectoryHandle, names: string
   return found.some(Boolean)
 }
 
-// Accepts a notes repo root (→ its db/), the db/ folder itself, or a legacy repo with notes/ and
-// plans/ at its root. Throws if the picked folder itself can't be read.
+// Accepts a notes repo root with notes/plans/... directly inside it (the current layout), an older
+// repo's db/ subfolder picked directly, or an older repo root whose data still lives under db/.
+// Throws if the picked folder itself can't be read.
 export async function resolveWorkspace(picked: FileSystemDirectoryHandle): Promise<ResolvedWorkspace> {
   await assertReadableDirectory(picked)
-  const dbDir = await getSubdirectory(picked, DATA_DIR_NAME)
-  if (dbDir) return { dir: dbDir, layout: "repo-root" }
-  if (picked.name === DATA_DIR_NAME) return { dir: picked, layout: "db-folder" }
-  if (await hasAnySubdirectory(picked, LEGACY_MARKER_DIRS)) return { dir: picked, layout: "legacy" }
+  if (await hasAnySubdirectory(picked, ROOT_MARKER_DIRS)) return { dir: picked, layout: "repo-root" }
+  if (picked.name === LEGACY_DATA_DIR_NAME) return { dir: picked, layout: "db-folder" }
+  const dbDir = await getSubdirectory(picked, LEGACY_DATA_DIR_NAME)
+  if (dbDir) return { dir: dbDir, layout: "legacy-db" }
   return { dir: picked, layout: "unrecognized" }
 }
 

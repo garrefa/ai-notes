@@ -20,9 +20,9 @@
 org_name: "Acme"
 
 # Directory name — and its own separate git repo, sitting directly in the workspace root — holding
-# every note/plan/ledger the ainotes-* skills produce. All data lives under its db/ folder
-# (db/notes/, db/plans/, db/daily/, db/tasks/, db/INDEX.md, db/PRS.md, db/TASKS.md); README.md,
-# CLAUDE.md and .gitignore stay at the repo root. Every skill reads this once and uses the current value throughout; change this
+# every note/plan/ledger the ainotes-* skills produce. All data lives directly at its root
+# (notes/, plans/, daily/, tasks/, INDEX.md, PRS.md, TASKS.md); README.md,
+# CLAUDE.md and .gitignore also live there. Every skill reads this once and uses the current value throughout; change this
 # one setting if you rename or move it and nothing else needs to change.
 notes_repo: notes
 
@@ -56,7 +56,7 @@ ci:
   deploy_trigger_comment: null
 
 # Workflow statuses a task (ainotes-tasks) can be in. Each entry:
-#   key    — what gets written in a task file's `status:` frontmatter and in db/TASKS.md's Status
+#   key    — what gets written in a task file's `status:` frontmatter and in TASKS.md's Status
 #            column. Keep it short, lowercase, no spaces (e.g. in-progress). Renaming a key later
 #            doesn't rewrite existing tasks, so pick keys you're happy to keep.
 #   label  — human-readable name the skills use in chat and reports.

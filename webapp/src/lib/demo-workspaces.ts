@@ -1,6 +1,6 @@
 // Sample workspaces for trying the viewer without connecting a folder. Their files live under
-// src/demo/<workspace>/ in the same layout a real notes repo uses (db/notes, db/plans, db/PRS.md,
-// db/AGENTS.json, ...) and are served from memory (see memory-fs.ts), so edits last until the page
+// src/demo/<workspace>/ in the same layout a real notes repo uses (notes/, plans/, PRS.md,
+// AGENTS.json, ...) and are served from memory (see memory-fs.ts), so edits last until the page
 // reloads and nothing is ever written to disk or saved in the folder list.
 
 import type { Workspace } from "@/lib/idb-handle"
@@ -42,7 +42,7 @@ function shiftDates(text: string, offsetDays: number): string {
   })
 }
 
-// "../demo/work/db/notes/x.md" → { folder: "work", path: "db/notes/x.md" }
+// "../demo/work/notes/x.md" → { folder: "work", path: "notes/x.md" }
 function splitFixturePath(modulePath: string): { folder: string; path: string } {
   const [folder, ...rest] = modulePath.replace(/^\.\.\/demo\//, "").split("/")
   return { folder, path: rest.join("/") }

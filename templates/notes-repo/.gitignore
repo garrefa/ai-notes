@@ -1,4 +1,4 @@
 .DS_Store
 # Rewritten every minute by tools/snapshot-agents.sh
-db/AGENTS.json
-db/AGENTS.json.*
+AGENTS.json
+AGENTS.json.*

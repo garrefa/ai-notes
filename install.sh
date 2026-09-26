@@ -14,15 +14,20 @@
 #   tools/*                 -> <ws>/.claude/tools/
 #   templates/notes-repo    -> <ws>/.claude/templates/notes-repo/
 #   hook wiring             -> merged into <ws>/.claude/settings.json (existing settings are kept)
+#   notes repo's db/ layout -> migrated up a level in place, if an older repo still has one
 #
 # It never creates .ai-notes/config.yml or the notes repo — run "setup ainotes" in Claude Code
-# from the workspace afterwards; the ainotes-setup skill asks the questions and creates both.
+# from the workspace afterwards; the ainotes-setup skill asks the questions and creates both. It
+# DOES fix up an existing notes repo that predates the flat layout: if `.ai-notes/config.yml`
+# points at one with a `db/` folder (db/notes, db/PRS.md, ...), that folder's contents are moved up
+# to the repo root and the empty `db/` is removed, on every run (not just --force — this is data
+# layout, not a toolkit file to protect). Safe to re-run: a no-op once there's no `db/` left.
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FORCE=0 DRY_RUN=0 UNINSTALL=0 WS=""
 
-usage() { sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,24p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -44,8 +49,41 @@ DEST="$WS/.claude"
 SETTINGS="$DEST/settings.json"
 HOOK_SCRIPTS=(session-start-task-prompt.sh detect-unregistered-repo.sh detect-repo-clone.sh)
 
+# shellcheck source=tools/ainotes-config.sh
+source "$SRC/tools/ainotes-config.sh"
+
 run() { if [ "$DRY_RUN" = 1 ]; then echo "would: $*"; else "$@"; fi; }
 log() { echo "ainotes: $*"; }
+
+# If .ai-notes/config.yml points at a notes repo that still has the old db/ layout (db/notes,
+# db/PRS.md, ...), move everything up to the repo root and remove the empty db/. A no-op when
+# there's no config yet, no notes repo yet, or the repo is already flat. Runs regardless of --force
+# (this fixes a data layout, not a toolkit file), and honors --dry-run like everything else here.
+migrate_notes_repo() {
+  local config="$WS/.ai-notes/config.yml"
+  [ -f "$config" ] || return 0
+
+  local notes_repo notes_dir db_dir entry base dest
+  notes_repo="$(config_value "$config" notes_repo)"
+  notes_dir="$WS/${notes_repo:-notes}"
+  db_dir="$notes_dir/db"
+  [ -d "$db_dir" ] || return 0
+
+  log "found an older notes repo layout at $db_dir — migrating up to $notes_dir/"
+  for entry in "$db_dir"/* "$db_dir"/.[!.]*; do
+    [ -e "$entry" ] || continue
+    base="$(basename "$entry")"
+    dest="$notes_dir/$base"
+    if [ -e "$dest" ]; then
+      echo "ainotes: refusing to migrate $entry — $dest already exists; move it by hand and re-run" >&2
+      exit 1
+    fi
+    run mv "$entry" "$dest"
+    log "moved db/$base -> $base"
+  done
+  run rmdir "$db_dir"
+  [ "$DRY_RUN" = 1 ] || log "removed empty $db_dir"
+}
 
 # Copy one directory, refusing to clobber an existing one unless --force.
 copy_dir() {
@@ -131,6 +169,8 @@ if [ "$UNINSTALL" = 1 ]; then
   log "uninstalled from $WS (.ai-notes/ and your notes repo were left untouched)"
   exit 0
 fi
+
+migrate_notes_repo
 
 for s in "$SRC"/skills/ainotes-*; do copy_dir "$s" "$DEST/skills/$(basename "$s")"; done
 for a in "$SRC"/agents/*.md; do copy_file "$a" "$DEST/agents/$(basename "$a")"; done

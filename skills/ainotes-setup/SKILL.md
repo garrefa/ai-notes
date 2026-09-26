@@ -74,7 +74,7 @@ Write keys in this order, with these names — every `ainotes-*` skill and hook 
 
 ```yaml
 org_name: "Acme"                 # used in generated prose only
-notes_repo: notes                # dir (its own git repo) at the workspace root holding notes/plans/ledgers under db/
+notes_repo: notes                # dir (its own git repo) at the workspace root holding notes/plans/ledgers
 vcs:
   org: acme                      # GitHub org/user for `gh`; GitHub is the only supported VCS
 jira:                            # OPTIONAL. Omit the whole block to disable all Jira steps.
@@ -94,7 +94,7 @@ ignored_repos: []
 domain_taxonomy: {}              # domain -> [repos]; populated by the repo scan
 ```
 
-`task_statuses` rules: `key` is what's written in task frontmatter and `db/TASKS.md`; `label` is the
+`task_statuses` rules: `key` is what's written in task frontmatter and `TASKS.md`; `label` is the
 human-readable name used in chat and reports; `closed: true` marks a finished status (Completed table).
 There is no `color` field: status colors are a viewer-only setting, configured in the viewer's Settings.
 At least one closed and one non-closed status are required. If the key is absent, skills use exactly
@@ -112,11 +112,10 @@ When the user wants `notes_repo` created fresh (it doesn't exist yet at `<worksp
    base directory when it loads) into it — including dotfiles (`.gitignore`):
    ```bash
    cp -R "<skill base dir>/../../templates/notes-repo/." "<workspace-root>/<notes_repo>/"
-   mkdir -p "<workspace-root>/<notes_repo>"/db/{notes,plans,tasks,daily}
    ```
-   That gives it `README.md`, `CLAUDE.md`, and `.gitignore` at the root, plus the `db/` data folder
-   (the canonical layout defined in `ainotes-notes`): `db/INDEX.md`, `db/PRS.md`, `db/TASKS.md`
-   (headers and empty tables only) and empty `db/notes/`, `db/plans/`, `db/tasks/`, `db/daily/`
+   That gives it `README.md`, `CLAUDE.md`, and `.gitignore` at the root, plus the data files
+   (the canonical layout defined in `ainotes-notes`): `INDEX.md`, `PRS.md`, `TASKS.md`
+   (headers and empty tables only) and empty `notes/`, `plans/`, `tasks/`, `daily/`
    (each holding a `.gitkeep` so git tracks it). If the template directory can't be found, stop and tell the user
    rather than hand-writing a divergent skeleton.
 3. Make an initial commit: `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Initialize notes repo"`.
@@ -127,26 +126,26 @@ overwrite existing files with template copies.
 
 ### Migrating a legacy notes repo
 
-Older notes repos kept their data (`notes/`, `plans/`, `tasks/`, `daily/`, `INDEX.md`, `PRS.md`,
-`TASKS.md`) directly at the repo root instead of under `db/`. Whenever this skill runs (full setup or
-repo registration) and finds `<workspace-root>/<notes_repo>` with no `db/` but any of those entries at
-its root, tell the user and offer to migrate — never move anything without an explicit yes. On
-request, do it as a single commit at the notes repo root:
+Older notes repos (from before the layout was flattened) kept their data (`notes/`, `plans/`,
+`tasks/`, `daily/`, `INDEX.md`, `PRS.md`, `TASKS.md`) nested one level under a `db/` folder. Whenever
+this skill runs (full setup or repo registration) and finds `<workspace-root>/<notes_repo>/db/`
+holding any of those entries, tell the user and offer to migrate — never move anything without an
+explicit yes. On request, do it as a single commit at the notes repo root:
 
 ```bash
 cd "<workspace-root>/<notes_repo>"
-mkdir -p db
 for p in notes plans tasks daily INDEX.md PRS.md TASKS.md; do
-  [ -e "$p" ] && git mv "$p" "db/$p"
+  [ -e "db/$p" ] && git mv "db/$p" "$p"
 done
-git commit -m "Move notes data under db/"
+rmdir db 2>/dev/null || true
+git commit -m "Flatten notes data out of db/"
 ```
 
 Entries that aren't tracked by git yet (`git mv` refuses them) should be `git add`ed first, or moved
 with plain `mv` and then added. Links inside the ledgers/`INDEX.md`/frontmatter need no rewriting:
-they were already relative to the data root (`notes/...`, `tasks/...`), which is now `db/`. Afterwards
-create any missing `db/` subfolder or ledger from the template (without overwriting) so the layout is
-complete. Don't push — that's the user's call.
+they were already relative to the data root (`notes/...`, `tasks/...`), which stays the data root.
+Afterwards create any missing subfolder or ledger from the template (without overwriting) so the
+layout is complete. Don't push — that's the user's call.
 
 ## Repo registration
 

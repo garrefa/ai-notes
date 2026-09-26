@@ -21,10 +21,10 @@ to it as you work:
   latest default branch, has a subagent write a plan, waits for your approval, records the plan,
   optionally opens a Jira ticket, executes, and runs an independent review. It never commits, pushes
   or opens a PR without asking.
-- **PR ledger**: `db/PRS.md` tracks every PR you open across the workspace. `check prs` reconciles it
+- **PR ledger**: `PRS.md` tracks every PR you open across the workspace. `check prs` reconciles it
   against GitHub. `babysit prs` (under `/loop`) keeps PRs current with their base branch, reruns
   failed CI and handles review comments. It never merges.
-- **Tasks and daily plans**: `db/TASKS.md` holds work that spans sessions. `db/daily/YYYY-MM-DD.md` is a
+- **Tasks and daily plans**: `TASKS.md` holds work that spans sessions. `daily/YYYY-MM-DD.md` is a
   checklist you tick off by hand.
 - **Reports**: weekly, monthly or quarterly reviews compiled from everything above.
 - **Slack review requests** (optional): post a review ask for your PRs, @mentioning pending code
@@ -93,11 +93,10 @@ tag each cloned repo with a domain (or ignore it). Repeat this in every workspac
 ├── .ai-notes/config.yml          <- per-workspace settings (see tools/config.example.yml)
 ├── notes/                        <- the notes repo (name set by notes_repo); its own git repo
 │   ├── README.md  CLAUDE.md
-│   └── db/                       <- all the data lives here
-│       ├── notes/  plans/  tasks/  daily/
-│       ├── INDEX.md              <- tag -> files
-│       ├── PRS.md                <- PR ledger
-│       └── TASKS.md              <- task ledger
+│   ├── notes/  plans/  tasks/  daily/
+│   ├── INDEX.md                  <- tag -> files
+│   ├── PRS.md                    <- PR ledger
+│   └── TASKS.md                  <- task ledger
 ├── api-gateway/                  <- your repos, cloned side by side
 ├── web-app/
 └── mobile-app/
@@ -156,7 +155,7 @@ The plugin install keeps its copy in Claude Code's plugin cache, which isn't a g
   "check prs" (reconcile, refresh status, commit), using only `gh` and `jq`. The org and the PRS.md
   path come from `.ai-notes/config.yml` when omitted. It's idempotent, so you can schedule it with
   cron, launchd or CI at whatever cadence you like.
-- `tools/snapshot-agents.sh [--all] [--verbose] [path/to/AGENTS.json]`: writes `db/AGENTS.json`, a
+- `tools/snapshot-agents.sh [--all] [--verbose] [path/to/AGENTS.json]`: writes `AGENTS.json`, a
   snapshot of the Claude Code sessions and background jobs working in the workspace (status, repo and
   worktree, last status line, tokens, linked PRs), read from `~/.claude/sessions/` and `~/.claude/jobs/`.
   It needs only `jq`. Schedule it every 60 seconds with launchd or cron to keep the viewer's Agents
@@ -187,13 +186,13 @@ npm install
 npm run dev        # then open the URL it prints (http://localhost:5173 by default)
 ```
 
-Click **Add folder…** and pick a workspace's notes repo (or its `db/` folder). Add as many as you
+Click **Add folder…** and pick a workspace's notes repo. Add as many as you
 like, for example work, personal and study. The viewer remembers them, reopens the last one you used,
 and switches between them from the switcher at the top of the sidebar or the command palette, with no
 re-picking.
 
 - **Task statuses**: every task shows a colored dot for its status. The Tasks view filters by status,
-  and changing a task's status in the detail pane updates both the task file and `db/TASKS.md`.
+  and changing a task's status in the detail pane updates both the task file and `TASKS.md`.
   Backlog, in progress, done and dropped have built-in colors, and any other status shows in gray.
   Use **Settings** to change a status's color or mark it as closed. These viewer preferences are
   stored in your browser; the statuses the skills use are defined in `task_statuses` in
@@ -204,11 +203,12 @@ re-picking.
   tag.
 - **Library**: each item shows a count (notes, open tasks, pending PRs, running agents). Drag the
   items into the order you like (the grip appears after the count on hover), or move the focused
-  one with Alt+↑/↓. The order is stored in your browser.
+  one with Alt+↑/↓. The order is stored in your browser. So is the last item you selected — a
+  refresh or a new tab reopens it instead of always starting from all notes.
 - **Agents**: lists the Claude Code agents working in the workspace, grouped by status: *Needs you*
   (waiting on your reply, highlighted and counted in the Library), *Working*, *Idle* and *Stopped*. The detail pane shows the agent's last
   status line, repo, worktree, tokens and linked PRs, which open in the Pull requests view. It reads
-  `db/AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes.
+  `AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes.
 - **Permissions**: if the browser drops a folder's permission, click **Grant access** to restore it.
 - **Version**: the running version is shown in **Settings**. `npx ainotes-viewer@latest` always runs
   the newest one; see [Releasing](#releasing) for how a version is cut.

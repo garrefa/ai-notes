@@ -12,20 +12,20 @@ It is its own git repo (`<notes_repo>/.git`), separate from every code repo, wit
 direct-to-`main` commits — no worktrees, no per-note branches, no PR flow, no Jira ticket for the note-taking itself.
 
 (`<notes_repo>` below means the `notes_repo` value from `<workspace-root>/.ai-notes/config.yml`;
-the notes repo lives at `<workspace-root>/<notes_repo>`. All data lives under its `db/` folder —
-`db/notes/`, `db/plans/`, `db/tasks/`, `db/daily/`, `db/INDEX.md`, `db/PRS.md`, `db/TASKS.md` —
-while `README.md`/`CLAUDE.md`/`.gitignore` stay at the repo root and git always runs at the repo root.
-If there's no `db/` but those entries sit at the repo root (legacy layout), don't write anything —
-report it back so the caller can offer the migration described in `ainotes-notes`.)
+the notes repo lives at `<workspace-root>/<notes_repo>`. All data lives directly at its root —
+`notes/`, `plans/`, `tasks/`, `daily/`, `INDEX.md`, `PRS.md`, `TASKS.md` —
+alongside `README.md`/`CLAUDE.md`/`.gitignore`, and git always runs at the repo root.
+If there's still a `db/` subfolder holding those entries (pre-flattening legacy layout), don't write
+anything — report it back so the caller can offer the migration described in `ainotes-notes`.)
 
-Task files (`db/tasks/*.md`) and `db/TASKS.md` belong to `ainotes-tasks` and are written by the
+Task files (`tasks/*.md`) and `TASKS.md` belong to `ainotes-tasks` and are written by the
 `ledger-keeper` agent: their `status:` is one of the configurable `task_statuses` keys from
 `.ai-notes/config.yml` (default `backlog`, `in-progress`, `done`, `dropped`), not the plan lifecycle
 below — and never a tag. If asked to touch them, return `{error: "ledger file — use ledger-keeper"}`.
 
 ## Handoff contract
 
-You are the single writer for notes and plans (`db/notes/`, `db/plans/`) and their `db/INDEX.md`
+You are the single writer for notes and plans (`notes/`, `plans/`) and their `INDEX.md`
 entries; ledgers (`PRS.md`, `TASKS.md`, `tasks/`, `daily/`) belong to the `ledger-keeper` agent.
 The caller has the conversation, so it decides the epic, writes the body, and passes you everything:
 
@@ -35,7 +35,7 @@ The caller has the conversation, so it decides the epic, writes the body, and pa
   change and no body (plan bodies are immutable — see below). A call may carry a list of these to
   apply in one commit (e.g. an outcome note plus its plan's status flip). The caller may also pass
   `notes_repo_path` and a `commit_message`; use them when given, otherwise use the messages below.
-- **Output**: `{path, index_sections, sha, flags}` — `path` relative to `db/` (a list when the call
+- **Output**: `{path, index_sections, sha, flags}` — `path` relative to the repo root (a list when the call
   wrote several files), `index_sections` the
   `INDEX.md` tag sections you appended to (or created), `sha` the short commit SHA, and `flags` one
   line per judgment call you weren't sure about (empty list when none). On failure, return
@@ -45,8 +45,8 @@ Don't rewrite the body you're given beyond fixing formatting; don't ask the user
 
 ## Before writing anything
 
-Read `<notes_repo>/CLAUDE.md` and at least one or two existing files under `<notes_repo>/db/notes/`
-and `<notes_repo>/db/plans/` that look similar to what you're about to write, so your frontmatter
+Read `<notes_repo>/CLAUDE.md` and at least one or two existing files under `<notes_repo>/notes/`
+and `<notes_repo>/plans/` that look similar to what you're about to write, so your frontmatter
 and structure match established convention exactly rather than inventing a new shape.
 
 ## Frontmatter schema
@@ -62,7 +62,7 @@ tags: []                    # free-form, on top of domain/epic — at least one 
 jira: null                  # plans only, once a Jira ticket exists
 worktree: null              # plans only: <repo>/.worktrees/<branch-name>
 status: n/a                 # notes: n/a. plans: planned -> in-progress -> done (or in-review)
-links: []                   # related notes/plans, relative to db/ (e.g. "plans/2026-09-01-x.md")
+links: []                   # related notes/plans, relative to the repo root (e.g. "plans/2026-09-01-x.md")
 ---
 ```
 
@@ -83,9 +83,9 @@ Every file needs at least one tag across `domain` + `tags` combined.
 
 ## Filenames
 
-`db/notes/YYYY-MM-DD-slug.md` or `db/plans/YYYY-MM-DD-slug.md` (plans often prefix the repo name:
-`db/plans/YYYY-MM-DD-<repo>-slug.md`). References to them in `links:` and `INDEX.md` drop the
-`db/` prefix (`notes/...md`, `plans/...md`).
+`notes/YYYY-MM-DD-slug.md` or `plans/YYYY-MM-DD-slug.md` (plans often prefix the repo name:
+`plans/YYYY-MM-DD-<repo>-slug.md`). References to them in `links:` and `INDEX.md` are the same
+relative path (`notes/...md`, `plans/...md`).
 
 ## Critical rule: plan bodies are immutable
 
@@ -96,7 +96,7 @@ only flip the plan's `status` frontmatter field (and append the new note's filen
 
 ## INDEX.md
 
-`<notes_repo>/db/INDEX.md`; entries are relative to `db/`. Format:
+`<notes_repo>/INDEX.md`; entries are relative to the repo root. Format:
 ```markdown
 ## <tag>
 - notes/2026-09-03-worktree-notes.md

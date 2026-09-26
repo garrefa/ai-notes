@@ -1,6 +1,6 @@
 ---
 name: ainotes-babysit-prs
-description: Loop over every PR we have open across the workspace (from <notes_repo>/db/PRS.md's Pending table, where the notes repo is `notes_repo` in .ai-notes/config.yml) and drive each one toward merge — update it against its base branch, resolve conflicts, rerun failed CI jobs, reply to and fix review comments that make sense, then (only if `ci.deploy_trigger_comment` is configured) ask before posting that deploy comment. Never merges. Use when the user says "babysit prs", "babysit open prs", or "keep an eye on our PRs" — usually run under the `loop` skill so it keeps checking until nothing is left.
+description: Loop over every PR we have open across the workspace (from <notes_repo>/PRS.md's Pending table, where the notes repo is `notes_repo` in .ai-notes/config.yml) and drive each one toward merge — update it against its base branch, resolve conflicts, rerun failed CI jobs, reply to and fix review comments that make sense, then (only if `ci.deploy_trigger_comment` is configured) ask before posting that deploy comment. Never merges. Use when the user says "babysit prs", "babysit open prs", or "keep an eye on our PRs" — usually run under the `loop` skill so it keeps checking until nothing is left.
 ---
 
 # Babysit PRs
@@ -16,7 +16,7 @@ pass or stops because nothing is left to do.
 `<vcs.org>` its `vcs.org` value, and `<deploy comment>` its `ci.deploy_trigger_comment` value — see
 `ainotes-notes` for the config-discovery rule.)
 
-Read `<notes_repo>/db/PRS.md`'s **Pending (open)** table (see `ainotes-pr-tracker`) — that's the list of
+Read `<notes_repo>/PRS.md`'s **Pending (open)** table (see `ainotes-pr-tracker`) — that's the list of
 PRs we opened and haven't resolved yet. If the user names a specific PR ("babysit PR #42"), scope to
 just that row instead of the whole table.
 
@@ -71,7 +71,7 @@ what actually needs judgment.
    refreshed after branch updates / reruns / comment fixes), spawn `ledger-keeper` once for the whole
    pass with `check_prs` — exactly as `ainotes-pr-tracker`'s "check prs" does (same agent naming and
    fallback, `script` = `<skill base dir>/../../tools/check-prs.sh`, plus `notes_repo_path` and
-   `toolkit_dir`). It updates `<notes_repo>/db/PRS.md` and commits; relay its `updated` list.
+   `toolkit_dir`). It updates `<notes_repo>/PRS.md` and commits; relay its `updated` list.
 
 ## Looping
 

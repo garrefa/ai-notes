@@ -34,7 +34,7 @@ import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-direct
 import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
 import { DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
-import type { LibraryView } from "@/lib/library-order"
+import { useSelectedView, type LibraryView } from "@/lib/library-order"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
 import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
 import type { LedgerPr, PrState } from "@/lib/prs-parser"
@@ -132,7 +132,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const inDemo = activeWorkspace?.demo ?? false
   const addFolder = supported ? addWorkspace : null
 
-  const [view, setView] = useState<View>("all")
+  const [view, setView] = useSelectedView()
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [tagQuery, setTagQuery] = useState("")
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE)
@@ -531,9 +531,10 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
               )}
               {connected && layout === "unrecognized" && notes.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">
-                  "{folderName}" has no <code className="font-mono">db/</code>, <code className="font-mono">notes/</code> or{" "}
-                  <code className="font-mono">plans/</code> folder. Pick your notes repo (or its{" "}
-                  <code className="font-mono">db/</code> folder) with <strong>Add folder</strong>.
+                  "{folderName}" has no <code className="font-mono">notes/</code> or{" "}
+                  <code className="font-mono">plans/</code> folder (nor a legacy{" "}
+                  <code className="font-mono">db/</code> folder). Pick your notes repo with{" "}
+                  <strong>Add folder</strong>.
                 </p>
               )}
               {connected && view === "prs" && (

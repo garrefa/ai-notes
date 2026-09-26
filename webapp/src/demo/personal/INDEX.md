@@ -1,6 +1,6 @@
 # Index
 
-Tag → files map, maintained by the `ainotes-notes` skill. Paths are relative to this `db/` folder.
+Tag → files map, maintained by the `ainotes-notes` skill. Paths are relative to this repo's root.
 
 ## linear-algebra
 - notes/2026-03-18-linear-algebra-eigenvalues-lecture.md
