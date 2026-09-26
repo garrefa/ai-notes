@@ -7,8 +7,10 @@ import { defineConfig, type Plugin } from "vite"
 
 const packageVersion: string = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf-8")).version
 
-// Published next to index.html. A running tab polls it and offers a reload when the ID in it
-// differs from the one baked into its own bundle (see src/hooks/use-new-version.ts).
+// Published next to index.html. A running tab polls it and offers a reload when the build ID in it
+// differs from the one baked into its own bundle (see src/hooks/use-new-version.ts). The build ID,
+// not the release number, is the trigger: a deploy between releases changes the code without
+// changing the version. The release number rides along so the notice can name it.
 const VERSION_FILE = "version.json"
 
 function gitShortSha(): string | null {
@@ -27,7 +29,7 @@ function createBuildId(builtAt: Date): string {
   return sha ? `${sha}-${stamp}` : stamp
 }
 
-function versionFile(buildId: string, builtAt: Date): Plugin {
+function versionFile(version: string, buildId: string, builtAt: Date): Plugin {
   return {
     name: "ainotes-version-file",
     apply: "build",
@@ -35,7 +37,7 @@ function versionFile(buildId: string, builtAt: Date): Plugin {
       this.emitFile({
         type: "asset",
         fileName: VERSION_FILE,
-        source: JSON.stringify({ buildId, builtAt: builtAt.toISOString() }),
+        source: JSON.stringify({ version, buildId, builtAt: builtAt.toISOString() }),
       })
     },
   }
@@ -45,12 +47,12 @@ const builtAt = new Date()
 const buildId = createBuildId(builtAt)
 
 export default defineConfig({
-  plugins: [react(), tailwindcss(), versionFile(buildId, builtAt)],
+  plugins: [react(), tailwindcss(), versionFile(packageVersion, buildId, builtAt)],
   define: {
     __APP_BUILD_ID__: JSON.stringify(buildId),
     __APP_VERSION_FILE__: JSON.stringify(VERSION_FILE),
-    // Package version, shown in Settings — kept in lockstep with .claude-plugin/plugin.json by
-    // tools/release.sh so both halves of the toolkit report the same release number.
+    // Release number, shown in the sidebar footer, Settings and the new-version notice — kept in
+    // lockstep with .claude-plugin/plugin.json by tools/release.sh.
     __APP_VERSION__: JSON.stringify(packageVersion),
   },
   resolve: {

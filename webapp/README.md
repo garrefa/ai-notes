@@ -60,10 +60,16 @@ npm run preview    # serves dist/ on http://localhost:4173
 `dist/` is plain static files. It can be served from anywhere that uses `localhost` or HTTPS (the
 File System Access API only works in secure contexts).
 
-Each build also writes `dist/version.json` with a build ID (the commit's short SHA plus the build
-time) and bakes the same ID into the bundle. An open tab re-reads that file every 5 minutes and
-whenever the tab regains focus. When the ID on the server differs, a **New version available** notice
-offers a **Reload** button. Reloading stays the user's choice, since it discards an unsaved edit or
+The running release number (`version` in `package.json`) shows at the bottom of the sidebar, linked
+to the changelog, and in **Settings**; hover it for the build ID.
+
+Each build also writes `dist/version.json` with that release number and a build ID (the commit's
+short SHA plus the build time), and bakes both into the bundle. An open tab re-reads that file every
+5 minutes and whenever the tab regains focus. When the build ID on the server differs, a notice offers
+a **Reload** button and names what changed: "AINotes v0.2.0 is available (you're on v0.1.0)" for a
+new release, or "A new build of AINotes v0.1.0 is available" for a redeploy of the same one. The build
+ID, not the version, is what triggers it, since a deploy between releases changes the code without
+changing the version. Reloading stays the user's choice, since it discards an unsaved edit or
 the demo's in-memory changes. For it to work, your host must not cache `version.json` or
 `index.html` for long (the hashed files in `assets/` can be cached forever). `npm run dev` skips the
 check because Vite reloads the page on its own.
