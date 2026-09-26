@@ -50,6 +50,7 @@ import {
 
 const JIRA_TICKET_RE = /^[A-Za-z]{3}-\d{4}$/
 const PROJECT_REPO_URL = "https://github.com/garrefa/ai-notes"
+const CHANGELOG_URL = `${PROJECT_REPO_URL}/blob/main/CHANGELOG.md`
 // How often relative times in the Agents view ("updated 3m ago") are recomputed.
 const CLOCK_TICK_MS = 30_000
 const TAGS_COLLAPSE_KEY = "ainotes-tags-collapsed"
@@ -429,6 +430,16 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                       : "Not connected"}
             </div>
           )}
+
+          <a
+            href={CHANGELOG_URL}
+            target="_blank"
+            rel="noreferrer"
+            title={`Build ${__APP_BUILD_ID__} · what's new in each release`}
+            className="px-1 font-mono text-[11px] text-muted-foreground hover:text-foreground"
+          >
+            AINotes v{__APP_VERSION__}
+          </a>
         </SidebarFooter>
       </Sidebar>
 
