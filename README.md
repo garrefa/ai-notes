@@ -76,6 +76,13 @@ Claude Code only reads `<workspace>/.claude/` when it starts at the workspace ro
 launch `claude` from the root, not from inside one of the repos. To upgrade, pull and re-run with
 `--force` (this overwrites local edits to the toolkit's own files; your other files are untouched).
 
+Run from a real terminal (not `--dry-run`), it also asks once whether to schedule
+`tools/snapshot-agents.sh` to run every 60 seconds — needed for the [viewer](#viewer)'s Agents view
+to have anything to show. Say yes and it sets up a per-user launchd job (macOS) or a crontab line
+(everywhere else) for you; say no, or pass `--no-schedule` to skip the question outright (e.g. in a
+script), and set it up yourself later however you like. `--uninstall` always removes it again, no
+asking, if this script was the one that set it up.
+
 ### Then, in either case
 
 ```bash
@@ -148,8 +155,16 @@ and anything user-facing stay on your main model.
 
 ## Tools (no LLM needed)
 
-Run these from a clone of this repo, or from `<workspace>/.claude/tools/` if you used `install.sh`.
-The plugin install keeps its copy in Claude Code's plugin cache, which isn't a good path for cron.
+Run these from a clone of this repo, or from `<workspace>/.claude/tools/` if you used `install.sh`
+(which can also schedule `snapshot-agents.sh` for you — see below). The plugin install keeps its
+copy in Claude Code's plugin cache, which isn't a good path for cron.
+
+`npx ainotes-viewer@latest` does **not** include these — that command only fetches the packaged
+webapp (`dist/` + a tiny CLI), not `tools/`. If all you've done is run the viewer via `npx`, there's
+nothing scheduling `snapshot-agents.sh` and the Agents view stays empty. To get it working, install
+the toolkit itself somewhere (`install.sh`, below, or the Claude Code plugin) — it doesn't have to
+be the same machine you run the viewer on, since `snapshot-agents.sh` just needs to write
+`AGENTS.json` into the same notes-repo folder the viewer has open.
 
 - `tools/check-prs.sh [--org ORG] [--dry-run] [--verbose] [path/to/PRS.md]`: the mechanical part of
   "check prs" (reconcile, refresh status, commit), using only `gh` and `jq`. The org and the PRS.md
@@ -159,7 +174,8 @@ The plugin install keeps its copy in Claude Code's plugin cache, which isn't a g
   snapshot of the Claude Code sessions and background jobs working in the workspace (status, repo and
   worktree, last status line, tokens, linked PRs), read from `~/.claude/sessions/` and `~/.claude/jobs/`.
   It needs only `jq`. Schedule it every 60 seconds with launchd or cron to keep the viewer's Agents
-  view current. The file changes every run, so the notes-repo template keeps it out of git.
+  view current — `install.sh` offers to set this up for you (launchd on macOS, cron elsewhere); see
+  Option B below. The file changes every run, so the notes-repo template keeps it out of git.
 - `tools/clean-merged-worktrees.sh`: lists worktrees whose branches have been merged, including
   squash and rebase merges when `gh` is available. It's a dry run unless you pass `--delete`.
 - `tools/config.example.yml`: every config key, with comments.
@@ -208,7 +224,9 @@ re-picking.
 - **Agents**: lists the Claude Code agents working in the workspace, grouped by status: *Needs you*
   (waiting on your reply, highlighted and counted in the Library), *Working*, *Idle* and *Stopped*. The detail pane shows the agent's last
   status line, repo, worktree, tokens and linked PRs, which open in the Pull requests view. It reads
-  `AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes.
+  `AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes. Empty if
+  nothing is running that script on a schedule — see the note about `npx` in
+  [Tools](#tools-no-llm-needed) above.
 - **Permissions**: if the browser drops a folder's permission, click **Grant access** to restore it.
 - **Version**: the running version is shown in **Settings**. `npx ainotes-viewer@latest` always runs
   the newest one; see [Releasing](#releasing) for how a version is cut.
