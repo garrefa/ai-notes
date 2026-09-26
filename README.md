@@ -58,7 +58,8 @@ GitHub is the only supported VCS today.
 Skills, agents and hooks load from the plugin, so one install serves every workspace you have, and
 they work wherever you launch Claude inside a workspace (the root or any repo in it). Plugin skills
 and agents are namespaced (`ainotes:ainotes-setup`, `ainotes:notetaker`), but the plain names and
-trigger phrases work too.
+trigger phrases work too. To upgrade later, run `claude plugin update ainotes` (see
+[Releasing](#releasing) for how versions are cut).
 
 ### Option B: copy into a workspace
 
@@ -171,7 +172,14 @@ and plans, see open tasks, pending PRs and the agents at work, and search or fil
 files directly through the browser's File System Access API. Nothing leaves your machine and there is
 no server-side storage.
 
-Start it from a clone of this repo:
+Run it without cloning anything — `npx` always resolves the latest published version, so there's
+nothing to update by hand:
+
+```bash
+npx ainotes-viewer@latest
+```
+
+Or, from a clone of this repo, for development:
 
 ```bash
 cd webapp
@@ -202,11 +210,39 @@ re-picking.
   status line, repo, worktree, tokens and linked PRs, which open in the Pull requests view. It reads
   `db/AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes.
 - **Permissions**: if the browser drops a folder's permission, click **Grant access** to restore it.
+- **Version**: the running version is shown in **Settings**. `npx ainotes-viewer@latest` always runs
+  the newest one; see [Releasing](#releasing) for how a version is cut.
 - **Missing folders**: a folder that was moved or deleted shows as *Missing*, with Locate… and
   Remove options, instead of blocking the app.
 
 For a static build, run `npm run build && npm run preview` (http://localhost:4173). See [`webapp/README.md`](webapp/README.md)
 for details.
+
+## Releasing
+
+The plugin and the viewer are versioned and released together, as one number, so "what version am I
+on" has one answer everywhere:
+
+- **Single version, single history**: [`CHANGELOG.md`](CHANGELOG.md) is the one changelog for the
+  whole toolkit ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/) format,
+  [semver](https://semver.org/)). `.claude-plugin/plugin.json`'s `version` and
+  `webapp/package.json`'s `version` are always the same number.
+- **Cutting a release**: add bullets to `CHANGELOG.md`'s `## [Unreleased]` section as you go, then
+  run `tools/release.sh <version>` (e.g. `tools/release.sh 0.2.0`). It bumps both `version` fields,
+  turns `[Unreleased]` into a dated `[0.2.0]` section with a fresh empty `[Unreleased]` above it,
+  commits `Release v0.2.0`, and tags it. Nothing is pushed automatically — review the commit, then
+  `git push && git push origin v0.2.0`.
+- **What the tag triggers**: pushing a `vX.Y.Z` tag runs
+  [`.github/workflows/release.yml`](.github/workflows/release.yml), which builds `webapp/`, publishes
+  it to npm as `ainotes-viewer`, and opens a GitHub Release whose body is that version's CHANGELOG
+  section. That workflow needs a one-time `NPM_TOKEN` repo secret (see the comment at the top of the
+  workflow file).
+- **How each half updates for users**: the plugin marketplace entry tracks this repo's default
+  branch (no `ref`/`sha` pin), so `claude plugin update ainotes` (or `/plugin marketplace update
+  ainotes` in a session) fetches whatever was last released, and `claude plugin list` shows the
+  installed version, both read from `plugin.json`. The viewer updates by running
+  `npx ainotes-viewer@latest` again, which always resolves to the newest published version (pin an
+  older one with `npx ainotes-viewer@0.1.0`).
 
 ## License
 

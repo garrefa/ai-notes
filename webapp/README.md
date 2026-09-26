@@ -19,6 +19,19 @@ It only reads the notes repo you pick; it never reads your workspace's `.ai-note
 
 ## Run it
 
+Quickest, with nothing to clone — always the latest published version:
+
+```bash
+npx ainotes-viewer@latest
+```
+
+It builds nothing at runtime (the published package ships a prebuilt `dist/`), serves it on
+`http://localhost:4173` by default (`--port <n>` to change), and opens it in your default browser
+(`--no-open` to skip that). Pin a version instead of always getting the latest with
+`npx ainotes-viewer@0.1.0`, and check what's running with `npx ainotes-viewer --version`.
+
+To work on the source instead:
+
 ```bash
 cd webapp
 npm install

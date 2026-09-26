@@ -108,6 +108,7 @@ export function StatusSettingsDialog({
             Completed in TASKS.md). Saved in this browser and shared by every folder.
           </DialogDescription>
         </DialogHeader>
+        <p className="-mt-2 font-mono text-[11px] text-muted-foreground">ainotes-viewer v{__APP_VERSION__}</p>
         <div className="-mx-4 space-y-4 overflow-y-auto px-4">
           <StatusGroup heading="Built-in statuses" statuses={builtins} settings={settings} />
           <StatusGroup heading="Found in this folder's tasks" statuses={discovered} settings={settings} />
