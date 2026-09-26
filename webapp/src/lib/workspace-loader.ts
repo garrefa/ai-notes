@@ -2,7 +2,8 @@
 // moved, renamed, sits on an unmounted drive, or simply never answers — into one
 // FolderUnavailableError instead of an exception or a promise that never settles.
 
-import { assertReadableDirectory, loadAllNotes, loadPrsFile, resolveWorkspace, type ResolvedWorkspace } from "@/lib/notes-fs"
+import { parseAgentsSnapshot, type AgentsSnapshot } from "@/lib/agents"
+import { assertReadableDirectory, loadAgentsFile, loadAllNotes, loadPrsFile, resolveWorkspace, type ResolvedWorkspace } from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
 import { parsePrLedger, type PrLedger } from "@/lib/prs-parser"
 import { toFolderUnavailable, withTimeout } from "@/lib/folder-errors"
@@ -15,15 +16,24 @@ export interface WorkspaceData {
   notes: Note[]
   // null when the folder has no PRS.md.
   prLedger: PrLedger | null
+  // null when the folder has no AGENTS.json (or it can't be parsed).
+  agents: AgentsSnapshot | null
 }
+
+// What an open workspace shows before (and after) its data is read.
+export const EMPTY_WORKSPACE_DATA: WorkspaceData = { notes: [], prLedger: null, agents: null }
 
 export interface LoadedWorkspace extends WorkspaceData {
   resolved: ResolvedWorkspace
 }
 
 export async function readWorkspaceData(dataDir: FileSystemDirectoryHandle): Promise<WorkspaceData> {
-  const [notes, prsRaw] = await Promise.all([loadAllNotes(dataDir), loadPrsFile(dataDir)])
-  return { notes, prLedger: prsRaw === null ? null : parsePrLedger(prsRaw) }
+  const [notes, prsRaw, agentsRaw] = await Promise.all([loadAllNotes(dataDir), loadPrsFile(dataDir), loadAgentsFile(dataDir)])
+  return {
+    notes,
+    prLedger: prsRaw === null ? null : parsePrLedger(prsRaw),
+    agents: agentsRaw === null ? null : parseAgentsSnapshot(agentsRaw),
+  }
 }
 
 async function guarded<T>(work: Promise<T>, label: string, timeoutMs: number): Promise<T> {

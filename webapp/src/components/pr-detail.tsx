@@ -1,10 +1,11 @@
-import type { ReactNode } from "react"
 import { ExternalLink } from "lucide-react"
 
+import { Field, FieldList, Section } from "@/components/detail-section"
 import { Pill, ToneChip } from "@/components/pr-hints"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { EXTERNAL_LINK } from "@/lib/links"
 import type { Note } from "@/lib/notes-frontmatter"
 import type { LedgerPr } from "@/lib/prs-parser"
 import {
@@ -21,26 +22,6 @@ import {
 } from "@/lib/pr-view"
 import type { TaskStatus } from "@/lib/task-status"
 
-const EXTERNAL_LINK = { target: "_blank", rel: "noopener noreferrer" } as const
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="mb-6">
-      <h2 className="mb-2 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">{title}</h2>
-      {children}
-    </section>
-  )
-}
-
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return (
-    <>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className="min-w-0">{children}</dd>
-    </>
-  )
-}
-
 function JiraValue({ pr }: { pr: LedgerPr }) {
   if (!pr.jira) return null
   if (!pr.jiraUrl) return <span className="font-mono">{pr.jira}</span>
@@ -55,7 +36,7 @@ function Overview({ pr }: { pr: LedgerPr }) {
   const openFor = formatAge(pr.detail?.openFor ?? null)
   const lastCommit = formatAge(pr.detail?.lastCommit ?? null)
   return (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 text-sm">
+    <FieldList>
       <Field label="Repository">
         <span className="font-mono">{pr.org ? `${pr.org}/${pr.repo}` : pr.repo}</span>
       </Field>
@@ -69,7 +50,7 @@ function Overview({ pr }: { pr: LedgerPr }) {
         </Field>
       )}
       {pr.lastChecked && <Field label="Last checked">{pr.lastChecked} (UTC)</Field>}
-    </dl>
+    </FieldList>
   )
 }
 

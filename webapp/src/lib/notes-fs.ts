@@ -8,6 +8,7 @@ const DATA_DIR_NAME = "db"
 const LEGACY_MARKER_DIRS = ["notes", "plans"]
 // Ledger files that sit at the data dir's root rather than inside one of WATCHED_DIRS.
 const PRS_FILE = "PRS.md"
+const AGENTS_FILE = "AGENTS.json"
 const TASKS_LEDGER_FILE = "TASKS.md"
 // "Doesn't exist (or isn't a directory)" — the only errors a lookup of an optional child may swallow.
 const MISSING_ENTRY_ERRORS = new Set(["NotFoundError", "TypeMismatchError"])
@@ -105,6 +106,12 @@ export async function loadAllNotes(dataDir: FileSystemDirectoryHandle): Promise<
 // PRS.md lives at the data dir's root, alongside notes/plans/daily, not inside one of them.
 export async function loadPrsFile(dataDir: FileSystemDirectoryHandle): Promise<string | null> {
   const file = await getFileIn(dataDir, PRS_FILE)
+  return file ? file.text() : null
+}
+
+// AGENTS.json (written by tools/snapshot-agents.sh) sits next to PRS.md at the data dir's root.
+export async function loadAgentsFile(dataDir: FileSystemDirectoryHandle): Promise<string | null> {
+  const file = await getFileIn(dataDir, AGENTS_FILE)
   return file ? file.text() : null
 }
 

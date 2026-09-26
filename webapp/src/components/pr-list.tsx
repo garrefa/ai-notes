@@ -1,8 +1,7 @@
-import type { ReactNode } from "react"
-
+import { ListGroupHeading } from "@/components/detail-section"
+import { FilterChip } from "@/components/filter-chip"
 import { Badge } from "@/components/ui/badge"
 import { Pill, ToneChip } from "@/components/pr-hints"
-import { cn } from "@/lib/utils"
 import type { LedgerPr, PrState } from "@/lib/prs-parser"
 import {
   PR_STATES,
@@ -14,18 +13,6 @@ import {
   prTitle,
   reviewSummary,
 } from "@/lib/pr-view"
-
-const CHIP_BASE = "rounded-full border px-2 py-0.5 text-[11px] transition-colors"
-const CHIP_ON = "border-primary bg-primary/10 text-primary"
-const CHIP_OFF = "border-border text-muted-foreground hover:border-primary/50"
-
-function FilterChip({ on, onClick, children }: { on: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <button onClick={onClick} aria-pressed={on} className={cn(CHIP_BASE, on ? CHIP_ON : CHIP_OFF)}>
-      {children}
-    </button>
-  )
-}
 
 function ageLine(pr: LedgerPr): string {
   if (pr.state !== "pending") {
@@ -154,12 +141,7 @@ export function PrList({
 
       {groupPrsByRepo(prs).map((group) => (
         <div key={group.repo}>
-          <div className="mb-2 flex items-baseline justify-between px-1 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-            <span>{group.repo}</span>
-            <span className="normal-case text-muted-foreground/70">
-              {group.prs.length} {group.prs.length === 1 ? "PR" : "PRs"}
-            </span>
-          </div>
+          <ListGroupHeading label={group.repo} count={group.prs.length} unit={["PR", "PRs"]} />
           <div className="space-y-2">
             {group.prs.map((pr) => (
               <PrRow key={pr.key} pr={pr} selected={pr.key === selectedKey} onSelect={() => onSelect(pr.key)} />

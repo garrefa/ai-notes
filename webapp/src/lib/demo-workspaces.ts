@@ -1,7 +1,7 @@
 // Sample workspaces for trying the viewer without connecting a folder. Their files live under
 // src/demo/<workspace>/ in the same layout a real notes repo uses (db/notes, db/plans, db/PRS.md,
-// ...) and are served from memory (see memory-fs.ts), so edits last until the page reloads and
-// nothing is ever written to disk or saved in the folder list.
+// db/AGENTS.json, ...) and are served from memory (see memory-fs.ts), so edits last until the page
+// reloads and nothing is ever written to disk or saved in the folder list.
 
 import type { Workspace } from "@/lib/idb-handle"
 import { createMemoryDirectory } from "@/lib/memory-fs"
@@ -26,7 +26,8 @@ const DEMO_DEFINITIONS: DemoDefinition[] = [
   { id: "demo:personal", label: "Personal", folder: "personal" },
 ]
 
-const FIXTURES = import.meta.glob<string>("../demo/**/*.md", { query: "?raw", import: "default", eager: true })
+// Markdown notes and ledgers, plus the AGENTS.json agent snapshot.
+const FIXTURES = import.meta.glob<string>(["../demo/**/*.md", "../demo/**/*.json"], { query: "?raw", import: "default", eager: true })
 
 function utcDay(iso: string): number {
   const [y, m, d] = iso.split("-").map(Number)

@@ -155,6 +155,11 @@ The plugin install keeps its copy in Claude Code's plugin cache, which isn't a g
   "check prs" (reconcile, refresh status, commit), using only `gh` and `jq`. The org and the PRS.md
   path come from `.ai-notes/config.yml` when omitted. It's idempotent, so you can schedule it with
   cron, launchd or CI at whatever cadence you like.
+- `tools/snapshot-agents.sh [--all] [--verbose] [path/to/AGENTS.json]`: writes `db/AGENTS.json`, a
+  snapshot of the Claude Code sessions and background jobs working in the workspace (status, repo and
+  worktree, last status line, tokens, linked PRs), read from `~/.claude/sessions/` and `~/.claude/jobs/`.
+  It needs only `jq`. Schedule it every 60 seconds with launchd or cron to keep the viewer's Agents
+  view current. The file changes every run, so the notes-repo template keeps it out of git.
 - `tools/clean-merged-worktrees.sh`: lists worktrees whose branches have been merged, including
   squash and rebase merges when `gh` is available. It's a dry run unless you pass `--delete`.
 - `tools/config.example.yml`: every config key, with comments.
@@ -162,7 +167,7 @@ The plugin install keeps its copy in Claude Code's plugin cache, which isn't a g
 ## Viewer
 
 `webapp/` is a local web app for browsing and working with your notes repos: read and edit notes
-and plans, see open tasks and pending PRs, and search or filter by tag. It reads and writes the Markdown
+and plans, see open tasks, pending PRs and the agents at work, and search or filter by tag. It reads and writes the Markdown
 files directly through the browser's File System Access API. Nothing leaves your machine and there is
 no server-side storage.
 
@@ -185,6 +190,17 @@ re-picking.
   Use **Settings** to change a status's color or mark it as closed. These viewer preferences are
   stored in your browser; the statuses the skills use are defined in `task_statuses` in
   `.ai-notes/config.yml`.
+- **Date range**: a collapsible filter for notes and PRs: the *Last N days* (the default, 7 days
+  counting today), or a *Custom* range picked with From and To dates. **Reset** goes back to the last
+  7 days. It and the Tags section fold away; when folded, the header still shows the active range or
+  tag.
+- **Library**: each item shows a count (notes, open tasks, pending PRs, running agents). Drag the
+  items into the order you like (the grip appears after the count on hover), or move the focused
+  one with Alt+↑/↓. The order is stored in your browser.
+- **Agents**: lists the Claude Code agents working in the workspace, grouped by status: *Needs you*
+  (waiting on your reply, highlighted and counted in the Library), *Working*, *Idle* and *Stopped*. The detail pane shows the agent's last
+  status line, repo, worktree, tokens and linked PRs, which open in the Pull requests view. It reads
+  `db/AGENTS.json` from `tools/snapshot-agents.sh` and updates whenever that file changes.
 - **Permissions**: if the browser drops a folder's permission, click **Grant access** to restore it.
 - **Missing folders**: a folder that was moved or deleted shows as *Missing*, with Locate… and
   Remove options, instead of blocking the app.

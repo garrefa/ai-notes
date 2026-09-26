@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, CalendarDays, FlaskConical, FolderOpen, FolderSearch, GitPullRequest, KeyRound, ListChecks, ListTodo, NotebookText, Radio, RefreshCw, Search, Settings, Sparkles, StickyNote, Trash2, X } from "lucide-react"
+import { AlertTriangle, FlaskConical, FolderOpen, FolderSearch, KeyRound, Radio, RefreshCw, Search, Settings, Sparkles, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -13,13 +13,15 @@ import {
   SidebarGroupLabel,
   SidebarHeader,
   SidebarInset,
-  SidebarMenu,
-  SidebarMenuButton,
-  SidebarMenuItem,
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar"
+import { AgentDetail } from "@/components/agent-detail"
+import { AgentList } from "@/components/agent-list"
+import { LibraryMenu, type LibraryCount } from "@/components/library-menu"
+import { CollapsibleSidebarGroup, SidebarGroupAction } from "@/components/collapsible-sidebar-group"
 import { CommandPalette } from "@/components/command-palette"
+import { DateRangeFilter } from "@/components/date-range-filter"
 import { NoteDetail } from "@/components/note-detail"
 import { NewVersionBanner } from "@/components/new-version-banner"
 import { PrDetail } from "@/components/pr-detail"
@@ -29,9 +31,13 @@ import { TaskStatusDot } from "@/components/task-status-dot"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { WorkspaceSwitcher } from "@/components/workspace-switcher"
 import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-directory"
+import { useNow } from "@/hooks/use-now"
+import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
+import { DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
+import type { LibraryView } from "@/lib/library-order"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
 import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
-import type { PrState } from "@/lib/prs-parser"
+import type { LedgerPr, PrState } from "@/lib/prs-parser"
 import { useStatusSettings, type StatusSettings } from "@/lib/status-settings"
 import {
   buildStatusCatalog,
@@ -44,6 +50,9 @@ import {
 
 const JIRA_TICKET_RE = /^[A-Za-z]{3}-\d{4}$/
 const PROJECT_REPO_URL = "https://github.com/garrefa/ai-notes"
+// How often relative times in the Agents view ("updated 3m ago") are recomputed.
+const CLOCK_TICK_MS = 30_000
+const TAGS_COLLAPSE_KEY = "ainotes-tags-collapsed"
 
 // lucide-react dropped brand icons, so the GitHub mark is drawn inline.
 function GitHubMark() {
@@ -54,7 +63,12 @@ function GitHubMark() {
   )
 }
 
-type View = "all" | "notes" | "plans" | "daily" | "tasks" | "prs"
+type View = LibraryView
+
+// Views that list notes; the others (PRs, agents) list ledger entries with their own filters.
+function isNoteView(view: View) {
+  return view !== "prs" && view !== "agents"
+}
 
 function tagCounts(notes: Note[]) {
   const counts = new Map<string, number>()
@@ -69,8 +83,7 @@ function viewMatchesSource(view: View, source: NoteSource) {
   if (view === "plans") return source === "plans"
   if (view === "daily") return source === "daily"
   if (view === "tasks") return source === "tasks"
-  if (view === "prs") return false
-  return true
+  return isNoteView(view)
 }
 
 export function AppShell() {
@@ -98,6 +111,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     layout,
     notes,
     prLedger,
+    agents,
     error,
     notice,
     busy,
@@ -121,8 +135,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const [view, setView] = useState<View>("all")
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [tagQuery, setTagQuery] = useState("")
-  const [dateFrom, setDateFrom] = useState("")
-  const [dateTo, setDateTo] = useState("")
+  const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE)
+  const { from: dateFrom, to: dateTo } = useMemo(() => resolveDateRange(dateRange), [dateRange])
+  const dateRangeSummary = describeDateRange(dateRange)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -131,6 +146,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const [prState, setPrState] = useState<PrState>("pending")
   const [prRepo, setPrRepo] = useState<string | null>(null)
   const [selectedPrKey, setSelectedPrKey] = useState<string | null>(null)
+  const [agentFilter, setAgentFilter] = useState<AgentFilter>("running")
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
+  const clock = useNow(CLOCK_TICK_MS)
 
   // Built-in statuses plus every other value this folder's tasks use, with the user's settings applied.
   const statusCatalog = useMemo(
@@ -159,7 +177,6 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
 
   const counts = useMemo(() => tagCounts(notes), [notes])
   const allTags = useMemo(() => uniqueTags(notes), [notes])
-  const dateRangeActive = Boolean(dateFrom || dateTo)
 
   const filtered = useMemo(() => {
     // The note currently open never gets filtered out of its own list — editing a note's
@@ -198,6 +215,44 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const selectedPr = ledgerPrs.find((p) => p.key === selectedPrKey) ?? visiblePrs[0] ?? null
   const tasksByPr = useMemo(() => tasksByPrKey(notes), [notes])
 
+  // Agents view: the AGENTS.json snapshot, grouped by status (the open agent stays listed).
+  const snapshotAgents = useMemo(() => agents?.agents ?? [], [agents])
+  const agentCounts = useMemo(() => countByFilter(snapshotAgents), [snapshotAgents])
+  const agentGroups = useMemo(
+    () => groupAgents(snapshotAgents, agentFilter, selectedAgentId),
+    [snapshotAgents, agentFilter, selectedAgentId],
+  )
+  const firstListedAgent = agentGroups[0]?.agents[0] ?? null
+  const selectedAgent = snapshotAgents.find((a) => a.id === selectedAgentId) ?? firstListedAgent
+  // A demo snapshot is frozen, so its ages are measured from when it was taken.
+  const now = inDemo && agents ? Date.parse(agents.generatedAt) : clock
+  const snapshotStale = agents !== null && now - Date.parse(agents.generatedAt) > SNAPSHOT_STALE_AFTER_MS
+  const prsByKey = useMemo(() => new Map(ledgerPrs.map((p) => [p.key, p])), [ledgerPrs])
+
+  // The Library badges: what each view lists before any tag or date filter.
+  const libraryCounts = useMemo<Partial<Record<View, LibraryCount>>>(() => {
+    const bySource = (source: NoteSource) => notes.filter((n) => n.source === source).length
+    const openTasks = [...taskStatusByPath.values()].filter((s) => !s.closed).length
+    const waitingAgents = snapshotAgents.filter((a) => agentStatus(a) === "waiting").length
+    const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+    return {
+      all: { count: notes.length, title: plural(notes.length, "note", "notes") },
+      notes: { count: bySource("notes"), title: plural(bySource("notes"), "note", "notes") },
+      plans: { count: bySource("plans"), title: plural(bySource("plans"), "plan", "plans") },
+      daily: { count: bySource("daily"), title: plural(bySource("daily"), "daily plan", "daily plans") },
+      tasks: { count: openTasks, title: plural(openTasks, "open task", "open tasks") },
+      prs: { count: prCounts.pending, title: plural(prCounts.pending, "pending PR", "pending PRs") },
+      agents:
+        waitingAgents > 0
+          ? {
+              count: waitingAgents,
+              alert: true,
+              title: `${plural(waitingAgents, "agent needs", "agents need")} you · ${agentCounts.running} running`,
+            }
+          : { count: agentCounts.running, title: plural(agentCounts.running, "running agent", "running agents") },
+    }
+  }, [notes, taskStatusByPath, snapshotAgents, prCounts, agentCounts])
+
   function showPrs(state: PrState, key: string | null = null) {
     setView("prs")
     setPrState(state)
@@ -209,6 +264,15 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     setView("tasks")
     setSelectedPath(path)
   }
+
+  function openPr(pr: LedgerPr) {
+    showPrs(pr.state, pr.key)
+  }
+
+  // Same as notes and PRs: pin the first listed agent as the real selection once one shows.
+  useEffect(() => {
+    if (!selectedAgentId && firstListedAgent) setSelectedAgentId(firstListedAgent.id)
+  }, [selectedAgentId, firstListedAgent])
 
   // Same as notes: pin the first listed PR as the real selection once one shows.
   useEffect(() => {
@@ -251,59 +315,13 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         </SidebarHeader>
 
         <SidebarContent>
-          <SidebarGroup>
-            <SidebarGroupLabel>Library</SidebarGroupLabel>
-            <SidebarGroupContent>
-              <SidebarMenu>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={view === "all"} onClick={() => setView("all")}>
-                    <StickyNote />
-                    All notes
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={view === "notes"} onClick={() => setView("notes")}>
-                    <NotebookText />
-                    Notes
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={view === "plans"} onClick={() => setView("plans")}>
-                    <ListTodo />
-                    Plans
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={view === "daily"} onClick={() => setView("daily")}>
-                    <CalendarDays />
-                    Daily
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={view === "tasks"} onClick={() => setView("tasks")}>
-                    <ListChecks />
-                    Tasks
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-                <SidebarMenuItem>
-                  <SidebarMenuButton isActive={view === "prs"} onClick={() => setView("prs")}>
-                    <GitPullRequest />
-                    Pull requests
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              </SidebarMenu>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          <LibraryMenu view={view} onViewChange={setView} counts={connected ? libraryCounts : {}} />
 
           {view === "tasks" && (
             <SidebarGroup>
               <SidebarGroupLabel className="flex items-center justify-between">
                 Status
-                {statusFilter && (
-                  <button onClick={() => setStatusFilter(null)} className="font-normal text-primary normal-case">
-                    Reset
-                  </button>
-                )}
+                {statusFilter && <SidebarGroupAction onClick={() => setStatusFilter(null)}>Reset</SidebarGroupAction>}
               </SidebarGroupLabel>
               <SidebarGroupContent className="flex flex-wrap gap-1.5 px-2">
                 {statusCatalog.map((s) => {
@@ -326,80 +344,46 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             </SidebarGroup>
           )}
 
-          <SidebarGroup>
-            <SidebarGroupLabel className="flex items-center justify-between">
-              Date range
-              {dateRangeActive && (
-                <button
-                  onClick={() => {
-                    setDateFrom("")
-                    setDateTo("")
-                  }}
-                  className="font-normal text-primary normal-case"
-                >
-                  Clear
-                </button>
-              )}
-            </SidebarGroupLabel>
-            <SidebarGroupContent className="grid grid-cols-2 gap-2 px-2">
-              <label className="space-y-1">
-                <span className="block text-[10px] text-muted-foreground">From</span>
-                <Input
-                  type="date"
-                  value={dateFrom}
-                  max={dateTo || undefined}
-                  onChange={(e) => setDateFrom(e.target.value)}
-                  className="h-7 px-2 text-xs"
-                />
-              </label>
-              <label className="space-y-1">
-                <span className="block text-[10px] text-muted-foreground">To</span>
-                <Input
-                  type="date"
-                  value={dateTo}
-                  min={dateFrom || undefined}
-                  onChange={(e) => setDateTo(e.target.value)}
-                  className="h-7 px-2 text-xs"
-                />
-              </label>
-            </SidebarGroupContent>
-          </SidebarGroup>
+          {view !== "agents" && <DateRangeFilter value={dateRange} onChange={setDateRange} />}
 
-          {view !== "prs" && (
-            <SidebarGroup>
-              <SidebarGroupLabel>Tags</SidebarGroupLabel>
-              <SidebarGroupContent className="space-y-2 px-2">
-                <Input
-                  value={tagQuery}
-                  onChange={(e) => setTagQuery(e.target.value)}
-                  placeholder="Search tags"
-                  className="h-7 text-xs"
-                />
-                <div className="flex flex-wrap gap-1.5">
-                  {counts
-                    .filter(([tag]) => tag.toLowerCase().includes(tagQuery.trim().toLowerCase()))
-                    .map(([tag, n]) => (
-                      <button
-                        key={tag}
-                        onClick={() => setActiveTag(activeTag === tag ? null : tag)}
-                        className={`rounded-full border px-2 py-0.5 font-mono text-[11px] transition-colors ${
-                          activeTag === tag
-                            ? "border-primary bg-primary/10 text-primary"
-                            : "border-border text-muted-foreground hover:border-primary/50"
-                        }`}
-                      >
-                        {displayTag(tag)} <span className="opacity-60">{n}</span>
-                      </button>
-                    ))}
-                  {connected && counts.length === 0 && (
-                    <p className="px-0.5 text-xs text-muted-foreground">No tags yet.</p>
-                  )}
-                </div>
-                <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">
-                  Jira ticket tags hidden from the cloud — search by number instead.
-                </p>
-              </SidebarGroupContent>
-            </SidebarGroup>
+          {isNoteView(view) && (
+            <CollapsibleSidebarGroup
+              title="Tags"
+              storageKey={TAGS_COLLAPSE_KEY}
+              summary={activeTag && displayTag(activeTag)}
+              action={activeTag && <SidebarGroupAction onClick={() => setActiveTag(null)}>Clear</SidebarGroupAction>}
+              contentClassName="space-y-2 px-2"
+            >
+              <Input
+                value={tagQuery}
+                onChange={(e) => setTagQuery(e.target.value)}
+                placeholder="Search tags"
+                className="h-7 text-xs"
+              />
+              <div className="flex flex-wrap gap-1.5">
+                {counts
+                  .filter(([tag]) => tag.toLowerCase().includes(tagQuery.trim().toLowerCase()))
+                  .map(([tag, n]) => (
+                    <button
+                      key={tag}
+                      onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+                      className={`rounded-full border px-2 py-0.5 font-mono text-[11px] transition-colors ${
+                        activeTag === tag
+                          ? "border-primary bg-primary/10 text-primary"
+                          : "border-border text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      {displayTag(tag)} <span className="opacity-60">{n}</span>
+                    </button>
+                  ))}
+                {connected && counts.length === 0 && (
+                  <p className="px-0.5 text-xs text-muted-foreground">No tags yet.</p>
+                )}
+              </div>
+              <p className="px-0.5 text-[11px] leading-snug text-muted-foreground">
+                Jira ticket tags hidden from the cloud — search by number instead.
+              </p>
+            </CollapsibleSidebarGroup>
           )}
         </SidebarContent>
 
@@ -481,7 +465,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                 <div role="status" className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
                   <FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" />
                   <span className="flex-1">
-                    <span className="font-medium text-foreground">Demo workspace.</span> Sample notes, plans, tasks and PRs
+                    <span className="font-medium text-foreground">Demo workspace.</span> Sample notes, plans, tasks, PRs and agents
                     kept in memory: edit freely, nothing is saved. Switch between Work and Personal from the folder
                     menu.
                   </span>
@@ -535,7 +519,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                       )}
                       <p>
                         Not ready to connect one yet? Try the demo: two sample workspaces, <strong>Work</strong> and{" "}
-                        <strong>Personal</strong>, with notes, plans, daily plans, tasks and pull requests.
+                        <strong>Personal</strong>, with notes, plans, daily plans, tasks, pull requests and agents.
                       </p>
                       <Button className="demo-cta h-9 gap-2 px-5 font-semibold" onClick={startDemo}>
                         <Sparkles className="size-4" />
@@ -571,10 +555,31 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   lastDeepCheck={prLedger?.lastDeepCheck ?? null}
                 />
               )}
-              {connected && view !== "prs" && layout !== "unrecognized" && filtered.length === 0 && (
-                <p className="p-4 text-sm text-muted-foreground">No notes in this view yet.</p>
+              {connected && view === "agents" && (
+                <AgentList
+                  groups={agentGroups}
+                  counts={agentCounts}
+                  filter={agentFilter}
+                  onFilterChange={(filter) => {
+                    setAgentFilter(filter)
+                    setSelectedAgentId(null)
+                  }}
+                  selectedId={selectedAgent?.id ?? null}
+                  onSelect={setSelectedAgentId}
+                  snapshotFound={agents !== null}
+                  generatedAt={agents?.generatedAt ?? null}
+                  stale={snapshotStale && !inDemo}
+                  now={now}
+                />
               )}
-              {view !== "prs" && groupNotesByDate(filtered).map((group) => (
+              {connected && isNoteView(view) && layout !== "unrecognized" && filtered.length === 0 && (
+                <p className="p-4 text-sm text-muted-foreground">
+                  {dateRangeSummary && notes.some((n) => viewMatchesSource(view, n.source))
+                    ? `Nothing here in the selected range (${dateRangeSummary}). Widen the date range to see older notes.`
+                    : "No notes in this view yet."}
+                </p>
+              )}
+              {isNoteView(view) && groupNotesByDate(filtered).map((group) => (
                 <div key={group.date ?? "no-date"}>
                   <div className="mb-2 flex items-baseline justify-between px-1 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
                     <span>{formatDateHeading(group.date)}</span>
@@ -627,7 +632,15 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           </div>
 
           <div className="h-full min-w-0 flex-1 overflow-y-auto">
-            {view === "prs" ? (
+            {view === "agents" ? (
+              connected && selectedAgent ? (
+                <AgentDetail key={selectedAgent.id} agent={selectedAgent} now={now} prsByKey={prsByKey} onOpenPr={openPr} />
+              ) : (
+                <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
+                  {connected ? "Select an agent to see its details." : "Nothing to show yet."}
+                </div>
+              )
+            ) : view === "prs" ? (
               connected && selectedPr ? (
                 <PrDetail
                   key={selectedPr.key}
@@ -668,11 +681,11 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
         onSelectNote={(path) => {
-          if (view === "prs") setView("all")
+          if (!isNoteView(view)) setView("all")
           setSelectedPath(path)
         }}
         prs={ledgerPrs}
-        onSelectPr={(pr) => showPrs(pr.state, pr.key)}
+        onSelectPr={openPr}
         onSwitchWorkspace={switchWorkspace}
         onAddWorkspace={addFolder}
         onStartDemo={startDemo}

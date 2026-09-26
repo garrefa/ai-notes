@@ -10,16 +10,19 @@ import {
 import { createDemoWorkspaces, isDemoWorkspace } from "@/lib/demo-workspaces"
 import { saveNote as saveNoteToDisk, setTaskStatus, type DataLayout } from "@/lib/notes-fs"
 import type { Note } from "@/lib/notes-frontmatter"
+import type { AgentsSnapshot } from "@/lib/agents"
 import type { PrLedger } from "@/lib/prs-parser"
 import type { TaskStatus } from "@/lib/task-status"
 import { toFolderUnavailable, withTimeout, type FolderUnavailableError } from "@/lib/folder-errors"
 import {
+  EMPTY_WORKSPACE_DATA,
   FOLDER_TIMEOUT_MS,
   loadWorkspace,
   probeFolder,
   queryFolderPermission,
   reloadWorkspace,
   type FolderAvailability,
+  type WorkspaceData,
 } from "@/lib/workspace-loader"
 
 export type ConnectionStatus = "unsupported" | "disconnected" | "needs-permission" | "connected" | "unavailable"
@@ -85,6 +88,7 @@ export function useNotesDirectory() {
   const [layout, setLayout] = useState<DataLayout | null>(null)
   const [notes, setNotes] = useState<Note[]>([])
   const [prLedger, setPrLedger] = useState<PrLedger | null>(null)
+  const [agents, setAgents] = useState<AgentsSnapshot | null>(null)
   const [error, setError] = useState<string | null>(null)
   // Non-blocking message (fallback to another folder, a failed save of the folder list, ...).
   const [notice, setNotice] = useState<string | null>(null)
@@ -126,6 +130,12 @@ export function useNotesDirectory() {
     setAvailability(Object.fromEntries(entries))
   }, [])
 
+  const applyWorkspaceData = useCallback((data: WorkspaceData) => {
+    setNotes(data.notes)
+    setPrLedger(data.prLedger)
+    setAgents(data.agents)
+  }, [])
+
   // Drops everything tied to the currently open workspace, synchronously, so the
   // very next render never shows the previous workspace's notes under a new one.
   const resetWorkspaceData = useCallback(() => {
@@ -133,24 +143,22 @@ export function useNotesDirectory() {
     stopObserving()
     dataDirRef.current = null
     setLayout(null)
-    setNotes([])
-    setPrLedger(null)
+    applyWorkspaceData(EMPTY_WORKSPACE_DATA)
     setError(null)
     setNotice(null)
-  }, [stopObserving])
+  }, [applyWorkspaceData, stopObserving])
 
   // The open (or opening) folder can't be read: show why, stop watching, keep its entry.
   const markUnavailable = useCallback(
     (id: string, failure: FolderUnavailableError) => {
       stopObserving()
       dataDirRef.current = null
-      setNotes([])
-      setPrLedger(null)
+      applyWorkspaceData(EMPTY_WORKSPACE_DATA)
       setStatus("unavailable")
       setError(failure.message)
       setFolderAvailability(id, "missing")
     },
-    [setFolderAvailability, stopObserving],
+    [applyWorkspaceData, setFolderAvailability, stopObserving],
   )
 
   const reload = useCallback(async () => {
@@ -161,13 +169,12 @@ export function useNotesDirectory() {
     try {
       const next = await reloadWorkspace(dataDir, ws.label)
       if (generation !== generationRef.current) return
-      setNotes(next.notes)
-      setPrLedger(next.prLedger)
+      applyWorkspaceData(next)
     } catch (e) {
       if (generation !== generationRef.current) return
       markUnavailable(ws.id, toFolderUnavailable(e, ws.label))
     }
-  }, [markUnavailable])
+  }, [applyWorkspaceData, markUnavailable])
 
   const scheduleReload = useCallback(() => {
     if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
@@ -215,8 +222,7 @@ export function useNotesDirectory() {
         if (isStale()) return "stale"
         dataDirRef.current = loaded.resolved.dir
         setLayout(loaded.resolved.layout)
-        setNotes(loaded.notes)
-        setPrLedger(loaded.prLedger)
+        applyWorkspaceData(loaded)
         setStatus("connected")
         setFolderAvailability(ws.id, "available")
         markOpened(ws.id)
@@ -246,7 +252,7 @@ export function useNotesDirectory() {
         if (!isStale()) setBusy(false)
       }
     },
-    [markOpened, markUnavailable, resetWorkspaceData, scheduleReload, setFolderAvailability],
+    [applyWorkspaceData, markOpened, markUnavailable, resetWorkspaceData, scheduleReload, setFolderAvailability],
   )
 
   const closeWorkspace = useCallback(() => {
@@ -447,6 +453,7 @@ export function useNotesDirectory() {
     layout,
     notes,
     prLedger,
+    agents,
     error,
     notice,
     busy,

@@ -1,0 +1,50 @@
+{
+  "generatedAt": "2026-03-18T15:30:00Z",
+  "host": "demo-laptop",
+  "workspace": "/Users/demo/work",
+  "summary": { "total": 6, "running": 4, "busy": 1, "idle": 3, "blocked": 2, "done": 3, "tokens": 873400 },
+  "agents": [
+    {
+      "id": "a41c9e02", "name": "Refund webhooks", "kind": "bg", "running": true, "activity": "idle", "state": "blocked",
+      "detail": "Drafted replies to both unresolved comments on #486 and a retry-budget fix for webhook delivery. Should I push the fix and post the replies?",
+      "pid": 51210, "cwd": "/Users/demo/work/payments-api/.claude/worktrees/refund-webhooks", "repo": "payments-api", "worktree": "refund-webhooks",
+      "tokens": 212400, "links": [{ "kind": "pr", "id": "486", "href": "https://github.com/northwind-demo/payments-api/pull/486" }],
+      "pinned": true, "createdAt": "2026-03-12T09:14:00Z", "updatedAt": "2026-03-18T15:22:41Z", "cliVersion": "2.1.280"
+    },
+    {
+      "id": "7be0d311", "name": "Checkout latency", "kind": "bg", "running": true, "activity": "busy", "state": "blocked",
+      "detail": "Comparing checkout p95 before and after the 14:05 deploy; the spike lines up with the new address-validation call.",
+      "pid": 51388, "cwd": "/Users/demo/work/web-checkout", "repo": "web-checkout", "worktree": null,
+      "tokens": 158900, "links": [{ "kind": "pr", "id": "1310", "href": "https://github.com/northwind-demo/web-checkout/pull/1310" }],
+      "pinned": false, "createdAt": "2026-03-18T14:31:07Z", "updatedAt": "2026-03-18T15:29:12Z", "cliVersion": "2.1.280"
+    },
+    {
+      "id": "c03f5a78", "name": "Batch job pool", "kind": "bg", "running": true, "activity": "idle", "state": "done",
+      "detail": "Opened #489 (separate pool for batch jobs) and #219 (pool size in Terraform). Both pass CI; #489 waits on platform-owners.",
+      "pid": 50991, "cwd": "/Users/demo/work/payments-api/.claude/worktrees/batch-pool", "repo": "payments-api", "worktree": "batch-pool",
+      "tokens": 301200,
+      "links": [
+        { "kind": "pr", "id": "489", "href": "https://github.com/northwind-demo/payments-api/pull/489" },
+        { "kind": "pr", "id": "219", "href": "https://github.com/northwind-demo/infra-terraform/pull/219" }
+      ],
+      "pinned": true, "createdAt": "2026-03-18T08:02:55Z", "updatedAt": "2026-03-18T13:47:30Z", "cliVersion": "2.1.280"
+    },
+    {
+      "id": "pid-49020", "name": "work", "kind": "interactive", "running": true, "activity": "idle", "state": null, "detail": null,
+      "pid": 49020, "cwd": "/Users/demo/work", "repo": null, "worktree": null, "tokens": null, "links": [],
+      "pinned": false, "createdAt": "2026-03-18T07:55:10Z", "updatedAt": "2026-03-18T15:05:48Z", "cliVersion": "2.1.280"
+    },
+    {
+      "id": "e9d2b640", "name": "ARM runners", "kind": "bg", "running": false, "activity": null, "state": "done",
+      "detail": "Moved the payments-api and web-checkout CI jobs to ARM runners; builds are 31% faster. Task updated.",
+      "pid": null, "cwd": "/Users/demo/work/payments-api", "repo": "payments-api", "worktree": null, "tokens": 176300, "links": [],
+      "pinned": false, "createdAt": "2026-03-16T10:20:00Z", "updatedAt": "2026-03-17T17:41:09Z", "cliVersion": "2.1.278"
+    },
+    {
+      "id": "f150aa3c", "name": "Sprint 5 retro notes", "kind": "bg", "running": false, "activity": null, "state": "done",
+      "detail": "Saved the Sprint 5 retro as a note and linked the three follow-up tasks.",
+      "pid": null, "cwd": "/Users/demo/work", "repo": null, "worktree": null, "tokens": 24600, "links": [],
+      "pinned": false, "createdAt": "2026-03-16T16:02:00Z", "updatedAt": "2026-03-16T16:19:33Z", "cliVersion": "2.1.278"
+    }
+  ]
+}
