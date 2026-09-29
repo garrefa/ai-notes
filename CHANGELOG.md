@@ -10,6 +10,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+- New `ainotes-review-inbox` skill: finds every open PR org-wide (not just repos in the workspace)
+  where your review is requested, and reports each one summarized, flagged stale, and prioritized
+  (high/medium/low). Data gathering (`tools/review-inbox.sh`) is a plain shell script — one `gh
+  search prs` call plus a handful of batched GraphQL lookups, no LLM — and only the two genuinely
+  fuzzy calls (summarizing a PR, picking its priority) go to the new `review-inbox-poller` agent,
+  which runs on Haiku.
+
 ## [0.1.0] - 2026-09-26
 
 Baseline release. Established the current shape of the toolkit:

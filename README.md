@@ -152,6 +152,7 @@ always go through worktrees and your normal review.
 | `ainotes-daily-plan` | "daily plan: ...", "`<task>` is done" | One day's checklist, checked off by hand |
 | `ainotes-pr-tracker` | "check prs" | Reconciles `PRS.md` with GitHub |
 | `ainotes-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment; never merges |
+| `ainotes-review-inbox` | "review inbox", "what needs my review" | Org-wide: summarizes, flags stale, and prioritizes every PR pending your review |
 | `ainotes-pr-review-request` | "ask for review on `<PR>`" | Posts a review request to Slack (optional) |
 | `ainotes-report` | "weekly report", "work review" | Compiles a report for a date window |
 
@@ -165,6 +166,7 @@ anything user-facing stay on your main model.
 | `notetaker` | The only writer for notes, plans and their `INDEX.md` entries |
 | `ledger-keeper` | The only writer for `PRS.md`, `TASKS.md`, task files and daily plans; runs `check-prs.sh` |
 | `pr-poller` | Polls open PRs for `babysit prs`; may rerun a failed job or update a stale branch; never comments, merges or pushes |
+| `review-inbox-poller` | Summarizes and prioritizes PRs for `review-inbox`; pure judgment over data it's given, makes no gh/API calls |
 | `notes-extractor` | Read-only: turns a date window of notes into compact JSON for reports |
 | `daily-plan-tracker` | Read-only: looks up context for daily plan items |
 
