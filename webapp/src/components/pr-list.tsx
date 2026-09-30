@@ -72,7 +72,7 @@ function EmptyState({ state, ledgerFound, filtered }: { state: PrState; ledgerFo
   const label = PR_STATES.find((s) => s.state === state)?.label.toLowerCase() ?? state
   return (
     <div className="space-y-1.5 p-4 text-sm text-muted-foreground">
-      <p className="font-medium text-foreground">{filtered ? `No ${label} PRs match the filters` : `No ${label} PRs`}</p>
+      <p className="font-medium text-foreground">{filtered ? `No ${label} PRs in this repo` : `No ${label} PRs`}</p>
       <p className="text-xs leading-relaxed">
         {ledgerFound ? "" : <>This folder has no <code className="font-mono">PRS.md</code> yet. </>}
         The PR ledger (<code className="font-mono">PRS.md</code>) is maintained by the{" "}
@@ -109,7 +109,7 @@ export function PrList({
   selectedKey: string | null
   onSelect: (key: string) => void
   ledgerFound: boolean
-  // A date range or repo filter is active.
+  // A repo filter is active (the date range doesn't apply to PRs).
   filtered: boolean
   lastDeepCheck: string | null
 }) {
