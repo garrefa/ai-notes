@@ -92,17 +92,9 @@ export function useStatusSettings() {
     [commit, overrides],
   )
 
-  const resetStatus = useCallback(
-    (key: string) => {
-      const { [key]: _removed, ...rest } = overrides
-      commit(rest)
-    },
-    [commit, overrides],
-  )
-
   const resetAll = useCallback(() => commit({}), [commit])
 
-  return { overrides, updateStatus, resetStatus, resetAll }
+  return { overrides, updateStatus, resetAll }
 }
 
 export type StatusSettings = ReturnType<typeof useStatusSettings>

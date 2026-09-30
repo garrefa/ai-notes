@@ -10,6 +10,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+- Viewer: Settings shows the viewer version more prominently, bottom right above the Reset/Done
+  buttons. What "closed" means moved from the dialog's description to an info icon next to each
+  Closed switch, shown on hover. The per-status reset button is gone; **Reset all to defaults**
+  remains.
+
 ## [0.2.0] - 2026-09-30
 
 - New `ainotes-review-inbox` skill: finds every open PR org-wide (not just repos in the workspace)
