@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-30
+
 - New `ainotes-review-inbox` skill: finds every open PR org-wide (not just repos in the workspace)
   where your review is requested, and reports each one summarized, flagged stale, and prioritized
   (high/medium/low). Data gathering (`tools/review-inbox.sh`) is a plain shell script — one `gh
@@ -37,6 +39,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   nothing in them (Agents and Pull requests always show). The date range no longer applies to
   Tasks, Favorites, Pull requests or Agents.
 - Viewer: working agents show a spinner on their status chip.
+- Viewer: in a flat-layout folder (none of the expected `notes/`/`plans/` subdirectories), a note
+  shows its path instead of the date/type/repo line, and new tags can't be added (existing ones can
+  still be removed), since there's no frontmatter convention for them to live in.
 - Viewer: a quoted frontmatter value followed by a `# comment` now parses correctly.
 - `check-prs.sh` no longer rewrites a tracked PR outside `vcs.org` to a same-named repo under it.
   It used to keep only the repo name from each row's URL and rebuild every URL and `gh` call as
@@ -68,5 +73,6 @@ Baseline release. Established the current shape of the toolkit:
 - The notes repo keeps its data at the repo root; installing over an older repo that still uses a
   `db/` folder moves it up automatically.
 
-[Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.2.0...HEAD
 [0.1.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.1.0
+[0.2.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.2.0
