@@ -242,8 +242,9 @@ gh_retry() {
 log "Reading existing Pending (open) rows from $PRS_FILE"
 
 # Parses "| [#NUM](url) | repoLabel | col_a | col_b | col_c |" rows into
-# "repo\tnum\tcol_a\tcol_b\tcol_c", deriving repo from the URL (not the
-# label) so it's robust to any label drift. Written in POSIX awk (index,
+# "repo\tnum\tcol_a\tcol_b\tcol_c", deriving repo ("owner/name") from the URL
+# (not the label) so it's robust to any label drift — and keeping the owner, so a
+# PR outside $ORG is never rewritten to a same-named repo under $ORG. Written in POSIX awk (index,
 # substr, split, gsub) so it works with macOS's stock /usr/bin/awk, not
 # just gawk.
 parse_link_rows() {
@@ -263,7 +264,7 @@ parse_link_rows() {
       url = substr(link, urlstart, urlend - urlstart)
 
       n = split(url, parts, "/")
-      repo = parts[n-2]
+      repo = parts[n-3] "/" parts[n-2]
 
       print repo "\t" num "\t" c4 "\t" c5 "\t" c6
     }
@@ -305,7 +306,7 @@ while IFS=$'\t' read -r drepo dnum dtitle dcreated; do
     new_count=$((new_count+1))
     log "discovered untracked PR: $drepo#$dnum — $dtitle"
   fi
-done < <(jq -r '.[] | [.repository.name, (.number|tostring), .title, .createdAt] | @tsv' <<<"$discovered_json") || true
+done < <(jq -r '.[] | [.repository.nameWithOwner, (.number|tostring), .title, .createdAt] | @tsv' <<<"$discovered_json") || true
 
 [[ $new_count -gt 0 ]] && log "$new_count previously-untracked PR(s) folded in"
 
@@ -318,7 +319,7 @@ STILL_OPEN_TSV="$WORK/still_open.tsv"
 
 while IFS=$'\t' read -r repo num opened jira _lastchecked; do
   [[ -z "$repo" ]] && continue
-  if ! state_json="$(gh_retry gh pr view "$num" --repo "$ORG/$repo" \
+  if ! state_json="$(gh_retry gh pr view "$num" --repo "$repo" \
     --json state,mergedAt,closedAt,url 2>/dev/null)"; then
     warn "$repo#$num: state check failed twice — carrying it forward as still-open rather than dropping it"
     printf '%s\t%s\t%s\t%s\t%s\n' "$repo" "$num" "$opened" "$jira" "$TODAY" >> "$STILL_OPEN_TSV"
@@ -352,7 +353,7 @@ while IFS=$'\t' read -r repo num opened jira lastchecked; do
   [[ -z "$repo" ]] && continue
   log "deep status: $repo#$num"
 
-  if ! view_json="$(gh_retry gh pr view "$num" --repo "$ORG/$repo" \
+  if ! view_json="$(gh_retry gh pr view "$num" --repo "$repo" \
     --json title,statusCheckRollup,createdAt,commits 2>/dev/null)"; then
     old_row="$(old_detail_row "$repo" "$num")"
     printf '%s\t%s\t%s\t%s\t%s\n' "$repo" "$num" "$opened" "$jira" "$TODAY" >> "$WORK/final_pending.tsv"
@@ -374,7 +375,7 @@ while IFS=$'\t' read -r repo num opened jira lastchecked; do
   openfor=$(calendar_days_since "$created_at")
   lastcommit_days=$(calendar_days_since "$last_commit_at")
 
-  api_json="$(gh_retry gh api "repos/$ORG/$repo/pulls/$num" \
+  api_json="$(gh_retry gh api "repos/$repo/pulls/$num" \
     --jq '{mergeable_state, requested_reviewers: [.requested_reviewers[].login], requested_teams: [.requested_teams[].slug]}' 2>/dev/null)" \
     || api_json='{"mergeable_state":"unknown","requested_reviewers":[],"requested_teams":[]}'
   mergeable_state="$(jq -r '.mergeable_state' <<<"$api_json")"
@@ -398,7 +399,7 @@ while IFS=$'\t' read -r repo num opened jira lastchecked; do
   fi
   [[ -z "$owners" ]] && owners="None"
 
-  reviews_json="$(gh_retry gh api "repos/$ORG/$repo/pulls/$num/reviews" \
+  reviews_json="$(gh_retry gh api "repos/$repo/pulls/$num/reviews" \
     --jq '[.[] | {user: .user.login, state}] | unique' 2>/dev/null)" || reviews_json="[]"
   reviews="$(jq -r 'map(.user + " (" + .state + ")") | join(", ")' <<<"$reviews_json")"
   [[ -z "$reviews" ]] && reviews="None"
@@ -434,7 +435,7 @@ while IFS=$'\t' read -r repo num opened jira lastchecked; do
           }
         }
       }
-    }' -f owner="$ORG" -f repo="$repo" -F num="$num" \
+    }' -f owner="${repo%%/*}" -f repo="${repo#*/}" -F num="$num" \
     --jq '[.data.repository.pullRequest.reviewThreads.nodes[] | select(.isResolved==false) | {author: .comments.nodes[0].author.login, body: .comments.nodes[0].body}]' \
     2>/dev/null)" || thread_json="[]"
   thread_count=$(jq 'length' <<<"$thread_json")
@@ -475,12 +476,17 @@ fi
 # Step 5 — render PRS.md
 # ---------------------------------------------------------------------------
 
+# "owner/name" → the Repo column's label: just the name for a repo under $ORG.
+repo_label() {
+  if [[ "${1%%/*}" == "$ORG" ]]; then echo "${1#*/}"; else echo "$1"; fi
+}
+
 render_pending_table() {
   echo '| PR | Repo | Opened | Jira | Last checked (UTC) |'
   echo '|---|---|---|---|---|'
   while IFS=$'\t' read -r repo num opened jira lastchecked; do
     [[ -z "$repo" ]] && continue
-    echo "| [#$num](https://github.com/$ORG/$repo/pull/$num) | $repo | $opened | $jira | $lastchecked |"
+    echo "| [#$num](https://github.com/$repo/pull/$num) | $(repo_label "$repo") | $opened | $jira | $lastchecked |"
   done < "$WORK/final_pending.tsv" || true
 }
 
@@ -490,7 +496,7 @@ render_merged_table() {
   cat <(extract_rows "$PRS_FILE" "Merged")
   while IFS=$'\t' read -r repo num opened mdate jira; do
     [[ -z "$repo" ]] && continue
-    echo "| [#$num](https://github.com/$ORG/$repo/pull/$num) | $repo | $opened | $mdate | $jira |"
+    echo "| [#$num](https://github.com/$repo/pull/$num) | $(repo_label "$repo") | $opened | $mdate | $jira |"
   done < "$MERGED_TSV" || true
 }
 
@@ -500,7 +506,7 @@ render_closed_table() {
   cat <(extract_rows "$PRS_FILE" "Closed (not merged)")
   while IFS=$'\t' read -r repo num opened cdate jira; do
     [[ -z "$repo" ]] && continue
-    echo "| [#$num](https://github.com/$ORG/$repo/pull/$num) | $repo | $opened | $cdate | $jira |"
+    echo "| [#$num](https://github.com/$repo/pull/$num) | $(repo_label "$repo") | $opened | $cdate | $jira |"
   done < "$CLOSED_TSV" || true
 }
 
@@ -515,9 +521,9 @@ render_detail_table() {
     title="${titlejira%% (jira:*}"
     jira="${titlejira##*(jira:}"; jira="${jira%)}"
     if [[ -n "$jira" && "$jira" != "—" && "$title" != *"$jira"* ]]; then
-      pr_link="[#$num](https://github.com/$ORG/$repo/pull/$num) ($jira)"
+      pr_link="[#$num](https://github.com/$repo/pull/$num) ($jira)"
     else
-      pr_link="[#$num](https://github.com/$ORG/$repo/pull/$num)"
+      pr_link="[#$num](https://github.com/$repo/pull/$num)"
     fi
     echo "| $pr_link | $title | ${openfor}d | ${lastcommit}d | $ci | $behind | $reviews | $owners | $comments |"
   done || true

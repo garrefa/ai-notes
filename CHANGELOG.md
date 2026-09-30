@@ -31,6 +31,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   Tasks, Favorites, Pull requests or Agents.
 - Viewer: working agents show a spinner on their status chip.
 - Viewer: a quoted frontmatter value followed by a `# comment` now parses correctly.
+- `check-prs.sh` no longer rewrites a tracked PR outside `vcs.org` to a same-named repo under it.
+  It used to keep only the repo name from each row's URL and rebuild every URL and `gh` call as
+  `vcs.org/<name>`, so a `garrefa/ai-notes` PR became a `bitsoex/ai-notes` row that could never be
+  looked up again and stayed Pending forever. It now keeps each row's owner; `vcs.org` rows look
+  the same as before.
+- `ainotes-pr-tracker` / `ledger-keeper`: PRs whose URL owner isn't `vcs.org`, or that come from a
+  repo in `ignored_repos`, are no longer registered in `PRS.md`.
 
 ## [0.1.0] - 2026-09-26
 
