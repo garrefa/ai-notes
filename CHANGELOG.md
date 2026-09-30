@@ -10,6 +10,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-09-30
+
 - New `ainotes-review-inbox` skill: finds every open PR org-wide (not just repos in the workspace)
   where your review is requested, and reports each one summarized, flagged stale, and prioritized
   (high/medium/low). Data gathering (`tools/review-inbox.sh`) is a plain shell script — one `gh
@@ -71,5 +73,6 @@ Baseline release. Established the current shape of the toolkit:
 - The notes repo keeps its data at the repo root; installing over an older repo that still uses a
   `db/` folder moves it up automatically.
 
-[Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.2.0...HEAD
 [0.1.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.1.0
+[0.2.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.2.0
