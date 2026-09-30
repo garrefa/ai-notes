@@ -193,7 +193,6 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     continueNavigation()
   }
 
-  const setView = (next: View) => guard(() => setViewNow(next))
   const selectNote = (path: string) => guard(() => setSelectedPath(path))
   const guarded =
     <A extends unknown[]>(action: (...args: A) => unknown) =>
@@ -272,6 +271,15 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   }, [notes, view, favorites, effectiveStatusFilter, taskStatusByPath, layout, activeTag, dateFrom, dateTo, selectedPath])
 
   const selected = notes.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
+
+  // The open note stays listed while it's edited within a view (see `filtered`), but switching to a
+  // view it doesn't belong to drops it, so the new view opens on its own first item instead.
+  function setView(next: View) {
+    guard(() => {
+      setViewNow(next)
+      if (selected && !viewMatchesNote(next, selected, favorites)) setSelectedPath(null)
+    })
+  }
   const connected = status === "connected"
 
   // Pull requests view: the PRS.md ledger, filtered like the notes list (the open PR stays listed).
