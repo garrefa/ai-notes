@@ -1,7 +1,8 @@
-import { RotateCcw } from "lucide-react"
+import { Info, RotateCcw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import type { StatusSettings } from "@/lib/status-settings"
 import { defaultTaskStatus, isBuiltinStatusKey, type TaskStatus } from "@/lib/task-status"
 import { cn } from "@/lib/utils"
@@ -30,9 +31,29 @@ function ClosedSwitch({ checked, label, onChange }: { checked: boolean; label: s
   )
 }
 
+const CLOSED_HINT = "Closed statuses are hidden by the default filter and listed under Completed in TASKS.md."
+
+// An info icon next to each Closed switch; hovering or focusing it explains what "closed" means.
+function ClosedInfo() {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          role="img"
+          aria-label={CLOSED_HINT}
+          tabIndex={0}
+          className="cursor-default rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Info className="size-3.5" />
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{CLOSED_HINT}</TooltipContent>
+    </Tooltip>
+  )
+}
+
 function StatusRow({ status, settings }: { status: TaskStatus; settings: StatusSettings }) {
   const defaults = defaultTaskStatus(status.key)
-  const overridden = Boolean(settings.overrides[status.key])
   const change = (next: { color?: string; closed?: boolean }) => settings.updateStatus(status.key, next, defaults)
 
   return (
@@ -53,16 +74,7 @@ function StatusRow({ status, settings }: { status: TaskStatus; settings: StatusS
         Closed
         <ClosedSwitch checked={status.closed} label={status.label} onChange={(closed) => change({ closed })} />
       </label>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        disabled={!overridden}
-        onClick={() => settings.resetStatus(status.key)}
-        aria-label={`Reset ${status.label} to default`}
-        title="Reset to default"
-      >
-        <RotateCcw />
-      </Button>
+      <ClosedInfo />
     </li>
   )
 }
@@ -100,13 +112,9 @@ export function StatusSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto_auto] sm:max-w-lg">
+      <DialogContent aria-describedby={undefined} className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto_auto] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
-          <DialogDescription>
-            Pick a color for each task status and choose which ones count as closed. Closed statuses are hidden by
-            the default filter and listed under Completed in TASKS.md.
-          </DialogDescription>
         </DialogHeader>
         <div className="-mx-4 space-y-4 overflow-y-auto px-4">
           <StatusGroup heading="Built-in statuses" statuses={builtins} settings={settings} />
