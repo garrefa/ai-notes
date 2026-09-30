@@ -42,6 +42,8 @@ export type ConnectionStatus = "unsupported" | "disconnected" | "needs-permissio
 export interface WorkspaceSummary {
   id: string
   label: string
+  // The picked folder's own name on disk (the label may be renamed in the switcher).
+  folderName: string
   addedAt: number
   lastOpenedAt: number
   availability: FolderAvailability
@@ -481,9 +483,10 @@ export function useNotesDirectory() {
 
   const workspaceSummaries = useMemo<WorkspaceSummary[]>(
     () =>
-      workspaces.map(({ id, label, addedAt, lastOpenedAt }) => ({
+      workspaces.map(({ id, label, handle, addedAt, lastOpenedAt }) => ({
         id,
         label,
+        folderName: handle.name,
         addedAt,
         lastOpenedAt,
         availability: availability[id] ?? "available",

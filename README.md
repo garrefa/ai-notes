@@ -208,7 +208,7 @@ it reads and writes the Markdown files directly and nothing leaves your machine.
   Change colors, or which statuses count as closed, in **Settings**.
 - **Create, delete**: new notes, plans, daily plans and tasks in the skills' own format
   (`INDEX.md` and `TASKS.md` kept in step), inline task-deadline edits, and a copyable
-  repo-relative path on every note. Unsaved edits ask before you navigate away, and survive a
+  path (starting with the folder's name) on every note. Unsaved edits ask before you navigate away, and survive a
   closed tab.
 - **Favorites**: heart any note, plan, daily plan or task; they're listed together under Favorites.
 - **Filters**: a date range (last 7 days by default, or custom) for notes, plans and daily plans,

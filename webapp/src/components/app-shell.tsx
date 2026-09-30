@@ -41,7 +41,7 @@ import { draftKey } from "@/lib/drafts"
 import { useFavorites } from "@/lib/favorites"
 import { DEFAULT_LIBRARY_ORDER, isHideableWhenEmpty, useSelectedView, type LibraryView } from "@/lib/library-order"
 import type { EntryKind, NewEntry } from "@/lib/new-entry"
-import { isTasksLedger, repoRelativePath, type NewTaskRow } from "@/lib/notes-fs"
+import { displayPath, isTasksLedger, type NewTaskRow } from "@/lib/notes-fs"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
 import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
 import type { LedgerPr, PrState } from "@/lib/prs-parser"
@@ -811,7 +811,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
               <NoteDetail
                 key={selected.path}
                 note={selected}
-                repoPath={repoRelativePath(selected.path, layout)}
+                displayPath={activeWorkspace ? displayPath(activeWorkspace.folderName, selected.path, layout) : selected.path}
                 onSave={saveNote}
                 onSaveBody={saveNoteBody}
                 onUpdateDeadline={updateTaskDeadline}

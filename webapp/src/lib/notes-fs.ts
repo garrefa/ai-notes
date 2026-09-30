@@ -49,10 +49,12 @@ export interface ResolvedWorkspace {
   layout: DataLayout
 }
 
-// A note's path relative to the notes repo itself, as git and the skills see it: the data dir is
-// the repo root except in the older layouts, whose data sits in a db/ subfolder.
-export function repoRelativePath(notePath: string, layout: DataLayout | null): string {
-  return layout === "legacy-db" || layout === "db-folder" ? `${LEGACY_DATA_DIR_NAME}/${notePath}` : notePath
+// A note's path as shown to the user: the picked folder's name, then the path inside it (e.g.
+// "_notes/notes/2026-09-30-x.md"). The data dir is the picked folder, except for an older repo whose
+// data sits in its db/ subfolder; when the db/ folder itself was picked, its name already says so.
+export function displayPath(folderName: string, notePath: string, layout: DataLayout | null): string {
+  const dataDir = layout === "legacy-db" ? `${LEGACY_DATA_DIR_NAME}/` : ""
+  return `${folderName}/${dataDir}${notePath}`
 }
 
 export function isTasksLedger(notePath: string): boolean {

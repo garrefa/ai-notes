@@ -100,7 +100,7 @@ function DraftRestoreBanner({ draft, onRestore, onDiscard }: { draft: NoteDraft;
 
 export function NoteDetail({
   note,
-  repoPath,
+  displayPath,
   onSave,
   onSaveBody,
   onUpdateDeadline,
@@ -117,8 +117,8 @@ export function NoteDetail({
   flatLayout = false,
 }: {
   note: Note
-  // The note's path relative to the notes repo (shown with a copy button).
-  repoPath: string
+  // The note's path, starting with the connected folder's name (shown with a copy button).
+  displayPath: string
   // Writes the whole file (used for tag edits).
   onSave: (path: string, content: string) => Promise<void>
   // Writes the body, keeping whatever frontmatter is on disk.
@@ -276,8 +276,11 @@ export function NoteDetail({
     <article className="mx-auto max-w-2xl p-6 lg:p-10">
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
-      {/* The note's actions, on their own row at the top right; tags go on the line below. */}
-      <div className="mb-3 flex items-center justify-end gap-1.5">
+      {/* Date and type on the left, the note's actions on the right; tags go on the line below. */}
+      <div className="mb-3 flex items-center gap-1.5">
+        <div className="mr-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
+          {!flatLayout && [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
+        </div>
         <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
         {onDelete && !editing && (
           <Button
@@ -369,11 +372,8 @@ export function NoteDetail({
 
       {/* A title that is the body's "# heading" already shows at the top of the rendered body. */}
       {!note.titleFromHeading && <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{note.title}</h1>}
-      {!flatLayout && (
-        <div className="mb-1 font-mono text-xs text-muted-foreground">{[note.date, note.type, note.repo].filter(Boolean).join(" · ")}</div>
-      )}
       <div className="mb-4">
-        <CopyPath path={repoPath} />
+        <CopyPath path={displayPath} />
       </div>
 
       {taskStatus && (
@@ -441,7 +441,7 @@ export function NoteDetail({
         title={`Delete "${note.title}"?`}
         description={
           <>
-            This deletes <code className="font-mono">{repoPath}</code> and removes it from INDEX.md
+            This deletes <code className="font-mono">{displayPath}</code> and removes it from INDEX.md
             {isTask ? " and its row from TASKS.md" : ""}. The viewer can't undo this; if the notes repo is a git repo,
             the file can be restored from git.
           </>

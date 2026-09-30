@@ -190,8 +190,8 @@ runs git: commit the changes in your notes repo as usual.
   hidden in a flat folder, which has no layout to create into.
 - **Edit the body:** **Edit** / **Save** as before. Saving keeps the frontmatter that's on disk at
   that moment, so a tag or status changed mid-edit isn't reverted.
-- **Layout:** the note's buttons (favorite, delete, Edit) sit on their own row at the top right, with
-  its tags on the line below. A title that is the note's `# heading` is shown once, at the top of the
+- **Layout:** the top row has the note's date, type and repo on the left and its buttons (favorite,
+  delete, Edit) on the right; its tags are on the line below. A title that is the note's `# heading` is shown once, at the top of the
   rendered note; a task's (its frontmatter `title:`) shows above the body. To change a note's title,
   edit its `# heading` in the body.
 - **Deadline:** a task's detail pane has a date field next to its status; it saves when you leave
@@ -201,8 +201,9 @@ runs git: commit the changes in your notes repo as usual.
 - **Delete:** the trash button asks first, then deletes the file, drops it from `INDEX.md` (and any
   tag section it leaves empty) and, for a task, removes its `TASKS.md` row. `TASKS.md` itself can't
   be deleted. The viewer can't undo a delete; git can.
-- **Path:** under every title is the file's path relative to the notes repo (with `db/` in front for
-  an older, un-flattened repo), with a button that copies it.
+- **Path:** under the tags is the file's path, starting with the connected folder's name (e.g.
+  `_notes/notes/2026-09-30-x.md`; `db/` follows it for an older, un-flattened repo), with a button
+  that copies it.
 
 ### Unsaved changes
 

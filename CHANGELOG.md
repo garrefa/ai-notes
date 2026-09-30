@@ -25,10 +25,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   next time the note opens.
 - Viewer: favorites. A heart on any note, plan, daily plan or task marks it (stored per folder in
   the browser) and lists it under a new **Favorites** Library item.
-- Viewer: every note shows its path relative to the notes repo, with a copy button.
+- Viewer: every note shows its path, starting with the connected folder's name (e.g.
+  `_notes/notes/…`), with a copy button.
 - Viewer: a note whose title is its `# heading` no longer shows the title twice (above the note and
-  at the top of the rendered body); tasks, titled in frontmatter, keep it above. The note's buttons
-  sit on their own row at the top right, with its tags on the line below.
+  at the top of the rendered body); tasks, titled in frontmatter, keep it above. The note's date and type
+  sit on the left of its button row, with its tags on the line below.
 - `ainotes-notes` / `notetaker`: every note and plan body starts with a `# <title>` line. Plans used
   to be saved with the Plan subagent's text as-is, which starts at `## …`, so they had no title
   (the viewer fell back to the file path).
