@@ -49,9 +49,13 @@ Input: `{repo, number, url, title, jira?, task_file?}`
 Append a row to **Pending (open)** in `PRS.md` (create the file from
 `<toolkit_dir>/templates/notes-repo/PRS.md` if it doesn't exist): today's date,
 `jira` or `—`, `Last checked` = today. Skip if a row for that PR already exists (`row_added: false`).
+Write nothing and return `{row_added: false, skipped: "<reason>"}` when the `url`'s owner
+(`https://github.com/<owner>/...`) isn't `vcs.org` from `.ai-notes/config.yml`, or when `repo` is
+listed in its `ignored_repos` — `PRS.md` only tracks `vcs.org` PRs from tracked repos.
 If `task_file` is given, also apply `task_link {task: task_file, pr: <url>}` in the same commit.
 Commit: `Track PR: <repo>#<number>`.
-Output: `{row_added, sha}` (plus `task_file`, `row_moved` if a task link was applied).
+Output: `{row_added, sha}` (plus `task_file`, `row_moved` if a task link was applied; `skipped`
+instead of `sha` when the row was refused).
 
 ### `task_create`
 Input: `{title, deadline?, status?, purpose, domain?}`

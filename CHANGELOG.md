@@ -16,6 +16,35 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   search prs` call plus a handful of batched GraphQL lookups, no LLM — and only the two genuinely
   fuzzy calls (summarizing a PR, picking its priority) go to the new `review-inbox-poller` agent,
   which runs on Haiku.
+- Viewer: create notes, plans, daily plans and tasks from a **New** dialog, in the skills' own
+  format (frontmatter, file name, `INDEX.md` entry, and a `TASKS.md` row for a task); delete them
+  (their `INDEX.md` entries and `TASKS.md` row go too); change a task's deadline in place, with its
+  `TASKS.md` row kept in step.
+- Viewer: unsaved edits are protected. Leaving a note mid-edit asks Save / Discard / Keep editing,
+  closing the tab gets the browser's warning, and an edit left behind that way is offered back the
+  next time the note opens.
+- Viewer: favorites. A heart on any note, plan, daily plan or task marks it (stored per folder in
+  the browser) and lists it under a new **Favorites** Library item.
+- Viewer: every note shows its path, starting with the connected folder's name (e.g.
+  `_notes/notes/…`), with a copy button.
+- Viewer: a note whose title is its `# heading` no longer shows the title twice (above the note and
+  at the top of the rendered body); tasks, titled in frontmatter, keep it above. The note's date and type
+  sit on the left of its button row, with its tags on the line below.
+- `ainotes-notes` / `notetaker`: every note and plan body starts with a `# <title>` line. Plans used
+  to be saved with the Plan subagent's text as-is, which starts at `## …`, so they had no title
+  (the viewer fell back to the file path).
+- Viewer: the Library now opens with **Agents** and **Pull requests** first, and hides items with
+  nothing in them (Agents and Pull requests always show). The date range no longer applies to
+  Tasks, Favorites, Pull requests or Agents.
+- Viewer: working agents show a spinner on their status chip.
+- Viewer: a quoted frontmatter value followed by a `# comment` now parses correctly.
+- `check-prs.sh` no longer rewrites a tracked PR outside `vcs.org` to a same-named repo under it.
+  It used to keep only the repo name from each row's URL and rebuild every URL and `gh` call as
+  `vcs.org/<name>`, so a `garrefa/ai-notes` PR became a `bitsoex/ai-notes` row that could never be
+  looked up again and stayed Pending forever. It now keeps each row's owner; `vcs.org` rows look
+  the same as before.
+- `ainotes-pr-tracker` / `ledger-keeper`: PRs whose URL owner isn't `vcs.org`, or that come from a
+  repo in `ignored_repos`, are no longer registered in `PRS.md`.
 
 ## [0.1.0] - 2026-09-26
 

@@ -394,3 +394,50 @@
     transform: scale(1.18);
   }
 }
+
+/* Favorites: a filled, glowing heart that beats now and then, and pops when it's switched on. */
+.favorite-heart {
+  color: #f43f5e;
+  fill: currentColor;
+  filter: drop-shadow(0 0 3px rgb(244 63 94 / 0.55));
+  animation: favorite-beat 3.2s ease-in-out infinite;
+}
+.dark .favorite-heart {
+  color: #fb7185;
+}
+.favorite-pop {
+  animation: favorite-pop 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .favorite-heart,
+  .favorite-pop {
+    animation: none;
+  }
+}
+
+@keyframes favorite-beat {
+  0%,
+  80%,
+  100% {
+    transform: scale(1);
+  }
+  86% {
+    transform: scale(1.2);
+  }
+  92% {
+    transform: scale(1.05);
+  }
+}
+
+@keyframes favorite-pop {
+  0% {
+    transform: scale(0.6);
+  }
+  60% {
+    transform: scale(1.35);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
