@@ -149,7 +149,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     saveNote,
     saveNoteBody,
     updateTaskStatus,
-    updateNoteMeta,
+    updateTaskDeadline,
     createEntry,
     deleteEntry,
   } = directory
@@ -814,7 +814,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                 repoPath={repoRelativePath(selected.path, layout)}
                 onSave={saveNote}
                 onSaveBody={saveNoteBody}
-                onUpdateMeta={updateNoteMeta}
+                onUpdateDeadline={updateTaskDeadline}
                 onDelete={layout !== "flat" && isTasksLedger(selected.path) ? null : handleDelete}
                 allTags={allTags}
                 taskStatus={taskStatusByPath.get(selected.path) ?? null}

@@ -208,19 +208,6 @@ export function withUpdatedStatus(rawFrontmatter: string, status: string): strin
   return withUpdatedScalar(rawFrontmatter, "status", status)
 }
 
-export function hasFrontmatterKey(rawFrontmatter: string, key: string): boolean {
-  return new RegExp(`^${key}:`, "m").test(rawFrontmatter)
-}
-
-// Replaces the body's first "# heading" (the one extractTitle reads), or prepends one.
-const H1_RE = /^#[ \t]+.+$/m
-
-export function withUpdatedHeading(body: string, title: string): string {
-  if (H1_RE.test(body)) return body.replace(H1_RE, () => `# ${title}`)
-  const eol = body.includes("\r\n") ? "\r\n" : "\n"
-  return `# ${title}${eol}${eol}${body.replace(/^\s+/, "")}`
-}
-
 // Appends "- <line>" as the last entry of the body's "## Updates" section, if it has one;
 // otherwise returns the body unchanged.
 const UPDATES_HEADING_RE = /^##[ \t]+Updates[ \t]*$/m

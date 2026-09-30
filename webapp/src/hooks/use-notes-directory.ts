@@ -14,11 +14,10 @@ import {
   saveNote as saveNoteToDisk,
   saveNoteBody as saveNoteBodyToDisk,
   setTaskStatus,
-  updateNoteMeta as updateNoteMetaOnDisk,
+  setTaskDeadline,
   type CreatedEntry,
   type DataLayout,
   type NewTaskRow,
-  type NoteMetaChange,
 } from "@/lib/notes-fs"
 import type { NewEntry } from "@/lib/new-entry"
 import type { Note } from "@/lib/notes-frontmatter"
@@ -463,9 +462,9 @@ export function useNotesDirectory() {
     [writeAndReload],
   )
 
-  const updateNoteMeta = useCallback(
-    async (path: string, change: NoteMetaChange): Promise<string | null> =>
-      (await writeAndReload((dir) => updateNoteMetaOnDisk(dir, path, change, followsConventions()))).notice,
+  const updateTaskDeadline = useCallback(
+    async (path: string, deadline: string | null): Promise<string | null> =>
+      (await writeAndReload((dir) => setTaskDeadline(dir, path, deadline))).notice,
     [writeAndReload],
   )
 
@@ -521,7 +520,7 @@ export function useNotesDirectory() {
     saveNote,
     saveNoteBody,
     updateTaskStatus,
-    updateNoteMeta,
+    updateTaskDeadline,
     createEntry,
     deleteEntry,
   }

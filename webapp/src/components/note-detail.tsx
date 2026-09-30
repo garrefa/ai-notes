@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
-import { Check, ChevronDown, History, Pencil, Plus, TextCursorInput, Trash2, X } from "lucide-react"
+import { ChevronDown, History, Pencil, Plus, Trash2, X } from "lucide-react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { forgetDraft, loadDraft, storeDraft, type NoteDraft } from "@/lib/drafts"
-import type { NoteMetaChange } from "@/lib/notes-fs"
 import { displayTag, withUpdatedTags, type Note } from "@/lib/notes-frontmatter"
 import { isTaskFile, type TaskStatus } from "@/lib/task-status"
 
@@ -104,7 +103,7 @@ export function NoteDetail({
   repoPath,
   onSave,
   onSaveBody,
-  onUpdateMeta,
+  onUpdateDeadline,
   onDelete,
   allTags,
   taskStatus,
@@ -124,8 +123,8 @@ export function NoteDetail({
   onSave: (path: string, content: string) => Promise<void>
   // Writes the body, keeping whatever frontmatter is on disk.
   onSaveBody: (path: string, body: string) => Promise<void>
-  // Renames the note / changes a task's deadline; may return a non-blocking notice.
-  onUpdateMeta: (path: string, change: NoteMetaChange) => Promise<string | null>
+  // Sets (or, with null, clears) a task's deadline; may return a non-blocking notice.
+  onUpdateDeadline: (path: string, deadline: string | null) => Promise<string | null>
   // null when this file can't be deleted (the TASKS.md ledger).
   onDelete: ((path: string) => Promise<void>) | null
   allTags: string[]
@@ -147,17 +146,13 @@ export function NoteDetail({
 }) {
   const tagListId = useId()
   const isTask = isTaskFile(note)
-  // The only undeletable file, the TASKS.md ledger, keeps its fixed "# Task Tracker" title too.
-  const canRename = onDelete !== null
 
   const [editing, setEditing] = useState(startEditing)
   const [draft, setDraft] = useState(() => (startEditing ? note.body : ""))
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState("")
   const [deadlineDraft, setDeadlineDraft] = useState(note.deadline ?? "")
   const [pendingDraft, setPendingDraft] = useState<NoteDraft | null>(() => {
     const stored = loadDraft(draftKey)
-    const differs = stored && ((stored.body !== null && stored.body !== note.body) || (stored.title !== null && stored.title !== note.title))
+    const differs = stored !== null && stored.body !== note.body
     if (stored && !differs) forgetDraft(draftKey)
     return differs ? stored : null
   })
@@ -174,9 +169,8 @@ export function NoteDetail({
   const [savingDeadline, setSavingDeadline] = useState<string | null>(null)
 
   const bodyDirty = editing && draft !== note.body
-  const titleDirty = editingTitle && titleDraft !== note.title
   const deadlineDirty = isTask && deadlineDraft !== (note.deadline ?? "") && deadlineDraft !== savingDeadline
-  const dirty = bodyDirty || titleDirty || deadlineDirty
+  const dirty = bodyDirty || deadlineDirty
 
   // Follow the deadline on disk (a save, another tab, the skills) unless it's mid-edit here.
   const [seenDeadline, setSeenDeadline] = useState(note.deadline)
@@ -200,8 +194,8 @@ export function NoteDetail({
   // while an older draft is waiting for Restore/Discard.
   useEffect(() => {
     if (pendingDraft) return
-    storeDraft(draftKey, dirty ? { body: bodyDirty ? draft : null, title: titleDirty ? titleDraft : null } : null)
-  }, [pendingDraft, draftKey, dirty, bodyDirty, draft, titleDirty, titleDraft])
+    storeDraft(draftKey, bodyDirty ? draft : null)
+  }, [pendingDraft, draftKey, bodyDirty, draft])
 
   function startEditingBody() {
     setDraft(note.body)
@@ -209,15 +203,8 @@ export function NoteDetail({
     setEditing(true)
   }
 
-  function startEditingTitle() {
-    setTitleDraft(note.title)
-    save.reset()
-    setEditingTitle(true)
-  }
-
   function discardAll() {
     setEditing(false)
-    setEditingTitle(false)
     setDeadlineDraft(note.deadline ?? "")
     save.reset()
     forgetDraft(draftKey)
@@ -225,14 +212,8 @@ export function NoteDetail({
 
   function restoreDraft() {
     if (!pendingDraft) return
-    if (pendingDraft.body !== null) {
-      setDraft(pendingDraft.body)
-      setEditing(true)
-    }
-    if (pendingDraft.title !== null) {
-      setTitleDraft(pendingDraft.title)
-      setEditingTitle(true)
-    }
+    setDraft(pendingDraft.body)
+    setEditing(true)
     setPendingDraft(null)
   }
 
@@ -241,41 +222,14 @@ export function NoteDetail({
     setPendingDraft(null)
   }
 
-  function metaChange(): NoteMetaChange | null {
-    const change: NoteMetaChange = {}
-    if (titleDirty) change.title = titleDraft
-    if (deadlineDirty) change.deadline = deadlineDraft || null
-    return Object.keys(change).length > 0 ? change : null
-  }
-
-  // Body first: renaming a note whose title is its "# heading" then rewrites that heading on disk.
+  // Body first: a deadline save also logs a line under the task's "## Updates" on disk, which a
+  // later body save from the editor would overwrite.
   async function saveAll(): Promise<boolean> {
     return save.run(async () => {
       if (bodyDirty) await onSaveBody(note.path, draft)
-      const change = metaChange()
-      const notice = change ? await onUpdateMeta(note.path, change) : null
+      const notice = deadlineDirty ? await onUpdateDeadline(note.path, deadlineDraft || null) : null
       setEditing(false)
-      setEditingTitle(false)
       forgetDraft(draftKey)
-      return notice
-    })
-  }
-
-  // Enter in the title field. While the body is being edited too (a restored draft), both are
-  // saved together, body first: a title or deadline save rewrites the body on disk (the heading,
-  // a task's "## Updates" line), which a later body save from the editor would overwrite.
-  async function saveTitle() {
-    if (editing) {
-      await saveAll()
-      return
-    }
-    if (!titleDirty) {
-      setEditingTitle(false)
-      return
-    }
-    await save.run(async () => {
-      const notice = await onUpdateMeta(note.path, { title: titleDraft })
-      setEditingTitle(false)
       return notice
     })
   }
@@ -285,7 +239,7 @@ export function NoteDetail({
     if (save.busy || value === (note.deadline ?? "")) return
     setSavingDeadline(value)
     try {
-      await save.run(() => onUpdateMeta(note.path, { deadline: value || null }))
+      await save.run(() => onUpdateDeadline(note.path, value || null))
     } finally {
       setSavingDeadline(null)
     }
@@ -318,14 +272,44 @@ export function NoteDetail({
     }
   }
 
-  const anyEditOpen = editing || editingTitle
-
   return (
     <article className="mx-auto max-w-2xl p-6 lg:p-10">
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div className="flex flex-wrap items-center gap-1.5">
+      {/* The note's actions, on their own row at the top right; tags go on the line below. */}
+      <div className="mb-3 flex items-center justify-end gap-1.5">
+        <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
+        {onDelete && !editing && (
+          <Button
+            size="icon-sm"
+            variant="outline"
+            aria-label="Delete"
+            title="Delete"
+            onClick={() => {
+              deleteAction.reset()
+              setConfirmingDelete(true)
+            }}
+          >
+            <Trash2 className="text-muted-foreground" />
+          </Button>
+        )}
+        {editing ? (
+          <>
+            <Button size="sm" variant="ghost" disabled={save.busy} onClick={discardAll}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={save.busy} onClick={saveAll}>
+              {save.busy ? "Saving…" : "Save"}
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={startEditingBody}>
+            <Pencil className="size-3.5" />
+            Edit
+          </Button>
+        )}
+      </div>
+      <div className="mb-3 flex flex-wrap items-center gap-1.5">
           {note.tags.map((t) => (
             <span
               key={t}
@@ -379,72 +363,12 @@ export function NoteDetail({
                 Tag
               </button>
             ))}
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
-          {canRename && !anyEditOpen && (
-            <Button size="icon-sm" variant="outline" aria-label="Rename" title="Rename" onClick={startEditingTitle}>
-              <TextCursorInput className="text-muted-foreground" />
-            </Button>
-          )}
-          {onDelete && !anyEditOpen && (
-            <Button
-              size="icon-sm"
-              variant="outline"
-              aria-label="Delete"
-              title="Delete"
-              onClick={() => {
-                deleteAction.reset()
-                setConfirmingDelete(true)
-              }}
-            >
-              <Trash2 className="text-muted-foreground" />
-            </Button>
-          )}
-          {editing ? (
-            <>
-              <Button size="sm" variant="ghost" disabled={save.busy} onClick={discardAll}>
-                Cancel
-              </Button>
-              <Button size="sm" disabled={save.busy} onClick={saveAll}>
-                {save.busy ? "Saving…" : "Save"}
-              </Button>
-            </>
-          ) : (
-            <Button size="sm" variant="outline" className="gap-1.5" onClick={startEditingBody}>
-              <Pencil className="size-3.5" />
-              Edit
-            </Button>
-          )}
-        </div>
       </div>
 
       {tagsAction.error && <p className="mb-2 text-xs text-destructive">{tagsAction.error}</p>}
 
-      {editingTitle ? (
-        <div className="mb-1.5 flex items-center gap-1.5">
-          <input
-            autoFocus
-            value={titleDraft}
-            onChange={(e) => setTitleDraft(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void saveTitle()
-              if (e.key === "Escape") setEditingTitle(false)
-            }}
-            aria-label="Title"
-            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          />
-          <Button size="icon-sm" variant="ghost" aria-label="Save title" title="Save title (Enter)" disabled={save.busy} onClick={saveTitle}>
-            <Check />
-          </Button>
-          <Button size="icon-sm" variant="ghost" aria-label="Cancel renaming" title="Cancel (Esc)" disabled={save.busy} onClick={() => setEditingTitle(false)}>
-            <X />
-          </Button>
-        </div>
-      ) : (
-        // A title that is the body's "# heading" already shows at the top of the rendered body.
-        !note.titleFromHeading && <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{note.title}</h1>
-      )}
+      {/* A title that is the body's "# heading" already shows at the top of the rendered body. */}
+      {!note.titleFromHeading && <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{note.title}</h1>}
       {!flatLayout && (
         <div className="mb-1 font-mono text-xs text-muted-foreground">{[note.date, note.type, note.repo].filter(Boolean).join(" · ")}</div>
       )}

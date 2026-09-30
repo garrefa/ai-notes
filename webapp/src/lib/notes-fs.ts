@@ -1,16 +1,13 @@
 import { addToIndex, EMPTY_INDEX, INDEX_FILE, removeFromIndex } from "@/lib/index-file"
 import type { NewEntry } from "@/lib/new-entry"
 import {
-  hasFrontmatterKey,
   localIsoDate,
   parseFrontmatter,
   toNote,
   sortNotes,
   withAppendedUpdate,
-  withUpdatedHeading,
   withUpdatedScalar,
   withUpdatedStatus,
-  yamlScalar,
   type Note,
   type NoteSource,
 } from "@/lib/notes-frontmatter"
@@ -353,49 +350,20 @@ export async function deleteEntry(dataDir: FileSystemDirectoryHandle, notePath: 
   if (isTaskPath(notePath)) await editLedger(dataDir, (markdown) => removeLedgerRow(markdown, notePath))
 }
 
-export interface NoteMetaChange {
-  title?: string
-  // Tasks only; null clears it.
-  deadline?: string | null
-}
-
-// Renames a note and/or changes a task's deadline. A title lives in the frontmatter's `title:`
-// when it has one (every task does), else in the body's "# heading". For a task, the change is
-// logged under "## Updates" and mirrored into its TASKS.md row; a problem with the ledger comes
-// back as a notice. In a flat folder (`conventions` false) nothing is a task: a file under tasks/
-// there is renamed like any other note.
-export async function updateNoteMeta(
+// Sets (or, with null, clears) a task's `deadline:`, logs the change under its "## Updates" and
+// mirrors it into its TASKS.md row. A problem with the ledger comes back as a notice.
+export async function setTaskDeadline(
   dataDir: FileSystemDirectoryHandle,
-  notePath: string,
-  change: NoteMetaChange,
-  conventions = true,
+  taskPath: string,
+  deadline: string | null,
   today = localIsoDate(),
 ): Promise<{ notice: string | null }> {
-  const task = conventions && isTaskPath(notePath)
-  const { body: oldBody, rawFrontmatter } = parseFrontmatter(await readNote(dataDir, notePath))
-  let fm = rawFrontmatter || (task ? "---\n---\n" : "")
-  let body = oldBody
-  const updates: string[] = []
-  const cells: Record<string, string> = {}
-
-  if (change.title !== undefined) {
-    const title = change.title.trim()
-    if (!title) throw new Error("A title can't be empty.")
-    if (task || hasFrontmatterKey(fm, "title")) fm = withUpdatedScalar(fm, "title", yamlScalar(title))
-    else body = withUpdatedHeading(body, title)
-    updates.push(`renamed to "${title}"`)
-    cells.Task = escapeCell(title)
-  }
-  if (change.deadline !== undefined && task) {
-    fm = withUpdatedScalar(fm, "deadline", change.deadline ?? "null")
-    updates.push(change.deadline ? `deadline → ${change.deadline}` : "deadline cleared")
-    cells.Deadline = change.deadline ?? EMPTY_CELL
-  }
-
-  if (task) for (const update of updates) body = withAppendedUpdate(body, `${today}: ${update}`)
-  await saveNote(dataDir, notePath, fm + body)
-  if (!task || Object.keys(cells).length === 0) return { notice: null }
-  return { notice: await editLedger(dataDir, (markdown) => updateLedgerCells(markdown, notePath, cells)) }
+  const { body, rawFrontmatter } = parseFrontmatter(await readNote(dataDir, taskPath))
+  const fm = withUpdatedScalar(rawFrontmatter || "---\n---\n", "deadline", deadline ?? "null")
+  const update = deadline ? `deadline → ${deadline}` : "deadline cleared"
+  await saveNote(dataDir, taskPath, fm + withAppendedUpdate(body, `${today}: ${update}`))
+  const cells = { Deadline: deadline ?? EMPTY_CELL }
+  return { notice: await editLedger(dataDir, (markdown) => updateLedgerCells(markdown, taskPath, cells)) }
 }
 
 // Sets a task file's `status:` (re-read from disk so nothing else in it changes), logs the change

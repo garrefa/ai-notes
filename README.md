@@ -206,8 +206,8 @@ it reads and writes the Markdown files directly and nothing leaves your machine.
   with the date and tag filters turned off.
 - **Tasks**: colored status dots; changing a status updates both the task file and `TASKS.md`.
   Change colors, or which statuses count as closed, in **Settings**.
-- **Create, rename, delete**: new notes, plans, daily plans and tasks in the skills' own format
-  (`INDEX.md` and `TASKS.md` kept in step), inline title and task-deadline edits, and a copyable
+- **Create, delete**: new notes, plans, daily plans and tasks in the skills' own format
+  (`INDEX.md` and `TASKS.md` kept in step), inline task-deadline edits, and a copyable
   repo-relative path on every note. Unsaved edits ask before you navigate away, and survive a
   closed tab.
 - **Favorites**: heart any note, plan, daily plan or task; they're listed together under Favorites.

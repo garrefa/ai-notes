@@ -2,7 +2,7 @@
 
 An optional, local browser viewer for AINotes notes repos. It lists and renders the notes, plans, daily plans, and tasks the
 `ainotes-*` skills write, lets you filter them by date range and tag, search them with a command
-palette (`Cmd/Ctrl+K`), create, rename, edit, favorite and delete them in place, and browse the PRs
+palette (`Cmd/Ctrl+K`), create, edit, favorite and delete them in place, and browse the PRs
 tracked in `PRS.md` under **Pull requests**. Tasks show their status as a colored dot and can be moved between statuses from the
 viewer. You can track several notes repos at once and switch between them in one click.
 
@@ -101,8 +101,8 @@ new ones relative to that date, and avoid weekday or month names, which the date
 1. Open the app and click **Connect folder** in the sidebar.
 2. In the folder picker, choose your **notes repo**: the folder named by `notes_repo` in your
    workspace config (it has `notes/`, `plans/` and the rest of the layout directly inside it).
-3. Grant read/write access when the browser asks. Write access is only used when you create, edit,
-   rename or delete something from the viewer (see [Creating, editing and deleting](#creating-editing-and-deleting)).
+3. Grant read/write access when the browser asks. Write access is only used when you create, edit
+   or delete something from the viewer (see [Creating, editing and deleting](#creating-editing-and-deleting)).
 
 ### Several repos, fast switching
 
@@ -190,23 +190,23 @@ runs git: commit the changes in your notes repo as usual.
   hidden in a flat folder, which has no layout to create into.
 - **Edit the body:** **Edit** / **Save** as before. Saving keeps the frontmatter that's on disk at
   that moment, so a tag or status changed mid-edit isn't reverted.
-- **Rename:** the rename button next to the heart (Enter saves, Esc cancels). A task's title is its
-  frontmatter `title:` (quoted when it needs to be), and its `TASKS.md` row follows; any other note's
-  title is its first `# heading`. A title that is that heading is shown once, at the top of the
-  rendered note, not repeated above it.
+- **Layout:** the note's buttons (favorite, delete, Edit) sit on their own row at the top right, with
+  its tags on the line below. A title that is the note's `# heading` is shown once, at the top of the
+  rendered note; a task's (its frontmatter `title:`) shows above the body. To change a note's title,
+  edit its `# heading` in the body.
 - **Deadline:** a task's detail pane has a date field next to its status; it saves when you leave
   the field (or press Enter), and × clears it. The frontmatter `deadline:` and the `TASKS.md`
-  Deadline cell are updated together. Renames and deadline changes are logged under the task's
+  Deadline cell are updated together. Deadline changes are logged under the task's
   `## Updates`, like status changes. Task cards show `due <date>`.
 - **Delete:** the trash button asks first, then deletes the file, drops it from `INDEX.md` (and any
   tag section it leaves empty) and, for a task, removes its `TASKS.md` row. `TASKS.md` itself can't
-  be deleted or renamed. The viewer can't undo a delete; git can.
+  be deleted. The viewer can't undo a delete; git can.
 - **Path:** under every title is the file's path relative to the notes repo (with `db/` in front for
   an older, un-flattened repo), with a button that copies it.
 
 ### Unsaved changes
 
-While a body, title or deadline edit is unsaved, anything that would take the note off screen
+While a body or deadline edit is unsaved, anything that would take the note off screen
 (opening another note, switching view or folder, **New**, the palette) asks first: **Save**,
 **Discard** or **Keep editing**. Closing or reloading the tab gets the browser's own "Leave site?"
 prompt (browsers don't allow a custom one there), and the edit is also kept in this browser's

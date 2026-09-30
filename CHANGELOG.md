@@ -18,8 +18,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   which runs on Haiku.
 - Viewer: create notes, plans, daily plans and tasks from a **New** dialog, in the skills' own
   format (frontmatter, file name, `INDEX.md` entry, and a `TASKS.md` row for a task); delete them
-  (their `INDEX.md` entries and `TASKS.md` row go too); rename any of them and change a task's
-  deadline in place, with the task's `TASKS.md` row kept in step.
+  (their `INDEX.md` entries and `TASKS.md` row go too); change a task's deadline in place, with its
+  `TASKS.md` row kept in step.
 - Viewer: unsaved edits are protected. Leaving a note mid-edit asks Save / Discard / Keep editing,
   closing the tab gets the browser's warning, and an edit left behind that way is offered back the
   next time the note opens.
@@ -27,7 +27,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   the browser) and lists it under a new **Favorites** Library item.
 - Viewer: every note shows its path relative to the notes repo, with a copy button.
 - Viewer: a note whose title is its `# heading` no longer shows the title twice (above the note and
-  at the top of the rendered body); tasks, titled in frontmatter, keep it above.
+  at the top of the rendered body); tasks, titled in frontmatter, keep it above. The note's buttons
+  sit on their own row at the top right, with its tags on the line below.
 - `ainotes-notes` / `notetaker`: every note and plan body starts with a `# <title>` line. Plans used
   to be saved with the Plan subagent's text as-is, which starts at `## …`, so they had no title
   (the viewer fell back to the file path).
