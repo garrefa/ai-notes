@@ -1,5 +1,30 @@
-import { localIsoDate, parseFrontmatter, toNote, sortNotes, withAppendedUpdate, withUpdatedStatus, type Note, type NoteSource } from "@/lib/notes-frontmatter"
-import { updateLedgerStatus } from "@/lib/tasks-ledger"
+import { addToIndex, EMPTY_INDEX, INDEX_FILE, removeFromIndex } from "@/lib/index-file"
+import type { NewEntry } from "@/lib/new-entry"
+import {
+  hasFrontmatterKey,
+  localIsoDate,
+  parseFrontmatter,
+  toNote,
+  sortNotes,
+  withAppendedUpdate,
+  withUpdatedHeading,
+  withUpdatedScalar,
+  withUpdatedStatus,
+  yamlScalar,
+  type Note,
+  type NoteSource,
+} from "@/lib/notes-frontmatter"
+import {
+  appendLedgerRow,
+  EMPTY_CELL,
+  EMPTY_TASKS_LEDGER,
+  escapeCell,
+  removeLedgerRow,
+  taskFileLink,
+  updateLedgerCells,
+  updateLedgerStatus,
+  type LedgerUpdateResult,
+} from "@/lib/tasks-ledger"
 import type { TaskStatus } from "@/lib/task-status"
 
 // Every note path below is relative to the workspace's *data dir* — see resolveWorkspace.
@@ -25,6 +50,20 @@ export type DataLayout = "repo-root" | "legacy-db" | "db-folder" | "flat"
 export interface ResolvedWorkspace {
   dir: FileSystemDirectoryHandle
   layout: DataLayout
+}
+
+// A note's path relative to the notes repo itself, as git and the skills see it: the data dir is
+// the repo root except in the older layouts, whose data sits in a db/ subfolder.
+export function repoRelativePath(notePath: string, layout: DataLayout | null): string {
+  return layout === "legacy-db" || layout === "db-folder" ? `${LEGACY_DATA_DIR_NAME}/${notePath}` : notePath
+}
+
+export function isTasksLedger(notePath: string): boolean {
+  return notePath === TASKS_LEDGER_FILE
+}
+
+function isTaskPath(notePath: string): boolean {
+  return notePath.startsWith("tasks/")
 }
 
 function isMissingEntryError(e: unknown): boolean {
@@ -151,7 +190,7 @@ export async function loadAgentsFile(dataDir: FileSystemDirectoryHandle): Promis
 
 // A note path is "<dir>/<file>.md", a bare "<file>.md" for ledger files at the data dir's root, or
 // (flat layout only) an arbitrarily nested "<a>/<b>/.../<file>.md".
-async function getNoteFileHandle(dataDir: FileSystemDirectoryHandle, notePath: string): Promise<FileSystemFileHandle> {
+async function getNoteParent(dataDir: FileSystemDirectoryHandle, notePath: string): Promise<{ dir: FileSystemDirectoryHandle; name: string }> {
   const parts = notePath.split("/")
   if (parts.length < 1 || parts.some((p) => !p || p === "." || p === "..")) {
     throw new Error(`Not a valid note path: ${notePath}`)
@@ -160,7 +199,25 @@ async function getNoteFileHandle(dataDir: FileSystemDirectoryHandle, notePath: s
   for (const segment of parts.slice(0, -1)) {
     dir = await dir.getDirectoryHandle(segment, { create: false })
   }
-  return dir.getFileHandle(parts[parts.length - 1], { create: false })
+  return { dir, name: parts[parts.length - 1] }
+}
+
+async function getNoteFileHandle(dataDir: FileSystemDirectoryHandle, notePath: string): Promise<FileSystemFileHandle> {
+  const { dir, name } = await getNoteParent(dataDir, notePath)
+  return dir.getFileHandle(name, { create: false })
+}
+
+async function writeFile(handle: FileSystemFileHandle, content: string): Promise<void> {
+  const writable = await handle.createWritable()
+  try {
+    await writable.write(content)
+  } finally {
+    await writable.close()
+  }
+}
+
+async function fileExistsIn(dir: FileSystemDirectoryHandle, name: string): Promise<boolean> {
+  return (await getFileIn(dir, name)) !== null
 }
 
 async function readNote(dataDir: FileSystemDirectoryHandle, notePath: string): Promise<string> {
@@ -169,13 +226,176 @@ async function readNote(dataDir: FileSystemDirectoryHandle, notePath: string): P
 }
 
 export async function saveNote(dataDir: FileSystemDirectoryHandle, notePath: string, content: string): Promise<void> {
-  const fileHandle = await getNoteFileHandle(dataDir, notePath)
-  const writable = await fileHandle.createWritable()
-  try {
-    await writable.write(content)
-  } finally {
-    await writable.close()
+  await writeFile(await getNoteFileHandle(dataDir, notePath), content)
+}
+
+// Replaces a note's body, keeping the frontmatter that's on disk now (so a tag or status change
+// made while the body was being edited isn't reverted by saving the body).
+export async function saveNoteBody(dataDir: FileSystemDirectoryHandle, notePath: string, body: string): Promise<void> {
+  const { rawFrontmatter } = parseFrontmatter(await readNote(dataDir, notePath))
+  await saveNote(dataDir, notePath, rawFrontmatter + body)
+}
+
+// Rewrites (or creates) a ledger/index file at the data dir's root.
+async function writeRootFile(dataDir: FileSystemDirectoryHandle, name: string, content: string): Promise<void> {
+  await writeFile(await dataDir.getFileHandle(name, { create: true }), content)
+}
+
+// Applies `edit` to TASKS.md when it exists, rewriting it only when the edit changed it. Returns a
+// non-blocking notice when the ledger is missing or couldn't be (fully) updated.
+async function editLedger(
+  dataDir: FileSystemDirectoryHandle,
+  edit: (markdown: string) => LedgerUpdateResult,
+): Promise<string | null> {
+  const ledger = await getFileIn(dataDir, TASKS_LEDGER_FILE)
+  if (!ledger) return "TASKS.md wasn't found, so only the task file was updated."
+  const text = await ledger.text()
+  const result = edit(text)
+  if (result.markdown === text) return result.problem && `${result.problem} Only the task file was updated.`
+  await writeRootFile(dataDir, TASKS_LEDGER_FILE, result.markdown)
+  return result.problem
+}
+
+async function editIndex(dataDir: FileSystemDirectoryHandle, edit: (markdown: string) => string, createIfMissing: boolean) {
+  const file = await getFileIn(dataDir, INDEX_FILE)
+  if (!file && !createIfMissing) return
+  const text = file ? await file.text() : EMPTY_INDEX
+  const next = edit(text)
+  if (next !== text || !file) await writeRootFile(dataDir, INDEX_FILE, next)
+}
+
+// A file name of the entry's that isn't taken yet in its folder.
+async function freeFileName(dir: FileSystemDirectoryHandle, entry: NewEntry): Promise<string> {
+  for (let attempt = 1; attempt < 100; attempt++) {
+    const name = entry.fileName(attempt)
+    if (name === null) break
+    if (!(await fileExistsIn(dir, name))) return name
   }
+  throw new Error(`${entry.fileName(1)} already exists in ${entry.source}/.`)
+}
+
+export interface CreatedEntry {
+  path: string
+  notice: string | null
+}
+
+// What a new task's TASKS.md row needs beyond its file path.
+export interface NewTaskRow {
+  title: string
+  created: string
+  deadline: string | null
+  status: Pick<TaskStatus, "key" | "closed">
+}
+
+// Writes a new note/plan/daily/task file, indexes it under its tags in INDEX.md (created if the
+// repo has none yet) and, for a task, appends its row to TASKS.md's Open table (the ledger is
+// created from the ainotes-tasks template when missing).
+export async function createEntry(
+  dataDir: FileSystemDirectoryHandle,
+  entry: NewEntry,
+  task: NewTaskRow | null,
+): Promise<CreatedEntry> {
+  const dir = await dataDir.getDirectoryHandle(entry.source, { create: true })
+  const name = await freeFileName(dir, entry)
+  await writeFile(await dir.getFileHandle(name, { create: true }), entry.content)
+  const path = `${entry.source}/${name}`
+
+  // The file exists from here on: a failure updating INDEX.md or TASKS.md becomes a notice, so
+  // "try again" doesn't create a second copy.
+  try {
+    await editIndex(dataDir, (markdown) => addToIndex(markdown, path, entry.tags), true)
+  } catch (e) {
+    return { path, notice: `${path} was created, but INDEX.md couldn't be updated (${errorText(e)}).` }
+  }
+
+  if (!task) return { path, notice: null }
+  try {
+    const ledgerFile = await getFileIn(dataDir, TASKS_LEDGER_FILE)
+    const ledger = ledgerFile ? await ledgerFile.text() : EMPTY_TASKS_LEDGER
+    const result = appendLedgerRow(
+      ledger,
+      {
+        Task: escapeCell(task.title),
+        Status: task.status.key,
+        Created: task.created,
+        Deadline: task.deadline ?? EMPTY_CELL,
+        Jira: EMPTY_CELL,
+        PRs: EMPTY_CELL,
+        File: taskFileLink(path),
+      },
+      task.status.closed,
+    )
+    if (result.markdown !== ledger || !ledgerFile) await writeRootFile(dataDir, TASKS_LEDGER_FILE, result.markdown)
+    return { path, notice: result.problem && `${result.problem} The task file was created, but TASKS.md has no row for it.` }
+  } catch (e) {
+    return { path, notice: `${path} was created, but TASKS.md couldn't be updated (${errorText(e)}).` }
+  }
+}
+
+function errorText(e: unknown): string {
+  return e instanceof Error ? e.message : String(e)
+}
+
+// Deletes a note/plan/daily/task file, its INDEX.md entries and, for a task, its TASKS.md row
+// (skipped for a flat folder, which has no INDEX.md/TASKS.md convention). A file that's already
+// gone still gets its entries cleaned up, so retrying after a partial failure finishes the job.
+// The TASKS.md ledger itself is never deleted from the viewer.
+export async function deleteEntry(dataDir: FileSystemDirectoryHandle, notePath: string, conventions = true): Promise<void> {
+  if (conventions && isTasksLedger(notePath)) throw new Error("TASKS.md is the task ledger and can't be deleted from the viewer.")
+  const { dir, name } = await getNoteParent(dataDir, notePath)
+  try {
+    await dir.removeEntry(name)
+  } catch (e) {
+    if (!isMissingEntryError(e)) throw e
+  }
+  if (!conventions) return
+  await editIndex(dataDir, (markdown) => removeFromIndex(markdown, notePath), false)
+  if (isTaskPath(notePath)) await editLedger(dataDir, (markdown) => removeLedgerRow(markdown, notePath))
+}
+
+export interface NoteMetaChange {
+  title?: string
+  // Tasks only; null clears it.
+  deadline?: string | null
+}
+
+// Renames a note and/or changes a task's deadline. A title lives in the frontmatter's `title:`
+// when it has one (every task does), else in the body's "# heading". For a task, the change is
+// logged under "## Updates" and mirrored into its TASKS.md row; a problem with the ledger comes
+// back as a notice. In a flat folder (`conventions` false) nothing is a task: a file under tasks/
+// there is renamed like any other note.
+export async function updateNoteMeta(
+  dataDir: FileSystemDirectoryHandle,
+  notePath: string,
+  change: NoteMetaChange,
+  conventions = true,
+  today = localIsoDate(),
+): Promise<{ notice: string | null }> {
+  const task = conventions && isTaskPath(notePath)
+  const { body: oldBody, rawFrontmatter } = parseFrontmatter(await readNote(dataDir, notePath))
+  let fm = rawFrontmatter || (task ? "---\n---\n" : "")
+  let body = oldBody
+  const updates: string[] = []
+  const cells: Record<string, string> = {}
+
+  if (change.title !== undefined) {
+    const title = change.title.trim()
+    if (!title) throw new Error("A title can't be empty.")
+    if (task || hasFrontmatterKey(fm, "title")) fm = withUpdatedScalar(fm, "title", yamlScalar(title))
+    else body = withUpdatedHeading(body, title)
+    updates.push(`renamed to "${title}"`)
+    cells.Task = escapeCell(title)
+  }
+  if (change.deadline !== undefined && task) {
+    fm = withUpdatedScalar(fm, "deadline", change.deadline ?? "null")
+    updates.push(change.deadline ? `deadline → ${change.deadline}` : "deadline cleared")
+    cells.Deadline = change.deadline ?? EMPTY_CELL
+  }
+
+  if (task) for (const update of updates) body = withAppendedUpdate(body, `${today}: ${update}`)
+  await saveNote(dataDir, notePath, fm + body)
+  if (!task || Object.keys(cells).length === 0) return { notice: null }
+  return { notice: await editLedger(dataDir, (markdown) => updateLedgerCells(markdown, notePath, cells)) }
 }
 
 // Sets a task file's `status:` (re-read from disk so nothing else in it changes), logs the change
@@ -193,14 +413,5 @@ export async function setTaskStatus(
 
   const nextFrontmatter = rawFrontmatter ? withUpdatedStatus(rawFrontmatter, status.key) : `---\nstatus: ${status.key}\n---\n`
   await saveNote(dataDir, taskPath, nextFrontmatter + withAppendedUpdate(body, `${today}: status → ${status.label}`))
-
-  const ledger = await getFileIn(dataDir, TASKS_LEDGER_FILE)
-  if (!ledger) return { notice: "TASKS.md wasn't found, so only the task file was updated." }
-  const ledgerText = await ledger.text()
-  const result = updateLedgerStatus(ledgerText, taskPath, status, today)
-  if (result.markdown === ledgerText) {
-    return { notice: `${result.problem} Only the task file was updated.` }
-  }
-  await saveNote(dataDir, TASKS_LEDGER_FILE, result.markdown)
-  return { notice: result.problem }
+  return { notice: await editLedger(dataDir, (markdown) => updateLedgerStatus(markdown, taskPath, status, today)) }
 }

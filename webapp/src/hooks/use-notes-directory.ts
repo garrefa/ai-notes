@@ -8,7 +8,19 @@ import {
   type Workspace,
 } from "@/lib/idb-handle"
 import { createDemoWorkspaces, isDemoWorkspace } from "@/lib/demo-workspaces"
-import { saveNote as saveNoteToDisk, setTaskStatus, type DataLayout } from "@/lib/notes-fs"
+import {
+  createEntry as createEntryOnDisk,
+  deleteEntry as deleteEntryOnDisk,
+  saveNote as saveNoteToDisk,
+  saveNoteBody as saveNoteBodyToDisk,
+  setTaskStatus,
+  updateNoteMeta as updateNoteMetaOnDisk,
+  type CreatedEntry,
+  type DataLayout,
+  type NewTaskRow,
+  type NoteMetaChange,
+} from "@/lib/notes-fs"
+import type { NewEntry } from "@/lib/new-entry"
 import type { Note } from "@/lib/notes-frontmatter"
 import type { AgentsSnapshot } from "@/lib/agents"
 import type { PrLedger } from "@/lib/prs-parser"
@@ -416,24 +428,56 @@ export function useNotesDirectory() {
     if (wasInDemo) await openFirstAvailable(byMostRecentlyOpened(real))
   }, [commitWorkspaces, openFirstAvailable])
 
-  const saveNote = useCallback(
-    async (path: string, content: string) => {
+  // Runs a write against the open folder's data dir, then re-reads it so the UI reflects it at once
+  // (the file watcher would get there too, just a debounce later). Reloads even when the write
+  // failed partway, so the UI shows what did land on disk.
+  const writeAndReload = useCallback(
+    async <T>(write: (dataDir: FileSystemDirectoryHandle) => Promise<T>): Promise<T> => {
       if (!dataDirRef.current) throw new Error("No folder connected.")
-      await saveNoteToDisk(dataDirRef.current, path, content)
-      await reload()
+      try {
+        return await write(dataDirRef.current)
+      } finally {
+        await reload()
+      }
     },
     [reload],
   )
 
-  // Returns a non-blocking notice when TASKS.md couldn't be updated alongside the task file.
+  // The flat layout has no notes/plans/tasks convention, so no task ledger or tag index to keep in step.
+  const followsConventions = () => layoutRef.current !== "flat"
+
+  const saveNote = useCallback(
+    (path: string, content: string) => writeAndReload((dir) => saveNoteToDisk(dir, path, content)),
+    [writeAndReload],
+  )
+
+  const saveNoteBody = useCallback(
+    (path: string, body: string) => writeAndReload((dir) => saveNoteBodyToDisk(dir, path, body)),
+    [writeAndReload],
+  )
+
+  // Each returns a non-blocking notice when TASKS.md couldn't be updated alongside the task file.
   const updateTaskStatus = useCallback(
-    async (path: string, next: TaskStatus): Promise<string | null> => {
-      if (!dataDirRef.current) throw new Error("No folder connected.")
-      const { notice: ledgerNotice } = await setTaskStatus(dataDirRef.current, path, next)
-      await reload()
-      return ledgerNotice
-    },
-    [reload],
+    async (path: string, next: TaskStatus): Promise<string | null> =>
+      (await writeAndReload((dir) => setTaskStatus(dir, path, next))).notice,
+    [writeAndReload],
+  )
+
+  const updateNoteMeta = useCallback(
+    async (path: string, change: NoteMetaChange): Promise<string | null> =>
+      (await writeAndReload((dir) => updateNoteMetaOnDisk(dir, path, change, followsConventions()))).notice,
+    [writeAndReload],
+  )
+
+  const createEntry = useCallback(
+    (entry: NewEntry, task: NewTaskRow | null): Promise<CreatedEntry> =>
+      writeAndReload((dir) => createEntryOnDisk(dir, entry, task)),
+    [writeAndReload],
+  )
+
+  const deleteEntry = useCallback(
+    (path: string) => writeAndReload((dir) => deleteEntryOnDisk(dir, path, followsConventions())),
+    [writeAndReload],
   )
 
   const workspaceSummaries = useMemo<WorkspaceSummary[]>(
@@ -473,8 +517,13 @@ export function useNotesDirectory() {
     startDemo,
     exitDemo,
     dismissNotice: () => setNotice(null),
+    showNotice: setNotice,
     saveNote,
+    saveNoteBody,
     updateTaskStatus,
+    updateNoteMeta,
+    createEntry,
+    deleteEntry,
   }
 }
 

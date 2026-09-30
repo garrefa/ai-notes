@@ -16,6 +16,21 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   search prs` call plus a handful of batched GraphQL lookups, no LLM — and only the two genuinely
   fuzzy calls (summarizing a PR, picking its priority) go to the new `review-inbox-poller` agent,
   which runs on Haiku.
+- Viewer: create notes, plans, daily plans and tasks from a **New** dialog, in the skills' own
+  format (frontmatter, file name, `INDEX.md` entry, and a `TASKS.md` row for a task); delete them
+  (their `INDEX.md` entries and `TASKS.md` row go too); rename any of them and change a task's
+  deadline in place, with the task's `TASKS.md` row kept in step.
+- Viewer: unsaved edits are protected. Leaving a note mid-edit asks Save / Discard / Keep editing,
+  closing the tab gets the browser's warning, and an edit left behind that way is offered back the
+  next time the note opens.
+- Viewer: favorites. A heart on any note, plan, daily plan or task marks it (stored per folder in
+  the browser) and lists it under a new **Favorites** Library item.
+- Viewer: every note shows its path relative to the notes repo, with a copy button.
+- Viewer: the Library now opens with **Agents** and **Pull requests** first, and hides items with
+  nothing in them (Agents and Pull requests always show). The date range no longer applies to
+  Tasks, Favorites, Pull requests or Agents.
+- Viewer: working agents show a spinner on their status chip.
+- Viewer: a quoted frontmatter value followed by a `# comment` now parses correctly.
 
 ## [0.1.0] - 2026-09-26
 

@@ -1,8 +1,11 @@
-import { useId, useState } from "react"
-import { ChevronDown, Pencil, Plus, X } from "lucide-react"
+import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
+import { Check, ChevronDown, History, Pencil, Plus, Trash2, X } from "lucide-react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { ConfirmDialog } from "@/components/confirm-dialog"
+import { CopyPath } from "@/components/copy-path"
+import { FavoriteButton } from "@/components/favorite-heart"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { Button } from "@/components/ui/button"
 import {
@@ -12,8 +15,22 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import { useAsyncAction } from "@/hooks/use-async-action"
+import { forgetDraft, loadDraft, storeDraft, type NoteDraft } from "@/lib/drafts"
+import type { NoteMetaChange } from "@/lib/notes-fs"
 import { displayTag, withUpdatedTags, type Note } from "@/lib/notes-frontmatter"
-import type { TaskStatus } from "@/lib/task-status"
+import { isTaskFile, type TaskStatus } from "@/lib/task-status"
+
+const DISCONNECTED_HINT = "check the folder is still connected."
+
+// What the app shell needs to resolve "you have unsaved changes" before navigating away.
+export interface NoteEditorHandle {
+  // Whether leaving now would lose an edit (read at click time, so it's never a render behind).
+  isDirty: () => boolean
+  // Saves every pending edit; resolves to false (with the error shown) if that failed.
+  save: () => Promise<boolean>
+  discard: () => void
+}
 
 // Status picker for a task file. Writing goes through onChange, which updates the task file and
 // TASKS.md; a problem with the ledger comes back as a non-blocking notice.
@@ -26,31 +43,19 @@ function TaskStatusControl({
   statuses: TaskStatus[]
   onChange: (key: string) => Promise<string | null>
 }) {
-  const [busy, setBusy] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const action = useAsyncAction(`Couldn't update the status — ${DISCONNECTED_HINT}`)
 
-  async function select(key: string) {
-    if (key === status.key) return
-    setBusy(true)
-    setNotice(null)
-    setError(null)
-    try {
-      setNotice(await onChange(key))
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Couldn't update the status — check the folder is still connected.")
-    } finally {
-      setBusy(false)
-    }
+  function select(key: string) {
+    if (key !== status.key) void action.run(() => onChange(key))
   }
 
   return (
-    <div className="mb-4 space-y-1.5">
+    <div className="space-y-1.5">
       <DropdownMenu>
-        <DropdownMenuTrigger asChild disabled={busy}>
+        <DropdownMenuTrigger asChild disabled={action.busy}>
           <Button size="sm" variant="outline" className="gap-2" aria-label={`Status: ${status.label}. Change status`}>
             <TaskStatusDot status={status} />
-            {busy ? "Saving…" : status.label}
+            {action.busy ? "Saving…" : status.label}
             <ChevronDown className="size-3.5 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
@@ -65,73 +70,231 @@ function TaskStatusControl({
           </DropdownMenuRadioGroup>
         </DropdownMenuContent>
       </DropdownMenu>
-      {notice && <p className="text-xs text-muted-foreground">{notice}</p>}
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {action.notice && <p className="text-xs text-muted-foreground">{action.notice}</p>}
+      {action.error && <p className="text-xs text-destructive">{action.error}</p>}
+    </div>
+  )
+}
+
+function formatDraftTime(savedAt: number): string {
+  return new Date(savedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
+}
+
+// A draft left over from a tab that was closed mid-edit.
+function DraftRestoreBanner({ draft, onRestore, onDiscard }: { draft: NoteDraft; onRestore: () => void; onDiscard: () => void }) {
+  return (
+    <div role="status" className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
+      <History className="size-3.5 shrink-0 text-primary" />
+      <span className="flex-1">
+        <span className="font-medium text-foreground">Unsaved changes found.</span> You left this note with edits
+        that weren't saved ({formatDraftTime(draft.savedAt)}).
+      </span>
+      <Button size="xs" variant="ghost" onClick={onDiscard}>
+        Discard
+      </Button>
+      <Button size="xs" onClick={onRestore}>
+        Restore
+      </Button>
     </div>
   )
 }
 
 export function NoteDetail({
   note,
+  repoPath,
   onSave,
+  onSaveBody,
+  onUpdateMeta,
+  onDelete,
   allTags,
   taskStatus,
   taskStatuses,
   onSetTaskStatus,
+  favorite,
+  onToggleFavorite,
+  draftKey,
+  startEditing = false,
+  editorRef,
   flatLayout = false,
 }: {
   note: Note
+  // The note's path relative to the notes repo (shown with a copy button).
+  repoPath: string
+  // Writes the whole file (used for tag edits).
   onSave: (path: string, content: string) => Promise<void>
+  // Writes the body, keeping whatever frontmatter is on disk.
+  onSaveBody: (path: string, body: string) => Promise<void>
+  // Renames the note / changes a task's deadline; may return a non-blocking notice.
+  onUpdateMeta: (path: string, change: NoteMetaChange) => Promise<string | null>
+  // null when this file can't be deleted (the TASKS.md ledger).
+  onDelete: ((path: string) => Promise<void>) | null
   allTags: string[]
   // Set only for task files.
   taskStatus: TaskStatus | null
   taskStatuses: TaskStatus[]
   onSetTaskStatus: (path: string, statusKey: string) => Promise<string | null>
+  favorite: boolean
+  onToggleFavorite: () => void
+  // Where unsaved edits are kept in case the tab closes (null: not kept, e.g. in the demo).
+  draftKey: string | null
+  // Opens straight into the body editor (a note that was just created).
+  startEditing?: boolean
+  editorRef?: Ref<NoteEditorHandle>
   // The workspace has no notes/plans/db convention to hang tags off of — the tag editor's
-  // "add" affordance is hidden (existing tags, if any, can still be removed), and the note's
-  // path relative to the added folder is shown instead of the date/type/repo line.
+  // "add" affordance is hidden (existing tags, if any, can still be removed), and the
+  // date/type/repo line is left out.
   flatLayout?: boolean
 }) {
   const tagListId = useId()
-  const [editing, setEditing] = useState(false)
-  const [draft, setDraft] = useState("")
-  const [saving, setSaving] = useState(false)
-  const [saveError, setSaveError] = useState<string | null>(null)
+  const isTask = isTaskFile(note)
+  // The only undeletable file, the TASKS.md ledger, keeps its fixed "# Task Tracker" title too.
+  const canRename = onDelete !== null
+
+  const [editing, setEditing] = useState(startEditing)
+  const [draft, setDraft] = useState(() => (startEditing ? note.body : ""))
+  const [editingTitle, setEditingTitle] = useState(false)
+  const [titleDraft, setTitleDraft] = useState("")
+  const [deadlineDraft, setDeadlineDraft] = useState(note.deadline ?? "")
+  const [pendingDraft, setPendingDraft] = useState<NoteDraft | null>(() => {
+    const stored = loadDraft(draftKey)
+    const differs = stored && ((stored.body !== null && stored.body !== note.body) || (stored.title !== null && stored.title !== note.title))
+    if (stored && !differs) forgetDraft(draftKey)
+    return differs ? stored : null
+  })
+  const [confirmingDelete, setConfirmingDelete] = useState(false)
+
+  const save = useAsyncAction(`Couldn't save — ${DISCONNECTED_HINT}`)
+  const tagsAction = useAsyncAction(`Couldn't update tags — ${DISCONNECTED_HINT}`)
+  const deleteAction = useAsyncAction(`Couldn't delete — ${DISCONNECTED_HINT}`)
 
   const [addingTag, setAddingTag] = useState(false)
   const [tagInput, setTagInput] = useState("")
-  const [tagBusy, setTagBusy] = useState(false)
-  const [tagError, setTagError] = useState<string | null>(null)
 
-  function startEditing() {
+  // The deadline value a save is writing right now: not "unsaved" while it's on its way to disk.
+  const [savingDeadline, setSavingDeadline] = useState<string | null>(null)
+
+  const bodyDirty = editing && draft !== note.body
+  const titleDirty = editingTitle && titleDraft !== note.title
+  const deadlineDirty = isTask && deadlineDraft !== (note.deadline ?? "") && deadlineDraft !== savingDeadline
+  const dirty = bodyDirty || titleDirty || deadlineDirty
+
+  // Follow the deadline on disk (a save, another tab, the skills) unless it's mid-edit here.
+  const [seenDeadline, setSeenDeadline] = useState(note.deadline)
+  if (seenDeadline !== note.deadline) {
+    setSeenDeadline(note.deadline)
+    if (deadlineDraft === (seenDeadline ?? "")) setDeadlineDraft(note.deadline ?? "")
+  }
+
+  // The browser's own "Leave site?" prompt when the tab is closed or reloaded with unsaved edits.
+  useEffect(() => {
+    if (!dirty) return
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault()
+      e.returnValue = ""
+    }
+    window.addEventListener("beforeunload", warn)
+    return () => window.removeEventListener("beforeunload", warn)
+  }, [dirty])
+
+  // Keep the in-progress edit in storage, so closing the tab anyway can still be undone. Left alone
+  // while an older draft is waiting for Restore/Discard.
+  useEffect(() => {
+    if (pendingDraft) return
+    storeDraft(draftKey, dirty ? { body: bodyDirty ? draft : null, title: titleDirty ? titleDraft : null } : null)
+  }, [pendingDraft, draftKey, dirty, bodyDirty, draft, titleDirty, titleDraft])
+
+  function startEditingBody() {
     setDraft(note.body)
-    setSaveError(null)
+    save.reset()
     setEditing(true)
   }
 
-  async function handleSave() {
-    setSaving(true)
-    setSaveError(null)
-    try {
-      await onSave(note.path, note.rawFrontmatter + draft)
+  function startEditingTitle() {
+    setTitleDraft(note.title)
+    save.reset()
+    setEditingTitle(true)
+  }
+
+  function discardAll() {
+    setEditing(false)
+    setEditingTitle(false)
+    setDeadlineDraft(note.deadline ?? "")
+    save.reset()
+    forgetDraft(draftKey)
+  }
+
+  function restoreDraft() {
+    if (!pendingDraft) return
+    if (pendingDraft.body !== null) {
+      setDraft(pendingDraft.body)
+      setEditing(true)
+    }
+    if (pendingDraft.title !== null) {
+      setTitleDraft(pendingDraft.title)
+      setEditingTitle(true)
+    }
+    setPendingDraft(null)
+  }
+
+  function dismissDraft() {
+    forgetDraft(draftKey)
+    setPendingDraft(null)
+  }
+
+  function metaChange(): NoteMetaChange | null {
+    const change: NoteMetaChange = {}
+    if (titleDirty) change.title = titleDraft
+    if (deadlineDirty) change.deadline = deadlineDraft || null
+    return Object.keys(change).length > 0 ? change : null
+  }
+
+  // Body first: renaming a note whose title is its "# heading" then rewrites that heading on disk.
+  async function saveAll(): Promise<boolean> {
+    return save.run(async () => {
+      if (bodyDirty) await onSaveBody(note.path, draft)
+      const change = metaChange()
+      const notice = change ? await onUpdateMeta(note.path, change) : null
       setEditing(false)
-    } catch (e) {
-      setSaveError(e instanceof Error ? e.message : "Couldn't save — check the folder is still connected.")
+      setEditingTitle(false)
+      forgetDraft(draftKey)
+      return notice
+    })
+  }
+
+  // Enter in the title field. While the body is being edited too (a restored draft), both are
+  // saved together, body first: a title or deadline save rewrites the body on disk (the heading,
+  // a task's "## Updates" line), which a later body save from the editor would overwrite.
+  async function saveTitle() {
+    if (editing) {
+      await saveAll()
+      return
+    }
+    if (!titleDirty) {
+      setEditingTitle(false)
+      return
+    }
+    await save.run(async () => {
+      const notice = await onUpdateMeta(note.path, { title: titleDraft })
+      setEditingTitle(false)
+      return notice
+    })
+  }
+
+  async function saveDeadline(value: string) {
+    setDeadlineDraft(value)
+    if (save.busy || value === (note.deadline ?? "")) return
+    setSavingDeadline(value)
+    try {
+      await save.run(() => onUpdateMeta(note.path, { deadline: value || null }))
     } finally {
-      setSaving(false)
+      setSavingDeadline(null)
     }
   }
 
-  async function commitTags(nextTags: string[]) {
-    setTagBusy(true)
-    setTagError(null)
-    try {
-      await onSave(note.path, withUpdatedTags(note.rawFrontmatter, nextTags) + note.body)
-    } catch (e) {
-      setTagError(e instanceof Error ? e.message : "Couldn't update tags — check the folder is still connected.")
-    } finally {
-      setTagBusy(false)
-    }
+  useImperativeHandle(editorRef, () => ({ isDirty: () => dirty, save: saveAll, discard: discardAll }))
+
+  function commitTags(nextTags: string[]) {
+    void tagsAction.run(() => onSave(note.path, withUpdatedTags(note.rawFrontmatter, nextTags) + note.body))
   }
 
   function removeTag(tag: string) {
@@ -146,8 +309,21 @@ export function NoteDetail({
     commitTags([...note.tags, value])
   }
 
+  async function confirmDelete() {
+    if (!onDelete) return
+    const ok = await deleteAction.run(() => onDelete(note.path))
+    if (ok) {
+      forgetDraft(draftKey)
+      setConfirmingDelete(false)
+    }
+  }
+
+  const anyEditOpen = editing || editingTitle
+
   return (
     <article className="mx-auto max-w-2xl p-6 lg:p-10">
+      {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
+
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5">
           {note.tags.map((t) => (
@@ -158,7 +334,7 @@ export function NoteDetail({
               {displayTag(t)}
               <button
                 onClick={() => removeTag(t)}
-                disabled={tagBusy}
+                disabled={tagsAction.busy}
                 aria-label={`Remove tag ${displayTag(t)}`}
                 className="text-muted-foreground/60 hover:text-destructive disabled:opacity-50"
               >
@@ -196,7 +372,7 @@ export function NoteDetail({
             ) : (
               <button
                 onClick={() => setAddingTag(true)}
-                disabled={tagBusy}
+                disabled={tagsAction.busy}
                 className="flex items-center gap-0.5 rounded-full border border-dashed border-border px-1.5 py-px font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary/50 hover:text-primary disabled:opacity-50"
               >
                 <Plus className="size-2.5" />
@@ -204,46 +380,132 @@ export function NoteDetail({
               </button>
             ))}
         </div>
-        {editing ? (
-          <div className="flex shrink-0 gap-1.5">
+        <div className="flex shrink-0 items-center gap-1.5">
+          <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
+          {onDelete && !anyEditOpen && (
             <Button
-              size="sm"
-              variant="ghost"
-              disabled={saving}
+              size="icon-sm"
+              variant="outline"
+              aria-label="Delete"
+              title="Delete"
               onClick={() => {
-                setEditing(false)
-                setSaveError(null)
+                deleteAction.reset()
+                setConfirmingDelete(true)
               }}
             >
-              Cancel
+              <Trash2 className="text-muted-foreground" />
             </Button>
-            <Button size="sm" disabled={saving} onClick={handleSave}>
-              {saving ? "Saving…" : "Save"}
+          )}
+          {editing ? (
+            <>
+              <Button size="sm" variant="ghost" disabled={save.busy} onClick={discardAll}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={save.busy} onClick={saveAll}>
+                {save.busy ? "Saving…" : "Save"}
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" className="gap-1.5" onClick={startEditingBody}>
+              <Pencil className="size-3.5" />
+              Edit
             </Button>
-          </div>
-        ) : (
-          <Button size="sm" variant="outline" className="shrink-0 gap-1.5" onClick={startEditing}>
-            <Pencil className="size-3.5" />
-            Edit
+          )}
+        </div>
+      </div>
+
+      {tagsAction.error && <p className="mb-2 text-xs text-destructive">{tagsAction.error}</p>}
+
+      {editingTitle ? (
+        <div className="mb-1.5 flex items-center gap-1.5">
+          <input
+            autoFocus
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void saveTitle()
+              if (e.key === "Escape") setEditingTitle(false)
+            }}
+            aria-label="Title"
+            className="min-w-0 flex-1 rounded-md border border-border bg-background px-2 py-1 text-lg font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          />
+          <Button size="icon-sm" variant="ghost" aria-label="Save title" title="Save title (Enter)" disabled={save.busy} onClick={saveTitle}>
+            <Check />
           </Button>
-        )}
+          <Button size="icon-sm" variant="ghost" aria-label="Cancel renaming" title="Cancel (Esc)" disabled={save.busy} onClick={() => setEditingTitle(false)}>
+            <X />
+          </Button>
+        </div>
+      ) : (
+        <div className="group mb-1.5 flex items-start gap-1.5">
+          <h1 className="text-lg font-semibold tracking-tight">{note.title}</h1>
+          {canRename && !editing && (
+            <button
+              onClick={startEditingTitle}
+              aria-label="Rename"
+              title="Rename"
+              className="mt-1 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100"
+            >
+              <Pencil className="size-3.5" />
+            </button>
+          )}
+        </div>
+      )}
+      {!flatLayout && (
+        <div className="mb-1 font-mono text-xs text-muted-foreground">{[note.date, note.type, note.repo].filter(Boolean).join(" · ")}</div>
+      )}
+      <div className="mb-4">
+        <CopyPath path={repoPath} />
       </div>
 
-      {tagError && <p className="mb-2 text-xs text-destructive">{tagError}</p>}
-
-      <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{note.title}</h1>
-      <div className="mb-4 font-mono text-xs text-muted-foreground">
-        {flatLayout ? note.path : [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
-      </div>
-
-      {taskStatus && !editing && (
-        <TaskStatusControl status={taskStatus} statuses={taskStatuses} onChange={(key) => onSetTaskStatus(note.path, key)} />
+      {taskStatus && (
+        <div className="mb-4 flex flex-wrap items-start gap-3">
+          {!editing && (
+            <TaskStatusControl status={taskStatus} statuses={taskStatuses} onChange={(key) => onSetTaskStatus(note.path, key)} />
+          )}
+          {isTask && (
+            <label className="flex h-7 items-center gap-2 text-xs text-muted-foreground">
+              Deadline
+              <input
+                type="date"
+                value={deadlineDraft}
+                onChange={(e) => setDeadlineDraft(e.target.value)}
+                // A half-typed date reads as "" (badInput): leaving the field then keeps the saved deadline.
+                // Reads the field itself, not the draft state, which may not have re-rendered yet.
+                onBlur={(e) =>
+                  e.currentTarget.validity.badInput ? setDeadlineDraft(note.deadline ?? "") : saveDeadline(e.currentTarget.value)
+                }
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.currentTarget.validity.badInput) void saveDeadline(e.currentTarget.value)
+                }}
+                disabled={save.busy || editing}
+                title={editing ? "Save or cancel the body edit first" : undefined}
+                className="h-7 rounded-md border border-border bg-background px-1.5 font-mono text-xs text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              />
+              {deadlineDraft && !editing && (
+                <button
+                  type="button"
+                  onClick={() => saveDeadline("")}
+                  disabled={save.busy}
+                  aria-label="Clear deadline"
+                  title="Clear deadline"
+                  className="rounded p-0.5 hover:bg-muted hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </label>
+          )}
+        </div>
       )}
 
-      {saveError && <p className="mb-4 text-sm text-destructive">{saveError}</p>}
+      {save.notice && <p className="mb-4 text-xs text-muted-foreground">{save.notice}</p>}
+      {save.error && <p className="mb-4 text-sm text-destructive">{save.error}</p>}
 
       {editing ? (
         <textarea
+          autoFocus={startEditing}
+          readOnly={save.busy}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           spellCheck={false}
@@ -254,6 +516,25 @@ export function NoteDetail({
           <Markdown remarkPlugins={[remarkGfm]}>{note.body}</Markdown>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        onOpenChange={setConfirmingDelete}
+        title={`Delete "${note.title}"?`}
+        description={
+          <>
+            This deletes <code className="font-mono">{repoPath}</code> and removes it from INDEX.md
+            {isTask ? " and its row from TASKS.md" : ""}. The viewer can't undo this; if the notes repo is a git repo,
+            the file can be restored from git.
+          </>
+        }
+        busy={deleteAction.busy}
+        error={deleteAction.error}
+        actions={[
+          { label: "Cancel", variant: "outline", onClick: () => setConfirmingDelete(false) },
+          { label: deleteAction.busy ? "Deleting…" : "Delete", variant: "destructive", onClick: confirmDelete },
+        ]}
+      />
     </article>
   )
 }

@@ -206,9 +206,16 @@ it reads and writes the Markdown files directly and nothing leaves your machine.
   with the date and tag filters turned off.
 - **Tasks**: colored status dots; changing a status updates both the task file and `TASKS.md`.
   Change colors, or which statuses count as closed, in **Settings**.
-- **Filters**: a date range (last 7 days by default, or custom) and tags, for notes and PRs.
-- **Library**: counts per item; drag to reorder. The order and your last selection are remembered.
-- **Agents**: who's working, idle, or waiting on you. Empty until the agents snapshot is scheduled
+- **Create, rename, delete**: new notes, plans, daily plans and tasks in the skills' own format
+  (`INDEX.md` and `TASKS.md` kept in step), inline title and task-deadline edits, and a copyable
+  repo-relative path on every note. Unsaved edits ask before you navigate away, and survive a
+  closed tab.
+- **Favorites**: heart any note, plan, daily plan or task; they're listed together under Favorites.
+- **Filters**: a date range (last 7 days by default, or custom) for notes, plans and daily plans,
+  and tags.
+- **Library**: Agents and Pull requests first, then the note views; empty items are hidden. Counts
+  per item; drag to reorder. The order and your last selection are remembered.
+- **Agents**: who's working (with a spinner), idle, or waiting on you. Empty until the agents snapshot is scheduled
   (see [Install options](#install-options)).
 - **Pull requests**: the `PRS.md` ledger with CI, review and merge hints.
 - **Version**: the release number sits at the bottom of the sidebar. When a newer one is deployed,

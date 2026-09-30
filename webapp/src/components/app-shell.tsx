@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react"
-import { AlertTriangle, FlaskConical, FolderOpen, FolderSearch, KeyRound, Radio, RefreshCw, Search, Settings, Sparkles, Trash2, X } from "lucide-react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { AlertTriangle, FlaskConical, FolderOpen, FolderSearch, KeyRound, Plus, Radio, RefreshCw, Search, Settings, Sparkles, Trash2, X } from "lucide-react"
 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -21,8 +21,11 @@ import { AgentList } from "@/components/agent-list"
 import { LibraryMenu, type LibraryCount } from "@/components/library-menu"
 import { CollapsibleSidebarGroup, SidebarGroupAction } from "@/components/collapsible-sidebar-group"
 import { CommandPalette } from "@/components/command-palette"
+import { ConfirmDialog } from "@/components/confirm-dialog"
 import { DateRangeFilter } from "@/components/date-range-filter"
-import { NoteDetail } from "@/components/note-detail"
+import { FavoriteMark } from "@/components/favorite-heart"
+import { NewEntryDialog } from "@/components/new-entry-dialog"
+import { NoteDetail, type NoteEditorHandle } from "@/components/note-detail"
 import { NewVersionBanner } from "@/components/new-version-banner"
 import { PrDetail } from "@/components/pr-detail"
 import { PrList } from "@/components/pr-list"
@@ -34,7 +37,11 @@ import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-direct
 import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
 import { DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
-import { useSelectedView, type LibraryView } from "@/lib/library-order"
+import { draftKey } from "@/lib/drafts"
+import { useFavorites } from "@/lib/favorites"
+import { DEFAULT_LIBRARY_ORDER, isHideableWhenEmpty, useSelectedView, type LibraryView } from "@/lib/library-order"
+import type { EntryKind, NewEntry } from "@/lib/new-entry"
+import { isTasksLedger, repoRelativePath, type NewTaskRow } from "@/lib/notes-fs"
 import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueTags, type Note, type NoteSource } from "@/lib/notes-frontmatter"
 import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
 import type { LedgerPr, PrState } from "@/lib/prs-parser"
@@ -79,12 +86,24 @@ function tagCounts(notes: Note[]) {
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
 }
 
-function viewMatchesSource(view: View, source: NoteSource) {
-  if (view === "notes") return source === "notes"
-  if (view === "plans") return source === "plans"
-  if (view === "daily") return source === "daily"
-  if (view === "tasks") return source === "tasks"
-  return isNoteView(view)
+// The date range doesn't apply to tasks (open work stays listed however old it is), favorites
+// (always within reach), PRs or agents.
+function dateFilterApplies(view: View) {
+  return isNoteView(view) && view !== "tasks" && view !== "favorites"
+}
+
+function viewMatchesNote(view: View, note: Note, favorites: ReadonlySet<string>) {
+  if (view === "favorites") return favorites.has(note.path)
+  if (view === "all") return true
+  return isNoteView(view) && view === note.source
+}
+
+// What the "New" dialog offers first, given the view it was opened from.
+function defaultKindFor(view: View): EntryKind {
+  if (view === "plans") return "plan"
+  if (view === "daily") return "daily"
+  if (view === "tasks") return "task"
+  return "note"
 }
 
 export function AppShell() {
@@ -126,14 +145,61 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     startDemo,
     exitDemo,
     dismissNotice,
+    showNotice,
     saveNote,
+    saveNoteBody,
     updateTaskStatus,
+    updateNoteMeta,
+    createEntry,
+    deleteEntry,
   } = directory
   const folderName = activeWorkspace?.label ?? null
   const inDemo = activeWorkspace?.demo ?? false
-  const addFolder = supported ? addWorkspace : null
 
-  const [view, setView] = useSelectedView()
+  const [view, setViewNow] = useSelectedView()
+  const { favorites, toggle: toggleFavorite, forget: forgetFavorite } = useFavorites(activeWorkspace?.id ?? null, !inDemo)
+  const [newEntryOpen, setNewEntryOpen] = useState(false)
+  // A note created from the "New" dialog opens straight into its editor.
+  const [editOnOpenPath, setEditOnOpenPath] = useState<string | null>(null)
+
+  // Unsaved edits in the open note: anything that would take it off screen asks first
+  // (Save / Discard / Keep editing). Closing the tab gets the browser's own prompt (NoteDetail).
+  const editorRef = useRef<NoteEditorHandle>(null)
+  const [pendingNavigation, setPendingNavigation] = useState<(() => void) | null>(null)
+  const [resolvingUnsaved, setResolvingUnsaved] = useState(false)
+
+  function guard(navigate: () => void) {
+    if (editorRef.current?.isDirty()) setPendingNavigation(() => navigate)
+    else navigate()
+  }
+
+  function continueNavigation() {
+    const navigate = pendingNavigation
+    setPendingNavigation(null)
+    navigate?.()
+  }
+
+  async function saveThenContinue() {
+    setResolvingUnsaved(true)
+    const saved = (await editorRef.current?.save()) ?? true
+    setResolvingUnsaved(false)
+    // A failed save stays on the note, where its error is shown.
+    if (saved) continueNavigation()
+    else setPendingNavigation(null)
+  }
+
+  function discardThenContinue() {
+    editorRef.current?.discard()
+    continueNavigation()
+  }
+
+  const setView = (next: View) => guard(() => setViewNow(next))
+  const selectNote = (path: string) => guard(() => setSelectedPath(path))
+  const guarded =
+    <A extends unknown[]>(action: (...args: A) => unknown) =>
+    (...args: A) =>
+      guard(() => void action(...args))
+  const addFolder = supported ? guarded(addWorkspace) : null
   const [activeTag, setActiveTag] = useState<string | null>(null)
   const [tagQuery, setTagQuery] = useState("")
   const [dateRange, setDateRange] = useState<DateRange>(DEFAULT_DATE_RANGE)
@@ -182,7 +248,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const filtered = useMemo(() => {
     // The note currently open never gets filtered out of its own list — editing a note's
     // tags to no longer match the active tag filter shouldn't make it vanish mid-edit.
-    let list = notes.filter((n) => viewMatchesSource(view, n.source) || n.path === selectedPath)
+    let list = notes.filter((n) => viewMatchesNote(view, n, favorites) || n.path === selectedPath)
     if (view === "tasks") {
       const allowed = new Set(effectiveStatusFilter)
       list = list.filter((n) => {
@@ -196,14 +262,14 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     // filtering out a folder's worth of undated notes.
     if (layout !== "flat") {
       if (activeTag) list = list.filter((n) => n.tags.includes(activeTag) || n.path === selectedPath)
-      if (dateFrom || dateTo) {
+      if (dateFilterApplies(view) && (dateFrom || dateTo)) {
         list = list.filter(
           (n) => (n.date && (!dateFrom || n.date >= dateFrom) && (!dateTo || n.date <= dateTo)) || n.path === selectedPath,
         )
       }
     }
     return list
-  }, [notes, view, effectiveStatusFilter, taskStatusByPath, layout, activeTag, dateFrom, dateTo, selectedPath])
+  }, [notes, view, favorites, effectiveStatusFilter, taskStatusByPath, layout, activeTag, dateFrom, dateTo, selectedPath])
 
   const selected = notes.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
   const connected = status === "connected"
@@ -215,9 +281,10 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   // A repo filter left active after its last PR in this state merged/closed would silently hide
   // everything — it stops applying once that repo has nothing left here.
   const activePrRepo = prRepo && prRepos.includes(prRepo) ? prRepo : null
+  // No date range here: the view's state chips (pending / merged / closed) are the filter.
   const visiblePrs = useMemo(
-    () => filterPrs(ledgerPrs, { state: prState, repo: activePrRepo, dateFrom, dateTo, keepKey: selectedPrKey }),
-    [ledgerPrs, prState, activePrRepo, dateFrom, dateTo, selectedPrKey],
+    () => filterPrs(ledgerPrs, { state: prState, repo: activePrRepo, dateFrom: "", dateTo: "", keepKey: selectedPrKey }),
+    [ledgerPrs, prState, activePrRepo, selectedPrKey],
   )
   const selectedPr = ledgerPrs.find((p) => p.key === selectedPrKey) ?? visiblePrs[0] ?? null
   const tasksByPr = useMemo(() => tasksByPrKey(notes), [notes])
@@ -236,18 +303,40 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const snapshotStale = agents !== null && now - Date.parse(agents.generatedAt) > SNAPSHOT_STALE_AFTER_MS
   const prsByKey = useMemo(() => new Map(ledgerPrs.map((p) => [p.key, p])), [ledgerPrs])
 
+  // How many notes each note view lists before any filter: an item with none is hidden.
+  const itemCounts = useMemo(() => {
+    const bySource = (source: NoteSource) => notes.filter((n) => n.source === source).length
+    return {
+      all: notes.length,
+      notes: bySource("notes"),
+      plans: bySource("plans"),
+      daily: bySource("daily"),
+      tasks: bySource("tasks"),
+      favorites: notes.filter((n) => favorites.has(n.path)).length,
+    }
+  }, [notes, favorites])
+
+  // Only once a folder is open: before that, every item stays listed.
+  const hiddenViews = useMemo(
+    () =>
+      new Set<View>(
+        connected ? DEFAULT_LIBRARY_ORDER.filter((v) => isHideableWhenEmpty(v) && itemCounts[v as keyof typeof itemCounts] === 0) : [],
+      ),
+    [connected, itemCounts],
+  )
+
   // The Library badges: what each view lists before any tag or date filter.
   const libraryCounts = useMemo<Partial<Record<View, LibraryCount>>>(() => {
-    const bySource = (source: NoteSource) => notes.filter((n) => n.source === source).length
     const openTasks = [...taskStatusByPath.values()].filter((s) => !s.closed).length
     const waitingAgents = snapshotAgents.filter((a) => agentStatus(a) === "waiting").length
     const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
     return {
-      all: { count: notes.length, title: plural(notes.length, "note", "notes") },
-      notes: { count: bySource("notes"), title: plural(bySource("notes"), "note", "notes") },
-      plans: { count: bySource("plans"), title: plural(bySource("plans"), "plan", "plans") },
-      daily: { count: bySource("daily"), title: plural(bySource("daily"), "daily plan", "daily plans") },
+      all: { count: itemCounts.all, title: plural(itemCounts.all, "note", "notes") },
+      notes: { count: itemCounts.notes, title: plural(itemCounts.notes, "note", "notes") },
+      plans: { count: itemCounts.plans, title: plural(itemCounts.plans, "plan", "plans") },
+      daily: { count: itemCounts.daily, title: plural(itemCounts.daily, "daily plan", "daily plans") },
       tasks: { count: openTasks, title: plural(openTasks, "open task", "open tasks") },
+      favorites: { count: itemCounts.favorites, title: plural(itemCounts.favorites, "favorite", "favorites") },
       prs: { count: prCounts.pending, title: plural(prCounts.pending, "pending PR", "pending PRs") },
       agents:
         waitingAgents > 0
@@ -258,23 +347,57 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             }
           : { count: agentCounts.running, title: plural(agentCounts.running, "running agent", "running agents") },
     }
-  }, [notes, taskStatusByPath, snapshotAgents, prCounts, agentCounts])
+  }, [itemCounts, taskStatusByPath, snapshotAgents, prCounts, agentCounts])
 
   function showPrs(state: PrState, key: string | null = null) {
-    setView("prs")
+    setViewNow("prs")
     setPrState(state)
     setPrRepo(null)
     setSelectedPrKey(key)
   }
 
   function openTask(path: string) {
-    setView("tasks")
-    setSelectedPath(path)
+    guard(() => {
+      setViewNow("tasks")
+      setSelectedPath(path)
+    })
   }
 
   function openPr(pr: LedgerPr) {
-    showPrs(pr.state, pr.key)
+    guard(() => showPrs(pr.state, pr.key))
   }
+
+  function openNoteFromPalette(path: string) {
+    guard(() => {
+      if (!isNoteView(view)) setViewNow("all")
+      setSelectedPath(path)
+    })
+  }
+
+  async function handleCreate(entry: NewEntry, task: NewTaskRow | null) {
+    const created = await createEntry(entry, task)
+    if (created.notice) showNotice(created.notice)
+    // Stay in a view that lists the new file; otherwise go to its own.
+    if (view !== "all" && view !== entry.source) setViewNow(entry.source)
+    setSelectedPath(created.path)
+    setEditOnOpenPath(created.path)
+    setNewEntryOpen(false)
+  }
+
+  async function handleDelete(path: string) {
+    await deleteEntry(path)
+    forgetFavorite(path)
+    setSelectedPath(null)
+  }
+
+  // An empty item just disappeared from the Library (its last favorite or note went away):
+  // move to one that's still listed rather than stay on a view with no menu entry.
+  useEffect(() => {
+    if (hiddenViews.has(view)) setViewNow(hiddenViews.has("all") ? "agents" : "all")
+  }, [hiddenViews, view, setViewNow])
+
+  // The "open in the editor" request only applies to the note it was made for.
+  if (editOnOpenPath && selectedPath !== editOnOpenPath) setEditOnOpenPath(null)
 
   // Same as notes and PRs: pin the first listed agent as the real selection once one shows.
   useEffect(() => {
@@ -310,19 +433,19 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           <WorkspaceSwitcher
             workspaces={workspaces}
             active={activeWorkspace}
-            onSwitch={switchWorkspace}
+            onSwitch={guarded(switchWorkspace)}
             onAdd={addFolder}
-            onStartDemo={startDemo}
-            onExitDemo={exitDemo}
+            onStartDemo={guarded(startDemo)}
+            onExitDemo={guarded(exitDemo)}
             onRename={renameWorkspace}
-            onRemove={removeWorkspace}
-            onLocate={locateWorkspace}
+            onRemove={guarded(removeWorkspace)}
+            onLocate={guarded(locateWorkspace)}
             onOpen={refreshAvailability}
           />
         </SidebarHeader>
 
         <SidebarContent>
-          <LibraryMenu view={view} onViewChange={setView} counts={connected ? libraryCounts : {}} />
+          <LibraryMenu view={view} onViewChange={setView} counts={connected ? libraryCounts : {}} hidden={hiddenViews} />
 
           {view === "tasks" && (
             <SidebarGroup>
@@ -351,9 +474,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             </SidebarGroup>
           )}
 
-          {view !== "agents" && !(layout === "flat" && isNoteView(view)) && (
-            <DateRangeFilter value={dateRange} onChange={setDateRange} />
-          )}
+          {dateFilterApplies(view) && layout !== "flat" && <DateRangeFilter value={dateRange} onChange={setDateRange} />}
 
           {isNoteView(view) && layout !== "flat" && (
             <CollapsibleSidebarGroup
@@ -408,7 +529,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
               Grant access {folderName ? `to "${folderName}"` : ""}
             </Button>
           ) : (
-            <Button variant="outline" size="sm" className="justify-start gap-2" onClick={addWorkspace} disabled={busy}>
+            <Button variant="outline" size="sm" className="justify-start gap-2" onClick={guarded(addWorkspace)} disabled={busy}>
               <FolderOpen className="size-3.5" />
               {workspaces.some((ws) => !ws.demo) ? "Add folder" : "Connect folder"}
             </Button>
@@ -446,6 +567,13 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
           <SidebarTrigger />
+          {/* A flat folder has no notes/plans/daily/tasks layout to create into. */}
+          {connected && layout !== "flat" && (
+            <Button size="sm" className="gap-1.5" onClick={() => guard(() => setNewEntryOpen(true))}>
+              <Plus className="size-3.5" />
+              New
+            </Button>
+          )}
           <Button
             variant="outline"
             size="sm"
@@ -488,7 +616,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                     kept in memory: edit freely, nothing is saved. Switch between Work and Personal from the folder
                     menu.
                   </span>
-                  <button onClick={exitDemo} className="shrink-0 font-medium text-primary hover:underline">
+                  <button onClick={guarded(exitDemo)} className="shrink-0 font-medium text-primary hover:underline">
                     Exit demo
                   </button>
                 </div>
@@ -570,7 +698,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   selectedKey={selectedPr?.key ?? null}
                   onSelect={setSelectedPrKey}
                   ledgerFound={prLedger !== null}
-                  filtered={Boolean(activePrRepo || dateFrom || dateTo)}
+                  filtered={Boolean(activePrRepo)}
                   lastDeepCheck={prLedger?.lastDeepCheck ?? null}
                 />
               )}
@@ -593,9 +721,11 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
               )}
               {connected && isNoteView(view) && !(layout === "flat" && notes.length === 0) && filtered.length === 0 && (
                 <p className="p-4 text-sm text-muted-foreground">
-                  {layout !== "flat" && dateRangeSummary && notes.some((n) => viewMatchesSource(view, n.source))
+                  {layout !== "flat" && dateFilterApplies(view) && dateRangeSummary && notes.some((n) => viewMatchesNote(view, n, favorites))
                     ? `Nothing here in the selected range (${dateRangeSummary}). Widen the date range to see older notes.`
-                    : "No notes in this view yet."}
+                    : view === "favorites"
+                      ? "No favorites here. Use the heart on a note, plan, daily plan or task to add one."
+                      : "No notes in this view yet."}
                 </p>
               )}
               {isNoteView(view) && groupNotesByDate(filtered).map((group) => (
@@ -612,7 +742,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                       return (
                       <button
                         key={note.path}
-                        onClick={() => setSelectedPath(note.path)}
+                        onClick={() => note.path !== selected?.path && selectNote(note.path)}
                         className={`block w-full rounded-lg border p-3 text-left transition-colors ${
                           note.path === selected?.path
                             ? "border-primary bg-primary/10"
@@ -621,7 +751,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                       >
                         <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
                           {taskStatus && <TaskStatusDot status={taskStatus} />}
-                          <span className="min-w-0">{note.title}</span>
+                          <span className="min-w-0 flex-1">{note.title}</span>
+                          {favorites.has(note.path) && <FavoriteMark />}
                         </div>
                         <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
                           {note.type && (
@@ -631,6 +762,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                           )}
                           {!taskStatus && displayStatus(note.status) && (
                             <span className="text-[11px] text-muted-foreground">{displayStatus(note.status)}</span>
+                          )}
+                          {taskStatus && note.deadline && (
+                            <span className="font-mono text-[11px] text-muted-foreground">due {note.deadline}</span>
                           )}
                         </div>
                         {note.excerpt && <p className="mb-1.5 line-clamp-2 text-xs text-muted-foreground">{note.excerpt}</p>}
@@ -677,11 +811,20 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
               <NoteDetail
                 key={selected.path}
                 note={selected}
+                repoPath={repoRelativePath(selected.path, layout)}
                 onSave={saveNote}
+                onSaveBody={saveNoteBody}
+                onUpdateMeta={updateNoteMeta}
+                onDelete={layout !== "flat" && isTasksLedger(selected.path) ? null : handleDelete}
                 allTags={allTags}
                 taskStatus={taskStatusByPath.get(selected.path) ?? null}
                 taskStatuses={statusCatalog}
                 onSetTaskStatus={setTaskStatusByKey}
+                favorite={favorites.has(selected.path)}
+                onToggleFavorite={() => toggleFavorite(selected.path)}
+                draftKey={activeWorkspace && !inDemo ? draftKey(activeWorkspace.id, selected.path) : null}
+                startEditing={selected.path === editOnOpenPath}
+                editorRef={editorRef}
                 flatLayout={layout === "flat"}
               />
             ) : (
@@ -700,20 +843,40 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         activeWorkspaceId={activeWorkspace?.id ?? null}
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
-        onSelectNote={(path) => {
-          if (!isNoteView(view)) setView("all")
-          setSelectedPath(path)
-        }}
+        onSelectNote={openNoteFromPalette}
         prs={ledgerPrs}
         onSelectPr={openPr}
-        onSwitchWorkspace={switchWorkspace}
+        onSwitchWorkspace={guarded(switchWorkspace)}
         onAddWorkspace={addFolder}
-        onStartDemo={startDemo}
-        onExitDemo={exitDemo}
+        onStartDemo={guarded(startDemo)}
+        onExitDemo={guarded(exitDemo)}
         onOpenSettings={() => setSettingsOpen(true)}
+        onCreateNew={connected && layout !== "flat" ? () => guard(() => setNewEntryOpen(true)) : null}
       />
 
       <StatusSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} catalog={statusCatalog} settings={statusSettings} />
+
+      <NewEntryDialog
+        open={newEntryOpen}
+        onOpenChange={setNewEntryOpen}
+        defaultKind={defaultKindFor(view)}
+        allTags={allTags}
+        initialTaskStatus={statusCatalog[0]}
+        onCreate={handleCreate}
+      />
+
+      <ConfirmDialog
+        open={pendingNavigation !== null}
+        onOpenChange={(open) => !open && setPendingNavigation(null)}
+        title="Save your changes?"
+        description={`"${selected?.title ?? "This note"}" has edits that haven't been saved. Save them before leaving, or discard them.`}
+        busy={resolvingUnsaved}
+        actions={[
+          { label: "Keep editing", variant: "ghost", onClick: () => setPendingNavigation(null) },
+          { label: "Discard", variant: "destructive", onClick: discardThenContinue },
+          { label: resolvingUnsaved ? "Saving…" : "Save", variant: "default", onClick: saveThenContinue },
+        ]}
+      />
     </>
   )
 }
