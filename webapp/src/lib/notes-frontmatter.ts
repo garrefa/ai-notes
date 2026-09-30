@@ -7,6 +7,9 @@ export interface Note {
   path: string
   source: NoteSource
   title: string
+  // The title is the body's "# heading", so the rendered body already shows it (vs. a frontmatter
+  // `title:`, or the path when there's neither).
+  titleFromHeading: boolean
   excerpt: string
   date: string | null
   type: string | null
@@ -128,11 +131,14 @@ function asStringArray(v: unknown): string[] {
 
 export function toNote(relPath: string, source: NoteSource, raw: string, mtime: number): Note {
   const { frontmatter, body, rawFrontmatter } = parseFrontmatter(raw)
+  // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading.
+  const frontmatterTitle = asStringOrNull(frontmatter.title)
+  const headingTitle = frontmatterTitle ? null : extractTitle(body)
   return {
     path: relPath,
     source,
-    // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading.
-    title: asStringOrNull(frontmatter.title) || extractTitle(body) || relPath,
+    title: frontmatterTitle || headingTitle || relPath,
+    titleFromHeading: headingTitle !== null,
     excerpt: extractExcerpt(body),
     // Tasks use `created` instead of `date`.
     date: asStringOrNull(frontmatter.date) ?? asStringOrNull(frontmatter.created),

@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
-import { Check, ChevronDown, History, Pencil, Plus, Trash2, X } from "lucide-react"
+import { Check, ChevronDown, History, Pencil, Plus, TextCursorInput, Trash2, X } from "lucide-react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -382,6 +382,11 @@ export function NoteDetail({
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
+          {canRename && !anyEditOpen && (
+            <Button size="icon-sm" variant="outline" aria-label="Rename" title="Rename" onClick={startEditingTitle}>
+              <TextCursorInput className="text-muted-foreground" />
+            </Button>
+          )}
           {onDelete && !anyEditOpen && (
             <Button
               size="icon-sm"
@@ -437,19 +442,8 @@ export function NoteDetail({
           </Button>
         </div>
       ) : (
-        <div className="group mb-1.5 flex items-start gap-1.5">
-          <h1 className="text-lg font-semibold tracking-tight">{note.title}</h1>
-          {canRename && !editing && (
-            <button
-              onClick={startEditingTitle}
-              aria-label="Rename"
-              title="Rename"
-              className="mt-1 shrink-0 rounded p-0.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 hover:bg-muted hover:text-foreground focus-visible:opacity-100"
-            >
-              <Pencil className="size-3.5" />
-            </button>
-          )}
-        </div>
+        // A title that is the body's "# heading" already shows at the top of the rendered body.
+        !note.titleFromHeading && <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{note.title}</h1>
       )}
       {!flatLayout && (
         <div className="mb-1 font-mono text-xs text-muted-foreground">{[note.date, note.type, note.repo].filter(Boolean).join(" · ")}</div>

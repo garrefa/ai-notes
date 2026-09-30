@@ -190,9 +190,10 @@ runs git: commit the changes in your notes repo as usual.
   hidden in a flat folder, which has no layout to create into.
 - **Edit the body:** **Edit** / **Save** as before. Saving keeps the frontmatter that's on disk at
   that moment, so a tag or status changed mid-edit isn't reverted.
-- **Rename:** hover the title and click the pencil (Enter saves, Esc cancels). A task's title is its
+- **Rename:** the rename button next to the heart (Enter saves, Esc cancels). A task's title is its
   frontmatter `title:` (quoted when it needs to be), and its `TASKS.md` row follows; any other note's
-  title is its first `# heading`.
+  title is its first `# heading`. A title that is that heading is shown once, at the top of the
+  rendered note, not repeated above it.
 - **Deadline:** a task's detail pane has a date field next to its status; it saves when you leave
   the field (or press Enter), and × clears it. The frontmatter `deadline:` and the `TASKS.md`
   Deadline cell are updated together. Renames and deadline changes are logged under the task's

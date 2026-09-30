@@ -26,6 +26,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Viewer: favorites. A heart on any note, plan, daily plan or task marks it (stored per folder in
   the browser) and lists it under a new **Favorites** Library item.
 - Viewer: every note shows its path relative to the notes repo, with a copy button.
+- Viewer: a note whose title is its `# heading` no longer shows the title twice (above the note and
+  at the top of the rendered body); tasks, titled in frontmatter, keep it above.
+- `ainotes-notes` / `notetaker`: every note and plan body starts with a `# <title>` line. Plans used
+  to be saved with the Plan subagent's text as-is, which starts at `## …`, so they had no title
+  (the viewer fell back to the file path).
 - Viewer: the Library now opens with **Agents** and **Pull requests** first, and hides items with
   nothing in them (Agents and Pull requests always show). The date range no longer applies to
   Tasks, Favorites, Pull requests or Agents.
