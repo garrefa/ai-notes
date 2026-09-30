@@ -100,19 +100,21 @@ export function StatusSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-lg">
+      <DialogContent className="max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto_auto] sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Settings</DialogTitle>
           <DialogDescription>
-            Task status colors, and which statuses count as closed (hidden by the default filter and listed under
-            Completed in TASKS.md). Saved in this browser and shared by every folder.
+            Pick a color for each task status and choose which ones count as closed. Closed statuses are hidden by
+            the default filter and listed under Completed in TASKS.md.
           </DialogDescription>
         </DialogHeader>
-        <p className="-mt-2 font-mono text-[11px] text-muted-foreground">ainotes-viewer v{__APP_VERSION__}</p>
         <div className="-mx-4 space-y-4 overflow-y-auto px-4">
           <StatusGroup heading="Built-in statuses" statuses={builtins} settings={settings} />
           <StatusGroup heading="Found in this folder's tasks" statuses={discovered} settings={settings} />
         </div>
+        <p className="justify-self-end font-mono text-sm font-medium text-foreground/80">
+          ainotes-viewer v{__APP_VERSION__}
+        </p>
         <DialogFooter className="sm:justify-between">
           <Button variant="outline" disabled={!anyOverridden} onClick={settings.resetAll} className="gap-2">
             <RotateCcw className="size-3.5" />
