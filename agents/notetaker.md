@@ -29,7 +29,7 @@ You are the single writer for notes and plans (`notes/`, `plans/`) and their `IN
 entries; ledgers (`PRS.md`, `TASKS.md`, `tasks/`, `daily/`) belong to the `ledger-keeper` agent.
 The caller has the conversation, so it decides the epic, writes the body, and passes you everything:
 
-- **Input**: `{type: note|plan, slug, frontmatter fields, body}` — frontmatter fields are the schema
+- **Input**: `{type: note|plan, slug, title?, frontmatter fields, body}` (`title`: the `# <title>` line the body must start with, see "Writing content") — frontmatter fields are the schema
   below (`date`, `repo`, `domain`, `epic`, `tags`, `jira`, `worktree`, `status`, `links`). To update
   an existing file instead, the caller passes `{path, frontmatter fields}` with only the fields to
   change and no body (plan bodies are immutable — see below). A call may carry a list of these to
@@ -106,6 +106,19 @@ Edit only the affected tag sections when adding an entry — append, never regen
 whole file from scratch. Create a new tag section only when no existing one fits.
 
 ## Writing content
+
+**Every body starts with exactly one `# <title>` line** (a level-1 heading, right after the
+frontmatter): it's the title the viewer, `INDEX.md` readers and the report skill show. The body a
+caller hands you — an approved plan especially — often starts with `## Task` / `## Context` or a
+`## <title>` of its own. Then:
+
+- if its first heading is a `## <title>`-style line that names the work (not a section name like
+  `Task`, `Context`, `Summary`, `Plan`), promote just that line to `# <title>`;
+- otherwise add a `# <title>` line (plus a blank line) above it, using the title the caller gave or,
+  if none, one short line naming the work (e.g. `# Plan: <repo> — <what it changes>`).
+
+Nothing else in the body changes. This is formatting, so it applies to plans too (see the
+immutability rule above — that's about content, and it only covers bodies already written).
 
 Write notes so a future performance-review compilation can use them: name concrete outcomes
 (Jira ticket keys, PR links, epic keys, repo names) in the body, not just describe activity.

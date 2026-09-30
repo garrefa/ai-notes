@@ -3,9 +3,15 @@
 
 import { useCallback, useState } from "react"
 
-export type LibraryView = "all" | "notes" | "plans" | "daily" | "tasks" | "prs" | "agents"
+export type LibraryView = "all" | "notes" | "plans" | "daily" | "tasks" | "favorites" | "prs" | "agents"
 
-export const DEFAULT_LIBRARY_ORDER: LibraryView[] = ["all", "notes", "plans", "daily", "tasks", "prs", "agents"]
+export const DEFAULT_LIBRARY_ORDER: LibraryView[] = ["agents", "prs", "all", "notes", "plans", "daily", "tasks", "favorites"]
+
+// Items that list notes and so disappear from the Library while they have nothing to list.
+// Agents and Pull requests always show: their empty state explains how to fill them.
+export function isHideableWhenEmpty(view: LibraryView): boolean {
+  return view !== "prs" && view !== "agents"
+}
 
 export const LIBRARY_ORDER_KEY = "ainotes-library-order"
 
