@@ -37,7 +37,7 @@ general-purpose agent with `model: haiku` and give it the contents of
 
 The main thread keeps what needs the conversation: it asks the epic question, picks domain/tags,
 finds related links, and writes the body. It then passes the agent
-`{type: note|plan, slug, frontmatter fields, body, notes_repo_path}` (or `{path, frontmatter fields}`
+`{type: note|plan, slug, title?, frontmatter fields, body, notes_repo_path}` (or `{path, frontmatter fields}`
 for a frontmatter-only update) and gets back `{path, index_sections, sha, flags}`. Don't re-read the
 file the agent wrote; relay `path` and `sha`. If `flags` isn't empty, look at those specific points
 yourself (or tell the user) before moving on. If it returns an `error`, report it verbatim.
@@ -114,6 +114,12 @@ a new entry is only added when nothing already there fits.
 whether the root cause was confirmed or the note ends up blocked. This keeps every investigation
 greppable under one `INDEX.md` section without a separate folder.
 
+**Title**: every body starts with one `# <title>` line right after the frontmatter; the viewer,
+`ainotes-report` and anyone skimming `INDEX.md` paths read it as the file's title. Section headings
+start at `##`. An approved plan's text usually begins at `## Task` or `## <title>` — pass `notetaker`
+a `title` along with it, and it adds or promotes the `# <title>` line without touching the rest (see
+its "Writing content" section).
+
 **Cost (optional)**: if token/cost figures for the work are known, a note may end with a `## Cost`
 section (tokens, tool calls, wall time; any USD figure flagged as directional) — the convention the
 `notetaker` agent follows and `ainotes-report` rolls up. Skip it when there's nothing to record.
@@ -141,8 +147,8 @@ closed.
 ## Adding/updating a plan (including via ainotes-task)
 
 1. Ask about an epic if not already stated, same as step 1 above.
-2. Hand off to `notetaker` with `type: plan`, `status: planned`, `repo`/`worktree` filled in and the
-   approved plan as the body. It writes `<notes_repo>/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
+2. Hand off to `notetaker` with `type: plan`, `status: planned`, `repo`/`worktree` filled in, the
+   approved plan as the body, and a one-line `title` for it (e.g. `Plan: <what it changes>`). It writes `<notes_repo>/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
    `INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
 3. When `ainotes-task` reaches its step 6 (Jira ticket, if configured), hand `notetaker` a
    frontmatter-only update of the same plan (`jira` when a ticket exists, `status: in-progress`);

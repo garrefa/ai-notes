@@ -7,6 +7,9 @@ export interface Note {
   path: string
   source: NoteSource
   title: string
+  // The title is the body's "# heading", so the rendered body already shows it (vs. a frontmatter
+  // `title:`, or the path when there's neither).
+  titleFromHeading: boolean
   excerpt: string
   date: string | null
   type: string | null
@@ -18,6 +21,8 @@ export interface Note {
   // Tasks (ainotes-tasks) list their PRs as "org/repo#123" in a `prs:` frontmatter field.
   prs: string[]
   status: string | null
+  // Tasks only: `deadline:` (YYYY-MM-DD), null when unset.
+  deadline: string | null
   mtime: number
   body: string
   // The original "---\n...\n---\n" block, byte-for-byte. Saving an edited
@@ -28,10 +33,35 @@ export interface Note {
 }
 
 // YAML treats " #..." after an unquoted value as a comment (e.g. `status: open   # open -> done`).
+// A quoted value keeps any "#" inside its quotes, but a comment after the closing quote still goes.
+const QUOTED_WITH_COMMENT_RE = /^("(?:[^"\\]|\\.)*"|'(?:[^']|'')*')(?:\s+#.*)?$/
+
 function stripInlineComment(value: string): string {
   const trimmed = value.trim()
+  const quoted = trimmed.match(QUOTED_WITH_COMMENT_RE)
+  if (quoted) return quoted[1]
   if (trimmed.startsWith('"') || trimmed.startsWith("'")) return value
   return value.replace(/(^|\s)#.*$/, "")
+}
+
+// A double-quoted scalar may carry \" and \\ escapes (what yamlScalar writes); a single-quoted one
+// doubles its quotes. Anything else is taken verbatim.
+function unquoteScalar(value: string): string {
+  const double = value.match(/^"(.*)"$/)
+  if (double) return double[1].replace(/\\(["\\])/g, "$1")
+  const single = value.match(/^'(.*)'$/)
+  if (single) return single[1].replace(/''/g, "'")
+  return value
+}
+
+// Quotes a frontmatter value only when leaving it plain would change how it parses: a leading
+// YAML indicator or quote, a ": " or " #", or surrounding whitespace.
+const PLAIN_SCALAR_RE = /^[^\s"'#&*!|>%@`{}[\],?:-](?:.*[^\s:])?$/
+const AMBIGUOUS_IN_SCALAR_RE = /:\s|\s#/
+
+export function yamlScalar(value: string): string {
+  if (PLAIN_SCALAR_RE.test(value) && !AMBIGUOUS_IN_SCALAR_RE.test(value) && value !== "null") return value
+  return `"${value.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
 }
 
 export function parseFrontmatter(raw: string): { frontmatter: Record<string, unknown>; body: string; rawFrontmatter: string } {
@@ -64,7 +94,7 @@ export function parseFrontmatter(raw: string): { frontmatter: Record<string, unk
       fm[key] = inner === "" ? [] : inner.split(",").map((s) => s.trim())
       i++
     } else {
-      fm[key] = rest === "null" ? null : rest.replace(/^"(.*)"$/, "$1")
+      fm[key] = rest === "null" ? null : unquoteScalar(rest)
       i++
     }
   }
@@ -101,11 +131,14 @@ function asStringArray(v: unknown): string[] {
 
 export function toNote(relPath: string, source: NoteSource, raw: string, mtime: number): Note {
   const { frontmatter, body, rawFrontmatter } = parseFrontmatter(raw)
+  // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading.
+  const frontmatterTitle = asStringOrNull(frontmatter.title)
+  const headingTitle = frontmatterTitle ? null : extractTitle(body)
   return {
     path: relPath,
     source,
-    // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading.
-    title: asStringOrNull(frontmatter.title) || extractTitle(body) || relPath,
+    title: frontmatterTitle || headingTitle || relPath,
+    titleFromHeading: headingTitle !== null,
     excerpt: extractExcerpt(body),
     // Tasks use `created` instead of `date`.
     date: asStringOrNull(frontmatter.date) ?? asStringOrNull(frontmatter.created),
@@ -117,6 +150,7 @@ export function toNote(relPath: string, source: NoteSource, raw: string, mtime: 
     tags: asStringArray(frontmatter.tags),
     prs: asStringArray(frontmatter.prs).map(unquote).filter(Boolean),
     status: asStringOrNull(frontmatter.status),
+    deadline: asStringOrNull(frontmatter.deadline),
     mtime,
     body,
     rawFrontmatter,
@@ -150,18 +184,28 @@ export function withUpdatedTags(rawFrontmatter: string, tags: string[]): string 
   return rawFrontmatter.replace(/\r?\n---\r?\n?$/, `\n${inlineValue}\n---\n`)
 }
 
-// Rewrites just the value of the `status:` entry, keeping any trailing comment and every other
-// byte of the frontmatter. A frontmatter with no status field gets one appended before "---".
-const STATUS_LINE_RE = /^(status:[ \t]*)([^#\r\n]*?)([ \t]*(?:#[^\r\n]*)?)$/m
+// Rewrites just the value of one scalar `key:` entry, keeping any trailing comment and every other
+// byte of the frontmatter. A frontmatter without that key gets it appended just before "---".
+// Same comment rule as stripInlineComment: a "#" only starts a comment after whitespace, and never
+// inside a quoted value, which the value group skips over whole.
+function scalarLineRe(key: string): RegExp {
+  const quoted = `"(?:[^"\\\\\\r\\n]|\\\\.)*"|'(?:[^'\\r\\n]|'')*'`
+  return new RegExp(`^(${key}:[ \\t]*)(${quoted}|[^\\r\\n]*?)((?:[ \\t]+#[^\\r\\n]*)?[ \\t]*)$`, "m")
+}
 
-export function withUpdatedStatus(rawFrontmatter: string, status: string): string {
-  if (STATUS_LINE_RE.test(rawFrontmatter)) {
-    return rawFrontmatter.replace(STATUS_LINE_RE, (_m, prefix: string, _old: string, suffix: string) => {
-      // "status:" with nothing after it needs a separating space before the new value.
-      return `${prefix}${prefix.endsWith(":") ? " " : ""}${status}${suffix}`
+export function withUpdatedScalar(rawFrontmatter: string, key: string, value: string): string {
+  const lineRe = scalarLineRe(key)
+  if (lineRe.test(rawFrontmatter)) {
+    return rawFrontmatter.replace(lineRe, (_m, prefix: string, _old: string, suffix: string) => {
+      // "key:" with nothing after it needs a separating space before the new value.
+      return `${prefix}${prefix.endsWith(":") ? " " : ""}${value}${suffix}`
     })
   }
-  return rawFrontmatter.replace(/\r?\n---\r?\n?$/, `\nstatus: ${status}\n---\n`)
+  return rawFrontmatter.replace(/\r?\n---\r?\n?$/, `\n${key}: ${value}\n---\n`)
+}
+
+export function withUpdatedStatus(rawFrontmatter: string, status: string): string {
+  return withUpdatedScalar(rawFrontmatter, "status", status)
 }
 
 // Appends "- <line>" as the last entry of the body's "## Updates" section, if it has one;

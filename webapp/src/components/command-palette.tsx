@@ -1,5 +1,5 @@
 import { useEffect } from "react"
-import { FileText, FlaskConical, FolderOpen, FolderPlus, GitPullRequest, ListChecks, ListTodo, LogOut, Settings } from "lucide-react"
+import { FileText, FlaskConical, FolderOpen, FolderPlus, GitPullRequest, ListChecks, ListTodo, LogOut, Plus, Settings } from "lucide-react"
 
 import {
   CommandDialog,
@@ -45,6 +45,7 @@ export function CommandPalette({
   onStartDemo,
   onExitDemo,
   onOpenSettings,
+  onCreateNew,
   prs,
   onSelectPr,
 }: {
@@ -61,6 +62,8 @@ export function CommandPalette({
   onStartDemo: () => void
   onExitDemo: () => void
   onOpenSettings: () => void
+  // null when nothing can be created (no folder open, or a flat folder).
+  onCreateNew: (() => void) | null
   // Every PR in PRS.md (pending, merged, closed).
   prs: LedgerPr[]
   onSelectPr: (pr: LedgerPr) => void
@@ -129,6 +132,12 @@ export function CommandPalette({
           )}
         </CommandGroup>
         <CommandGroup heading="App">
+          {onCreateNew && (
+            <CommandItem value="app:new" keywords={["New", "create", "note", "plan", "daily", "task"]} onSelect={() => runAndClose(onCreateNew)}>
+              <Plus />
+              New note, plan, daily plan or task…
+            </CommandItem>
+          )}
           <CommandItem value="app:settings" keywords={["Settings", "preferences", "status", "colors"]} onSelect={() => runAndClose(onOpenSettings)}>
             <Settings />
             Settings

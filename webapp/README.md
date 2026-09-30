@@ -2,8 +2,8 @@
 
 An optional, local browser viewer for AINotes notes repos. It lists and renders the notes, plans, daily plans, and tasks the
 `ainotes-*` skills write, lets you filter them by date range and tag, search them with a command
-palette (`Cmd/Ctrl+K`), edit a note's body or tags in place, and browse the PRs tracked in
-`PRS.md` under **Pull requests**. Tasks show their status as a colored dot and can be moved between statuses from the
+palette (`Cmd/Ctrl+K`), create, edit, favorite and delete them in place, and browse the PRs
+tracked in `PRS.md` under **Pull requests**. Tasks show their status as a colored dot and can be moved between statuses from the
 viewer. You can track several notes repos at once and switch between them in one click.
 
 There is no server component: the app runs entirely in the browser and reads the notes repo straight
@@ -101,8 +101,8 @@ new ones relative to that date, and avoid weekday or month names, which the date
 1. Open the app and click **Connect folder** in the sidebar.
 2. In the folder picker, choose your **notes repo**: the folder named by `notes_repo` in your
    workspace config (it has `notes/`, `plans/` and the rest of the layout directly inside it).
-3. Grant read/write access when the browser asks. Write access is only used when you edit a note's
-   body, tags or a task's status from the viewer.
+3. Grant read/write access when the browser asks. Write access is only used when you create, edit
+   or delete something from the viewer (see [Creating, editing and deleting](#creating-editing-and-deleting)).
 
 ### Several repos, fast switching
 
@@ -160,6 +160,74 @@ files rarely carry the `date`/`tags` frontmatter the Date range and Tags filters
 date filter's "last 7 days" default would otherwise hide everything undated — both are hidden for a
 flat folder and every note just shows. Editing and saving works the same as any other note.
 
+## The Library
+
+The sidebar's **Library** lists **Agents**, **Pull requests**, **All notes**, **Notes**, **Plans**,
+**Daily**, **Tasks** and **Favorites**, in that order by default. Drag an item (or focus it and press
+`Alt+↑`/`Alt+↓`) to reorder; the order is remembered in this browser. Once a folder is open, an item
+with nothing to list is hidden (a folder with no plans shows no **Plans**, and **Favorites** only
+appears once something is favorited); **Agents** and **Pull requests** always show, since their
+empty state explains how to fill them. If the item you're on empties (you unfavorite the last
+favorite, say), the viewer moves to **All notes**.
+
+The **Date range** filter applies to **All notes**, **Notes**, **Plans** and **Daily** only. Tasks,
+favorites, PRs and agents always list everything, whatever their date.
+
+## Creating, editing and deleting
+
+Everything below writes straight to the open folder (or, in the demo, to memory). The viewer never
+runs git: commit the changes in your notes repo as usual.
+
+- **Create:** **New** in the header (or **New note, plan, daily plan or task…** in `Cmd/Ctrl+K`)
+  opens a dialog preset to the current view's kind. It writes the file in the same shape the skills
+  do: `notes/` and `plans/` get `YYYY-MM-DD-<slug>.md` with the `ainotes-notes` frontmatter,
+  `daily/` gets `YYYY-MM-DD.md` (one per day; the dialog says so if it already exists), and
+  `tasks/` gets `YYYY-MM-DD-<slug>.md` with the `ainotes-tasks` frontmatter, a `## Purpose` and a
+  `## Updates` section, in the first status. Notes and plans need at least one tag; dailies are
+  tagged `daily-plan` and tasks `task` automatically. The path is added under each of its tags in
+  `INDEX.md` (created if missing), and a new task gets a row in `TASKS.md`'s Open table (the ledger
+  is created from the skill's template if missing). The new file opens in the editor. Creating is
+  hidden in a flat folder, which has no layout to create into.
+- **Edit the body:** **Edit** / **Save** as before. Saving keeps the frontmatter that's on disk at
+  that moment, so a tag or status changed mid-edit isn't reverted.
+- **Layout:** the top row has the note's date, type and repo on the left and its buttons (favorite,
+  delete, Edit) on the right; its tags are on the line below. A title that is the note's `# heading` is shown once, at the top of the
+  rendered note; a task's (its frontmatter `title:`) shows above the body. To change a note's title,
+  edit its `# heading` in the body.
+- **Deadline:** a task's detail pane has a date field next to its status; it saves when you leave
+  the field (or press Enter), and × clears it. The frontmatter `deadline:` and the `TASKS.md`
+  Deadline cell are updated together. Deadline changes are logged under the task's
+  `## Updates`, like status changes. Task cards show `due <date>`.
+- **Delete:** the trash button asks first, then deletes the file, drops it from `INDEX.md` (and any
+  tag section it leaves empty) and, for a task, removes its `TASKS.md` row. `TASKS.md` itself can't
+  be deleted. The viewer can't undo a delete; git can.
+- **Path:** under the tags is the file's path, starting with the connected folder's name (e.g.
+  `_notes/notes/2026-09-30-x.md`; `db/` follows it for an older, un-flattened repo), with a button
+  that copies it.
+
+### Unsaved changes
+
+While a body or deadline edit is unsaved, anything that would take the note off screen
+(opening another note, switching view or folder, **New**, the palette) asks first: **Save**,
+**Discard** or **Keep editing**. Closing or reloading the tab gets the browser's own "Leave site?"
+prompt (browsers don't allow a custom one there), and the edit is also kept in this browser's
+`localStorage` as you type: the next time that note opens, it offers to **Restore** or **Discard**
+the unsaved changes. The draft is cleared as soon as the edit is saved or discarded. The demo keeps
+no drafts.
+
+## Favorites
+
+The heart in a note's detail pane favorites it (notes, plans, daily plans and tasks alike).
+Favorites show a heart on their card and are listed together under **Favorites** in the Library,
+newest first; the tag filter still applies there, the date range doesn't. They're stored per folder
+in this browser's `localStorage`, not in the notes repo, so another browser or machine has its own.
+Deleting a note from the viewer drops it from favorites. The demo's favorites last until you reload.
+
+## Agents
+
+A running agent (status **Working**) shows a spinner on its status chip, in the list and in its
+detail pane; one that needs you keeps the animated **Needs you** chip.
+
 ## Pull requests
 
 **Pull requests** in the sidebar's Library lists the PRs in `PRS.md`, in the same list and
@@ -170,8 +238,8 @@ detail panes the notes use.
   (changes requested / approved), behind base or merge conflicts, unresolved comment count, and how
   long it's been open and since its last commit.
 - **Filters:** the chips above the list switch between **Pending** (the default), **Merged** and
-  **Closed**, each with its count, and narrow the list to one repo. The sidebar's date range filters
-  by the date the PR was opened. The tag filter doesn't apply to PRs, so it's hidden in this view.
+  **Closed**, each with its count, and narrow the list to one repo. Neither the date range nor the
+  tag filter applies to PRs, so both are hidden in this view.
 - **Details:** selecting a PR shows an **Open on GitHub** button (opens a new tab) and everything
   the ledger has for it: repo, opened/merged/closed dates, open for, last commit, Jira key (a link
   when the ledger cell is a markdown link), last checked; then the failing CI checks, behind base or

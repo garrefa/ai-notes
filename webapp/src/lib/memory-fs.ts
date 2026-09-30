@@ -84,6 +84,10 @@ class MemoryDirectory {
     return created
   }
 
+  async removeEntry(name: string): Promise<void> {
+    if (!this.children.delete(name)) throw notFound(name)
+  }
+
   async queryPermission(): Promise<PermissionState> {
     return "granted"
   }

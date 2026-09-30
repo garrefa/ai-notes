@@ -110,6 +110,17 @@ commits `"Track PR: <repo>#<number>"` on the notes repo's `main`, and returns `{
 
 Do this before reporting the opened PR back to the user, not as an afterthought.
 
+**Only `<vcs.org>` PRs from tracked repos.** Skip registering (and say so in one line) when either:
+
+- the PR's URL owner isn't `<vcs.org>` (e.g. a PR on a personal fork or another org), or
+- the PR was opened from a workspace repo listed in `ignored_repos` (match the repo's directory name
+  in the workspace, which can differ from its GitHub name — `ai-notes-public` pushes to a repo named
+  `ai-notes`).
+
+`PRS.md` is the ledger of this workspace's `<vcs.org>` work; `check-prs.sh` only discovers PRs under
+`<vcs.org>` either. `ledger-keeper` enforces the owner rule too and returns `row_added: false` with a
+`skipped` reason instead of writing.
+
 ## "check prs"
 
 Trigger phrases: `check prs`, `check PR status`, `check pr status`, "check on our PRs", or any

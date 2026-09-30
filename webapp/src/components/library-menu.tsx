@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type KeyboardEvent } from "react"
-import { Bot, CalendarDays, GitPullRequest, GripVertical, ListChecks, ListTodo, NotebookText, StickyNote, type LucideIcon } from "lucide-react"
+import { Bot, CalendarDays, GitPullRequest, GripVertical, Heart, ListChecks, ListTodo, NotebookText, StickyNote, type LucideIcon } from "lucide-react"
 
 import {
   SidebarGroup,
@@ -19,6 +19,7 @@ const LIBRARY_ITEMS: Record<LibraryView, { label: string; icon: LucideIcon }> = 
   plans: { label: "Plans", icon: ListTodo },
   daily: { label: "Daily", icon: CalendarDays },
   tasks: { label: "Tasks", icon: ListChecks },
+  favorites: { label: "Favorites", icon: Heart },
   prs: { label: "Pull requests", icon: GitPullRequest },
   agents: { label: "Agents", icon: Bot },
 }
@@ -36,15 +37,19 @@ export function LibraryMenu({
   view,
   onViewChange,
   counts,
+  hidden,
 }: {
   view: LibraryView
   onViewChange: (view: LibraryView) => void
   // Missing (e.g. before a folder is connected) means no badge.
   counts: Partial<Record<LibraryView, LibraryCount>>
+  // Items left out of the menu (empty ones); they keep their place in the stored order.
+  hidden: ReadonlySet<LibraryView>
 }) {
   const { order, move } = useLibraryOrder()
   const [dragging, setDragging] = useState<LibraryView | null>(null)
   const [drop, setDrop] = useState<DropTarget | null>(null)
+  const visible = order.filter((item) => !hidden.has(item))
 
   function endDrag() {
     setDragging(null)
@@ -69,11 +74,15 @@ export function LibraryMenu({
     endDrag()
   }
 
-  // Alt+↑ / Alt+↓ moves the focused item, so reordering doesn't need a mouse.
+  // Alt+↑ / Alt+↓ moves the focused item past its visible neighbor, so reordering doesn't need a mouse.
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>, item: LibraryView) {
     if (!e.altKey || (e.key !== "ArrowUp" && e.key !== "ArrowDown")) return
     e.preventDefault()
-    move(item, order.indexOf(item) + (e.key === "ArrowUp" ? -1 : 1))
+    const up = e.key === "ArrowUp"
+    const neighbor = visible[visible.indexOf(item) + (up ? -1 : 1)]
+    if (!neighbor) return
+    const rest = order.filter((v) => v !== item)
+    move(item, rest.indexOf(neighbor) + (up ? 0 : 1))
   }
 
   return (
@@ -81,7 +90,7 @@ export function LibraryMenu({
       <SidebarGroupLabel>Library</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
-          {order.map((item) => {
+          {visible.map((item) => {
             const { label, icon: Icon } = LIBRARY_ITEMS[item]
             const badge = counts[item]
             const dropHere = drop?.view === item && dragging !== item

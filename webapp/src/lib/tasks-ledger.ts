@@ -73,6 +73,61 @@ function remapRow(fromHeaders: string[], cells: string[], toHeaders: string[]): 
   return toHeaders.map((h) => byName.get(h) ?? "")
 }
 
+// What ainotes-tasks creates when TASKS.md doesn't exist yet.
+export const EMPTY_TASKS_LEDGER = `# Task Tracker
+
+## Open
+| Task | Status | Created | Deadline | Jira | PRs | File |
+|---|---|---|---|---|---|---|
+
+## Completed
+| Task | Status | Created | Completed | Deadline | Jira | PRs | File |
+|---|---|---|---|---|---|---|---|
+`
+
+// The ledger's placeholder for an empty Deadline/Jira/PRs cell.
+export const EMPTY_CELL = "—"
+
+// A pipe inside a cell would split it into two columns.
+export function escapeCell(value: string): string {
+  return value.replace(/\r?\n/g, " ").replace(/(?<!\\)\|/g, "\\|")
+}
+
+export function taskFileLink(taskPath: string): string {
+  return `[${taskPath}](${taskPath})`
+}
+
+// Appends a row (cells by column name; missing columns stay empty) to the Open or Completed table.
+export function appendLedgerRow(markdown: string, cellsByColumn: Record<string, string>, closed: boolean): LedgerUpdateResult {
+  const eol = markdown.includes("\r\n") ? "\r\n" : "\n"
+  const lines = markdown.split(/\r?\n/)
+  const target = findTables(lines).find((t) => t.completed === closed)
+  if (!target) return { markdown, problem: `TASKS.md has no ${closed ? "Completed" : "Open"} table.` }
+  lines.splice(target.endRow, 0, joinRow(target.headers.map((h) => cellsByColumn[h] ?? "")))
+  return { markdown: lines.join(eol), problem: null }
+}
+
+export function removeLedgerRow(markdown: string, taskPath: string): LedgerUpdateResult {
+  const eol = markdown.includes("\r\n") ? "\r\n" : "\n"
+  const lines = markdown.split(/\r?\n/)
+  const found = findRow(lines, findTables(lines), taskPath)
+  if (!found) return { markdown, problem: `No row for ${taskPath} in TASKS.md.` }
+  lines.splice(found.line, 1)
+  return { markdown: lines.join(eol), problem: null }
+}
+
+// Sets the given cells (by column name) on a task's row, wherever it sits.
+export function updateLedgerCells(markdown: string, taskPath: string, cellsByColumn: Record<string, string>): LedgerUpdateResult {
+  const eol = markdown.includes("\r\n") ? "\r\n" : "\n"
+  const lines = markdown.split(/\r?\n/)
+  const found = findRow(lines, findTables(lines), taskPath)
+  if (!found) return { markdown, problem: `No row for ${taskPath} in TASKS.md.` }
+  let cells = splitRow(lines[found.line])
+  for (const [column, value] of Object.entries(cellsByColumn)) cells = setCell(found.table.headers, cells, column, value)
+  lines[found.line] = joinRow(cells)
+  return { markdown: lines.join(eol), problem: null }
+}
+
 export function updateLedgerStatus(
   markdown: string,
   taskPath: string,
