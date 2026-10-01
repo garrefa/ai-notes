@@ -1,5 +1,5 @@
 import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
-import { ChevronDown, History, Pencil, Plus, Trash2, X } from "lucide-react"
+import { ChevronDown, History, Maximize2, Minimize2, Pencil, Plus, Trash2, X } from "lucide-react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
@@ -19,6 +19,7 @@ import { useAsyncAction } from "@/hooks/use-async-action"
 import { forgetDraft, loadDraft, storeDraft, type NoteDraft } from "@/lib/drafts"
 import { displayTag, withUpdatedTags, type Note } from "@/lib/notes-frontmatter"
 import { isTaskFile, type TaskStatus } from "@/lib/task-status"
+import { cn } from "@/lib/utils"
 
 const DISCONNECTED_HINT = "check the folder is still connected."
 
@@ -80,6 +81,15 @@ function formatDraftTime(savedAt: number): string {
 }
 
 // A draft left over from a tab that was closed mid-edit.
+function MaximizeButton({ maximized, onToggle }: { maximized: boolean; onToggle: () => void }) {
+  const label = maximized ? "Restore layout (Esc)" : "Maximize"
+  return (
+    <Button size="icon-sm" variant="outline" aria-pressed={maximized} aria-label={label} title={label} onClick={onToggle}>
+      {maximized ? <Minimize2 className="text-muted-foreground" /> : <Maximize2 className="text-muted-foreground" />}
+    </Button>
+  )
+}
+
 function DraftRestoreBanner({ draft, onRestore, onDiscard }: { draft: NoteDraft; onRestore: () => void; onDiscard: () => void }) {
   return (
     <div role="status" className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
@@ -115,6 +125,8 @@ export function NoteDetail({
   startEditing = false,
   editorRef,
   flatLayout = false,
+  maximized,
+  onToggleMaximize,
 }: {
   note: Note
   // The note's path, starting with the connected folder's name (shown with a copy button).
@@ -143,6 +155,9 @@ export function NoteDetail({
   // "add" affordance is hidden (existing tags, if any, can still be removed), and the
   // date/type/repo line is left out.
   flatLayout?: boolean
+  // The note fills the content area (no sidebar or note list) and reads wider.
+  maximized: boolean
+  onToggleMaximize: () => void
 }) {
   const tagListId = useId()
   const isTask = isTaskFile(note)
@@ -273,7 +288,7 @@ export function NoteDetail({
   }
 
   return (
-    <article className="mx-auto max-w-2xl p-6 lg:p-10">
+    <article className={cn("mx-auto p-6 lg:p-10", maximized ? "max-w-4xl" : "max-w-2xl")}>
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
       {/* Date and type on the left, the note's actions on the right; tags go on the line below. */}
@@ -311,6 +326,7 @@ export function NoteDetail({
             Edit
           </Button>
         )}
+        <MaximizeButton maximized={maximized} onToggle={onToggleMaximize} />
       </div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
           {note.tags.map((t) => (

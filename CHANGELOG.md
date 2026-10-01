@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+- Viewer: a **Maximize** button on every note hides the sidebar and the note list so the note fills
+  the window, in a wider reading column. Press it again, or Esc, to go back: the sidebar returns
+  only if it was open before.
+- Viewer: the note list is resizable. Drag its edge to make it anywhere from 18rem to 32rem wide
+  (28rem by default); the width is remembered per browser.
+
 - Viewer: Settings shows the viewer version more prominently, bottom right above the Reset/Done
   buttons. What "closed" means moved from the dialog's description to an info icon next to each
   Closed switch, shown on hover. The per-status reset button is gone; **Reset all to defaults**

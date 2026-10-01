@@ -4,6 +4,7 @@ import { AlertTriangle, FlaskConical, FolderOpen, FolderSearch, KeyRound, Plus, 
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable"
 import {
   Sidebar,
   SidebarContent,
@@ -33,7 +34,9 @@ import { StatusSettingsDialog } from "@/components/status-settings-dialog"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { ThemeSwitcher } from "@/components/theme-switcher"
 import { WorkspaceSwitcher } from "@/components/workspace-switcher"
+import { useMaximizedNote } from "@/hooks/use-maximized-note"
 import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-directory"
+import { useStoredWidth } from "@/hooks/use-stored-width"
 import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
 import { DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
@@ -61,6 +64,11 @@ const CHANGELOG_URL = `${PROJECT_REPO_URL}/blob/main/CHANGELOG.md`
 // How often relative times in the Agents view ("updated 3m ago") are recomputed.
 const CLOCK_TICK_MS = 30_000
 const TAGS_COLLAPSE_KEY = "ainotes-tags-collapsed"
+// The list column's width is dragged between these, and remembered per browser.
+const NOTE_LIST_WIDTH_KEY = "ainotes-note-list-width"
+const NOTE_LIST_DEFAULT_WIDTH = "28rem"
+const NOTE_LIST_MIN_WIDTH = "18rem"
+const NOTE_LIST_MAX_WIDTH = "32rem"
 
 // lucide-react dropped brand icons, so the GitHub mark is drawn inline.
 function GitHubMark() {
@@ -271,6 +279,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   }, [notes, view, favorites, effectiveStatusFilter, taskStatusByPath, layout, activeTag, dateFrom, dateTo, selectedPath])
 
   const selected = notes.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
+  const noteMaximize = useMaximizedNote(isNoteView(view) && selected !== null)
+  const listWidth = useStoredWidth(NOTE_LIST_WIDTH_KEY, NOTE_LIST_DEFAULT_WIDTH)
 
   // The open note stays listed while it's edited within a view (see `filtered`), but switching to a
   // view it doesn't belong to drops it, so the new view opens on its own first item instead.
@@ -604,195 +614,209 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           </Button>
         </header>
 
-        <div className="flex min-h-0 flex-1">
-          <div className="h-full w-full max-w-md shrink-0 overflow-y-auto border-r border-border">
-            <div className="space-y-4 p-3">
-              {notice && (
-                <div role="status" className="flex items-start gap-2 rounded-lg border border-border bg-muted/60 p-2.5 text-xs text-muted-foreground">
-                  <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
-                  <span className="flex-1">{notice}</span>
-                  <button onClick={dismissNotice} aria-label="Dismiss" className="hover:text-foreground">
-                    <X className="size-3.5" />
-                  </button>
-                </div>
-              )}
-              {connected && inDemo && (
-                <div role="status" className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
-                  <FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" />
-                  <span className="flex-1">
-                    <span className="font-medium text-foreground">Demo workspace.</span> Sample notes, plans, tasks, PRs and agents
-                    kept in memory: edit freely, nothing is saved. Switch between Work and Personal from the folder
-                    menu.
-                  </span>
-                  <button onClick={guarded(exitDemo)} className="shrink-0 font-medium text-primary hover:underline">
-                    Exit demo
-                  </button>
-                </div>
-              )}
-              {!connected && (
-                <div className="space-y-3 p-4 text-sm text-muted-foreground">
-                  {busy ? (
-                    <p>Opening {folderName ? `"${folderName}"` : "folder"}…</p>
-                  ) : status === "needs-permission" ? (
-                    <>
-                      <p>The browser needs your permission again to read "{folderName}".</p>
-                      <Button size="sm" className="gap-2" onClick={reopenActive}>
-                        <KeyRound className="size-3.5" />
-                        Grant access
-                      </Button>
-                    </>
-                  ) : status === "unavailable" && activeWorkspace ? (
-                    <>
-                      <p className="font-medium text-foreground">Folder unavailable</p>
-                      <p>{error ?? `"${folderName}" couldn't be opened.`}</p>
-                      <div className="flex flex-wrap gap-2">
-                        <Button size="sm" variant="outline" className="gap-2" onClick={reopenActive}>
-                          <RefreshCw className="size-3.5" />
-                          Retry
-                        </Button>
-                        <Button size="sm" variant="outline" className="gap-2" onClick={() => locateWorkspace(activeWorkspace.id)}>
-                          <FolderSearch className="size-3.5" />
-                          Locate…
-                        </Button>
-                        <Button size="sm" variant="outline" className="gap-2" onClick={() => removeWorkspace(activeWorkspace.id)}>
-                          <Trash2 className="size-3.5" />
-                          Remove from list
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      {supported ? (
-                        <p>
-                          Connect your notes repo to browse your notes, plans, tasks and daily logs.
-                        </p>
-                      ) : (
-                        <p>
-                          Connecting a notes folder needs a Chromium-based browser (Chrome 133+, Edge, Arc, Brave). You can
-                          still look around with sample data.
-                        </p>
-                      )}
-                      <p>
-                        Not ready to connect one yet? Try the demo: two sample workspaces, <strong>Work</strong> and{" "}
-                        <strong>Personal</strong>, with notes, plans, daily plans, tasks, pull requests and agents.
-                      </p>
-                      <Button className="demo-cta h-9 gap-2 px-5 font-semibold" onClick={startDemo}>
-                        <Sparkles className="size-4" />
-                        Try the demo
-                      </Button>
-                    </>
-                  )}
-                </div>
-              )}
-              {connected && layout === "flat" && notes.length === 0 && (
-                <p className="p-4 text-sm text-muted-foreground">
-                  No Markdown files found anywhere under "{folderName}". Pick your notes repo (or
-                  any folder with <code className="font-mono">.md</code> files) with{" "}
-                  <strong>Add folder</strong>.
-                </p>
-              )}
-              {connected && view === "prs" && (
-                <PrList
-                  prs={visiblePrs}
-                  counts={prCounts}
-                  repos={prRepos}
-                  state={prState}
-                  onStateChange={(state) => showPrs(state)}
-                  repo={activePrRepo}
-                  onRepoChange={(repo) => {
-                    setPrRepo(repo)
-                    setSelectedPrKey(null)
-                  }}
-                  selectedKey={selectedPr?.key ?? null}
-                  onSelect={setSelectedPrKey}
-                  ledgerFound={prLedger !== null}
-                  filtered={Boolean(activePrRepo)}
-                  lastDeepCheck={prLedger?.lastDeepCheck ?? null}
-                />
-              )}
-              {connected && view === "agents" && (
-                <AgentList
-                  groups={agentGroups}
-                  counts={agentCounts}
-                  filter={agentFilter}
-                  onFilterChange={(filter) => {
-                    setAgentFilter(filter)
-                    setSelectedAgentId(null)
-                  }}
-                  selectedId={selectedAgent?.id ?? null}
-                  onSelect={setSelectedAgentId}
-                  snapshotFound={agents !== null}
-                  generatedAt={agents?.generatedAt ?? null}
-                  stale={snapshotStale && !inDemo}
-                  now={now}
-                />
-              )}
-              {connected && isNoteView(view) && !(layout === "flat" && notes.length === 0) && filtered.length === 0 && (
-                <p className="p-4 text-sm text-muted-foreground">
-                  {layout !== "flat" && dateFilterApplies(view) && dateRangeSummary && notes.some((n) => viewMatchesNote(view, n, favorites))
-                    ? `Nothing here in the selected range (${dateRangeSummary}). Widen the date range to see older notes.`
-                    : view === "favorites"
-                      ? "No favorites here. Use the heart on a note, plan, daily plan or task to add one."
-                      : "No notes in this view yet."}
-                </p>
-              )}
-              {isNoteView(view) && groupNotesByDate(filtered).map((group) => (
-                <div key={group.date ?? "no-date"}>
-                  <div className="mb-2 flex items-baseline justify-between px-1 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-                    <span>{formatDateHeading(group.date)}</span>
-                    <span className="normal-case text-muted-foreground/70">
-                      {group.notes.length} {group.notes.length === 1 ? "note" : "notes"}
+        {/* The list column is resizable; a maximized note drops it (and the sidebar) to fill the
+            space. The detail panel keeps its place in the tree either way, so maximizing never
+            remounts the note mid-edit. */}
+        <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
+          {!noteMaximize.maximized && (
+            <ResizablePanel
+              id="list"
+              defaultSize={listWidth.defaultSize}
+              onResize={listWidth.onResize}
+              minSize={NOTE_LIST_MIN_WIDTH}
+              maxSize={NOTE_LIST_MAX_WIDTH}
+              groupResizeBehavior="preserve-pixel-size"
+              className="h-full overflow-y-auto"
+            >
+              <div className="space-y-4 p-3">
+                {notice && (
+                  <div role="status" className="flex items-start gap-2 rounded-lg border border-border bg-muted/60 p-2.5 text-xs text-muted-foreground">
+                    <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
+                    <span className="flex-1">{notice}</span>
+                    <button onClick={dismissNotice} aria-label="Dismiss" className="hover:text-foreground">
+                      <X className="size-3.5" />
+                    </button>
+                  </div>
+                )}
+                {connected && inDemo && (
+                  <div role="status" className="flex items-start gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
+                    <FlaskConical className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                    <span className="flex-1">
+                      <span className="font-medium text-foreground">Demo workspace.</span> Sample notes, plans, tasks, PRs and agents
+                      kept in memory: edit freely, nothing is saved. Switch between Work and Personal from the folder
+                      menu.
                     </span>
+                    <button onClick={guarded(exitDemo)} className="shrink-0 font-medium text-primary hover:underline">
+                      Exit demo
+                    </button>
                   </div>
-                  <div className="space-y-2">
-                    {group.notes.map((note) => {
-                      const taskStatus = taskStatusByPath.get(note.path)
-                      return (
-                      <button
-                        key={note.path}
-                        onClick={() => note.path !== selected?.path && selectNote(note.path)}
-                        className={`block w-full rounded-lg border p-3 text-left transition-colors ${
-                          note.path === selected?.path
-                            ? "border-primary bg-primary/10"
-                            : "border-border hover:border-primary/50"
-                        }`}
-                      >
-                        <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
-                          {taskStatus && <TaskStatusDot status={taskStatus} />}
-                          <span className="min-w-0 flex-1">{note.title}</span>
-                          {favorites.has(note.path) && <FavoriteMark />}
+                )}
+                {!connected && (
+                  <div className="space-y-3 p-4 text-sm text-muted-foreground">
+                    {busy ? (
+                      <p>Opening {folderName ? `"${folderName}"` : "folder"}…</p>
+                    ) : status === "needs-permission" ? (
+                      <>
+                        <p>The browser needs your permission again to read "{folderName}".</p>
+                        <Button size="sm" className="gap-2" onClick={reopenActive}>
+                          <KeyRound className="size-3.5" />
+                          Grant access
+                        </Button>
+                      </>
+                    ) : status === "unavailable" && activeWorkspace ? (
+                      <>
+                        <p className="font-medium text-foreground">Folder unavailable</p>
+                        <p>{error ?? `"${folderName}" couldn't be opened.`}</p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" className="gap-2" onClick={reopenActive}>
+                            <RefreshCw className="size-3.5" />
+                            Retry
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => locateWorkspace(activeWorkspace.id)}>
+                            <FolderSearch className="size-3.5" />
+                            Locate…
+                          </Button>
+                          <Button size="sm" variant="outline" className="gap-2" onClick={() => removeWorkspace(activeWorkspace.id)}>
+                            <Trash2 className="size-3.5" />
+                            Remove from list
+                          </Button>
                         </div>
-                        <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
-                          {note.type && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              {note.type}
-                            </Badge>
-                          )}
-                          {!taskStatus && displayStatus(note.status) && (
-                            <span className="text-[11px] text-muted-foreground">{displayStatus(note.status)}</span>
-                          )}
-                          {taskStatus && note.deadline && (
-                            <span className="font-mono text-[11px] text-muted-foreground">due {note.deadline}</span>
-                          )}
-                        </div>
-                        {note.excerpt && <p className="mb-1.5 line-clamp-2 text-xs text-muted-foreground">{note.excerpt}</p>}
-                        <div className="flex flex-wrap gap-1">
-                          {note.tags.map((t) => (
-                            <span key={t} className="rounded-full border border-border px-1.5 py-px font-mono text-[10px] text-muted-foreground">
-                              {displayTag(t)}
-                            </span>
-                          ))}
-                        </div>
-                      </button>
-                      )
-                    })}
+                      </>
+                    ) : (
+                      <>
+                        {supported ? (
+                          <p>
+                            Connect your notes repo to browse your notes, plans, tasks and daily logs.
+                          </p>
+                        ) : (
+                          <p>
+                            Connecting a notes folder needs a Chromium-based browser (Chrome 133+, Edge, Arc, Brave). You can
+                            still look around with sample data.
+                          </p>
+                        )}
+                        <p>
+                          Not ready to connect one yet? Try the demo: two sample workspaces, <strong>Work</strong> and{" "}
+                          <strong>Personal</strong>, with notes, plans, daily plans, tasks, pull requests and agents.
+                        </p>
+                        <Button className="demo-cta h-9 gap-2 px-5 font-semibold" onClick={startDemo}>
+                          <Sparkles className="size-4" />
+                          Try the demo
+                        </Button>
+                      </>
+                    )}
                   </div>
-                </div>
-              ))}
-            </div>
-          </div>
+                )}
+                {connected && layout === "flat" && notes.length === 0 && (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    No Markdown files found anywhere under "{folderName}". Pick your notes repo (or
+                    any folder with <code className="font-mono">.md</code> files) with{" "}
+                    <strong>Add folder</strong>.
+                  </p>
+                )}
+                {connected && view === "prs" && (
+                  <PrList
+                    prs={visiblePrs}
+                    counts={prCounts}
+                    repos={prRepos}
+                    state={prState}
+                    onStateChange={(state) => showPrs(state)}
+                    repo={activePrRepo}
+                    onRepoChange={(repo) => {
+                      setPrRepo(repo)
+                      setSelectedPrKey(null)
+                    }}
+                    selectedKey={selectedPr?.key ?? null}
+                    onSelect={setSelectedPrKey}
+                    ledgerFound={prLedger !== null}
+                    filtered={Boolean(activePrRepo)}
+                    lastDeepCheck={prLedger?.lastDeepCheck ?? null}
+                  />
+                )}
+                {connected && view === "agents" && (
+                  <AgentList
+                    groups={agentGroups}
+                    counts={agentCounts}
+                    filter={agentFilter}
+                    onFilterChange={(filter) => {
+                      setAgentFilter(filter)
+                      setSelectedAgentId(null)
+                    }}
+                    selectedId={selectedAgent?.id ?? null}
+                    onSelect={setSelectedAgentId}
+                    snapshotFound={agents !== null}
+                    generatedAt={agents?.generatedAt ?? null}
+                    stale={snapshotStale && !inDemo}
+                    now={now}
+                  />
+                )}
+                {connected && isNoteView(view) && !(layout === "flat" && notes.length === 0) && filtered.length === 0 && (
+                  <p className="p-4 text-sm text-muted-foreground">
+                    {layout !== "flat" && dateFilterApplies(view) && dateRangeSummary && notes.some((n) => viewMatchesNote(view, n, favorites))
+                      ? `Nothing here in the selected range (${dateRangeSummary}). Widen the date range to see older notes.`
+                      : view === "favorites"
+                        ? "No favorites here. Use the heart on a note, plan, daily plan or task to add one."
+                        : "No notes in this view yet."}
+                  </p>
+                )}
+                {isNoteView(view) && groupNotesByDate(filtered).map((group) => (
+                  <div key={group.date ?? "no-date"}>
+                    <div className="mb-2 flex items-baseline justify-between px-1 font-mono text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
+                      <span>{formatDateHeading(group.date)}</span>
+                      <span className="normal-case text-muted-foreground/70">
+                        {group.notes.length} {group.notes.length === 1 ? "note" : "notes"}
+                      </span>
+                    </div>
+                    <div className="space-y-2">
+                      {group.notes.map((note) => {
+                        const taskStatus = taskStatusByPath.get(note.path)
+                        return (
+                        <button
+                          key={note.path}
+                          onClick={() => note.path !== selected?.path && selectNote(note.path)}
+                          className={`block w-full rounded-lg border p-3 text-left transition-colors ${
+                            note.path === selected?.path
+                              ? "border-primary bg-primary/10"
+                              : "border-border hover:border-primary/50"
+                          }`}
+                        >
+                          <div className="mb-1 flex items-center gap-2 text-sm font-semibold">
+                            {taskStatus && <TaskStatusDot status={taskStatus} />}
+                            <span className="min-w-0 flex-1">{note.title}</span>
+                            {favorites.has(note.path) && <FavoriteMark />}
+                          </div>
+                          <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                            {note.type && (
+                              <Badge variant="secondary" className="text-[10px]">
+                                {note.type}
+                              </Badge>
+                            )}
+                            {!taskStatus && displayStatus(note.status) && (
+                              <span className="text-[11px] text-muted-foreground">{displayStatus(note.status)}</span>
+                            )}
+                            {taskStatus && note.deadline && (
+                              <span className="font-mono text-[11px] text-muted-foreground">due {note.deadline}</span>
+                            )}
+                          </div>
+                          {note.excerpt && <p className="mb-1.5 line-clamp-2 text-xs text-muted-foreground">{note.excerpt}</p>}
+                          <div className="flex flex-wrap gap-1">
+                            {note.tags.map((t) => (
+                              <span key={t} className="rounded-full border border-border px-1.5 py-px font-mono text-[10px] text-muted-foreground">
+                                {displayTag(t)}
+                              </span>
+                            ))}
+                          </div>
+                        </button>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ResizablePanel>
+          )}
+          {!noteMaximize.maximized && <ResizableHandle />}
 
-          <div className="h-full min-w-0 flex-1 overflow-y-auto">
+          <ResizablePanel id="detail" className="h-full min-w-0 overflow-y-auto">
             {view === "agents" ? (
               connected && selectedAgent ? (
                 <AgentDetail key={selectedAgent.id} agent={selectedAgent} now={now} prsByKey={prsByKey} onOpenPr={openPr} />
@@ -834,14 +858,16 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                 startEditing={selected.path === editOnOpenPath}
                 editorRef={editorRef}
                 flatLayout={layout === "flat"}
+                maximized={noteMaximize.maximized}
+                onToggleMaximize={noteMaximize.toggle}
               />
             ) : (
               <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
                 {connected ? "Select a note to read it." : "Nothing to show yet."}
               </div>
             )}
-          </div>
-        </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </SidebarInset>
 
       <CommandPalette
