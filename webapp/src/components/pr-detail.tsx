@@ -1,5 +1,6 @@
 import { ExternalLink } from "lucide-react"
 
+import { AddTaskButton } from "@/components/add-task-button"
 import { Field, FieldList, Section } from "@/components/detail-section"
 import { Pill, ToneChip } from "@/components/pr-hints"
 import { TaskStatusDot } from "@/components/task-status-dot"
@@ -218,12 +219,15 @@ export function PrDetail({
   tasks,
   taskStatusByPath,
   onOpenTask,
+  onAddTask,
 }: {
   pr: LedgerPr
   // Task files whose `prs:` frontmatter lists this PR.
   tasks: Note[]
   taskStatusByPath: Map<string, TaskStatus>
   onOpenTask: (path: string) => void
+  // Starts a task referencing this PR; null where tasks can't be created (a flat folder).
+  onAddTask: (() => void) | null
 }) {
   const detail = pr.detail
   return (
@@ -239,12 +243,15 @@ export function PrDetail({
             </Pill>
           )}
         </div>
-        <Button size="sm" className="shrink-0 gap-1.5" asChild>
-          <a href={pr.url} {...EXTERNAL_LINK}>
-            <ExternalLink className="size-3.5" />
-            Open on GitHub
-          </a>
-        </Button>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {onAddTask && <AddTaskButton onClick={onAddTask} />}
+          <Button size="sm" className="gap-1.5" asChild>
+            <a href={pr.url} {...EXTERNAL_LINK}>
+              <ExternalLink className="size-3.5" />
+              Open on GitHub
+            </a>
+          </Button>
+        </div>
       </div>
 
       <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{prTitle(pr)}</h1>

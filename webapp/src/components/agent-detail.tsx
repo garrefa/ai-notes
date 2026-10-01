@@ -1,5 +1,6 @@
 import { ExternalLink, GitPullRequest } from "lucide-react"
 
+import { AddTaskButton } from "@/components/add-task-button"
 import { AgentStatusChip } from "@/components/agent-status-chip"
 import { Field, FieldList, Section } from "@/components/detail-section"
 import { Pill, ToneChip } from "@/components/pr-hints"
@@ -99,19 +100,25 @@ export function AgentDetail({
   now,
   prsByKey,
   onOpenPr,
+  onAddTask,
 }: {
   agent: Agent
   now: number
   // The PR ledger, so a linked PR can open in the Pull requests view.
   prsByKey: Map<string, LedgerPr>
   onOpenPr: (pr: LedgerPr) => void
+  // Starts a task referencing this agent; null where tasks can't be created (a flat folder).
+  onAddTask: (() => void) | null
 }) {
   return (
     <article className="mx-auto max-w-2xl p-6 lg:p-10">
-      <div className="mb-3 flex flex-wrap items-center gap-1.5">
-        <AgentStatusChip status={agentStatus(agent)} />
-        {agent.kind === "interactive" && <ToneChip tone="neutral">Interactive</ToneChip>}
-        {agent.pinned && <Pill className="text-[11px]">pinned</Pill>}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <AgentStatusChip status={agentStatus(agent)} />
+          {agent.kind === "interactive" && <ToneChip tone="neutral">Interactive</ToneChip>}
+          {agent.pinned && <Pill className="text-[11px]">pinned</Pill>}
+        </div>
+        {onAddTask && <AddTaskButton onClick={onAddTask} />}
       </div>
 
       <h1 className="mb-1.5 text-lg font-semibold tracking-tight">{agentName(agent)}</h1>

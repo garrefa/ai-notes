@@ -3,6 +3,7 @@
 // the file name (YYYY-MM-DD-slug.md, or YYYY-MM-DD.md for a daily plan), and a starter body.
 
 import { yamlScalar, type NoteSource } from "@/lib/notes-frontmatter"
+import { taskOriginLinks, taskOriginPrs, taskOriginPurpose, type TaskOrigin } from "@/lib/task-origin"
 import type { TaskStatus } from "@/lib/task-status"
 
 export type EntryKind = "note" | "plan" | "daily" | "task"
@@ -39,6 +40,8 @@ export interface NewEntryInput {
   // Tasks only.
   deadline: string | null
   status: Pick<TaskStatus, "key" | "label">
+  // Tasks only: the item "Add task" was pressed on, referenced from the new task.
+  origin?: TaskOrigin | null
 }
 
 export interface NewEntry {
@@ -75,11 +78,16 @@ function inlineList(values: string[]): string {
   return `[${values.join(", ")}]`
 }
 
+// Quoted: PR refs carry a "#", which would otherwise read as a YAML comment after a space.
+function quotedList(values: string[]): string {
+  return inlineList(values.map((v) => JSON.stringify(v)))
+}
+
 function frontmatter(fields: [string, string][]): string {
   return `---\n${fields.map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n`
 }
 
-function buildContent({ kind, title, date, deadline, status }: NewEntryInput, tags: string[], today: string): string {
+function buildContent({ kind, title, date, deadline, status, origin }: NewEntryInput, tags: string[], today: string): string {
   switch (kind) {
     case "note":
     case "plan":
@@ -117,10 +125,10 @@ function buildContent({ kind, title, date, deadline, status }: NewEntryInput, ta
           ["status", status.key],
           ["domain", "[]"],
           ["jira", "[]"],
-          ["prs", "[]"],
+          ["prs", origin ? quotedList(taskOriginPrs(origin).map((p) => p.ref)) : "[]"],
           ["tags", inlineList(tags)],
-          ["links", "[]"],
-        ]) + `\n## Purpose\n\n\n## Updates\n- ${today}: created (${status.label})\n`
+          ["links", origin ? quotedList(taskOriginLinks(origin)) : "[]"],
+        ]) + `\n## Purpose\n${origin ? `${taskOriginPurpose(origin)}\n` : ""}\n\n## Updates\n- ${today}: created (${status.label})\n`
       )
   }
 }

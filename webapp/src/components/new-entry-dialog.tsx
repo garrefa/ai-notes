@@ -7,6 +7,7 @@ import { useAsyncAction } from "@/hooks/use-async-action"
 import { buildNewEntry, ENTRY_KINDS, kindNeedsTag, kindNeedsTitle, parseTagInput, type EntryKind, type NewEntry } from "@/lib/new-entry"
 import type { NewTaskRow } from "@/lib/notes-fs"
 import { localIsoDate } from "@/lib/notes-frontmatter"
+import { describeTaskOrigin, taskOriginPrs, taskOriginTags, type TaskOrigin } from "@/lib/task-origin"
 import type { TaskStatus } from "@/lib/task-status"
 import { cn } from "@/lib/utils"
 
@@ -32,6 +33,7 @@ export function NewEntryDialog({
   defaultKind,
   allTags,
   initialTaskStatus,
+  origin,
   onCreate,
 }: {
   open: boolean
@@ -40,6 +42,8 @@ export function NewEntryDialog({
   allTags: string[]
   // The status a new task starts in (the first one in the catalog).
   initialTaskStatus: TaskStatus
+  // Set by "Add task": the form makes a task only, and the task references this item.
+  origin: TaskOrigin | null
   onCreate: (entry: NewEntry, task: NewTaskRow | null) => Promise<void>
 }) {
   return (
@@ -50,6 +54,7 @@ export function NewEntryDialog({
             defaultKind={defaultKind}
             allTags={allTags}
             initialTaskStatus={initialTaskStatus}
+            origin={origin}
             onCreate={onCreate}
             onCancel={() => onOpenChange(false)}
           />
@@ -63,21 +68,23 @@ function NewEntryForm({
   defaultKind,
   allTags,
   initialTaskStatus,
+  origin,
   onCreate,
   onCancel,
 }: {
   defaultKind: EntryKind
   allTags: string[]
   initialTaskStatus: TaskStatus
+  origin: TaskOrigin | null
   onCreate: (entry: NewEntry, task: NewTaskRow | null) => Promise<void>
   onCancel: () => void
 }) {
   const id = useId()
-  const [kind, setKind] = useState<EntryKind>(defaultKind)
+  const [kind, setKind] = useState<EntryKind>(origin ? "task" : defaultKind)
   const [title, setTitle] = useState("")
   const [date, setDate] = useState(() => localIsoDate())
   const [deadline, setDeadline] = useState("")
-  const [tagText, setTagText] = useState("")
+  const [tagText, setTagText] = useState(() => (origin ? taskOriginTags(origin).join(", ") : ""))
   const [validation, setValidation] = useState<string | null>(null)
   const create = useAsyncAction("Couldn't create it — check the folder is still connected.")
 
@@ -98,11 +105,19 @@ function NewEntryForm({
     if (problem) return
     const cleanTitle = title.trim()
     const entry = buildNewEntry(
-      { kind, title: cleanTitle, date, tags, deadline: deadline || null, status: initialTaskStatus },
+      { kind, title: cleanTitle, date, tags, deadline: deadline || null, status: initialTaskStatus, origin },
       localIsoDate(),
     )
     const task: NewTaskRow | null =
-      kind === "task" ? { title: cleanTitle, created: date, deadline: deadline || null, status: initialTaskStatus } : null
+      kind === "task"
+        ? {
+            title: cleanTitle,
+            created: date,
+            deadline: deadline || null,
+            status: initialTaskStatus,
+            prs: origin ? taskOriginPrs(origin) : [],
+          }
+        : null
     await create.run(() => onCreate(entry, task))
   }
 
@@ -113,29 +128,32 @@ function NewEntryForm({
         <DialogDescription>
           Written to the open folder in the same format the ainotes skills use, and added to INDEX.md
           {kind === "task" ? " and TASKS.md" : ""}. Commit it to git as usual.
+          {origin && ` It will reference ${describeTaskOrigin(origin)}.`}
         </DialogDescription>
       </DialogHeader>
 
-      <div role="radiogroup" aria-label="Kind" className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
-        {ENTRY_KINDS.map((k) => (
-          <button
-            key={k.kind}
-            type="button"
-            role="radio"
-            aria-checked={kind === k.kind}
-            onClick={() => {
-              setKind(k.kind)
-              setValidation(null)
-            }}
-            className={cn(
-              "rounded-md px-2 py-1 text-xs font-medium transition-colors",
-              kind === k.kind ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
-            )}
-          >
-            {k.label}
-          </button>
-        ))}
-      </div>
+      {!origin && (
+        <div role="radiogroup" aria-label="Kind" className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
+          {ENTRY_KINDS.map((k) => (
+            <button
+              key={k.kind}
+              type="button"
+              role="radio"
+              aria-checked={kind === k.kind}
+              onClick={() => {
+                setKind(k.kind)
+                setValidation(null)
+              }}
+              className={cn(
+                "rounded-md px-2 py-1 text-xs font-medium transition-colors",
+                kind === k.kind ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {k.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {kindNeedsTitle(kind) && (
         <Field label="Title" htmlFor={`${id}-title`}>
