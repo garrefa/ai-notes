@@ -21,6 +21,17 @@ function gitShortSha(): string | null {
   }
 }
 
+// The build number shown next to the release ("AINotes v0.2.0 (123)"): the count of commits up to
+// HEAD, which only grows. Needs the full history (a shallow clone counts 1); null outside git.
+function gitCommitCount(): number | null {
+  try {
+    const count = Number(execSync("git rev-list --count HEAD", { stdio: ["ignore", "pipe", "ignore"] }).toString().trim())
+    return Number.isInteger(count) && count > 0 ? count : null
+  } catch {
+    return null
+  }
+}
+
 // Unique per build, even for two builds of the same commit: the timestamp is what changes when
 // someone rebuilds with local edits.
 function createBuildId(builtAt: Date): string {
@@ -50,6 +61,7 @@ export default defineConfig({
   plugins: [react(), tailwindcss(), versionFile(packageVersion, buildId, builtAt)],
   define: {
     __APP_BUILD_ID__: JSON.stringify(buildId),
+    __APP_BUILD_NUMBER__: JSON.stringify(gitCommitCount()),
     __APP_VERSION_FILE__: JSON.stringify(VERSION_FILE),
     // Release number, shown in the sidebar footer, Settings and the new-version notice — kept in
     // lockstep with .claude-plugin/plugin.json by tools/release.sh.
