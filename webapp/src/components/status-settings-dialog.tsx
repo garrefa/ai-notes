@@ -121,7 +121,7 @@ export function StatusSettingsDialog({
           <StatusGroup heading="Found in this folder's tasks" statuses={discovered} settings={settings} />
         </div>
         <p className="justify-self-end font-mono text-sm font-medium text-foreground/80">
-          ainotes-viewer v{__APP_VERSION__}
+          AINotes v{__APP_VERSION__}
         </p>
         <DialogFooter className="sm:justify-between">
           <Button variant="outline" disabled={!anyOverridden} onClick={settings.resetAll} className="gap-2">
