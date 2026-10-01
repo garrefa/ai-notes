@@ -179,8 +179,9 @@ the list's first note opens; it isn't reselected if a later filter lets it back 
 filter with unsaved edits asks first. Opening a specific note (from `Cmd/Ctrl+K`, a task link on a
 PR, or a note you just created) loosens whichever filter would hide it.
 
-The list column is resizable: drag its edge, or focus the divider and use the arrow keys, for a
-width between 18rem and 32rem (28rem by default). The width is remembered in this browser.
+The list column starts at 28rem, its widest; drag its edge, or focus the divider and use the arrow
+keys, to narrow it down to 18rem. The width is remembered in this browser. A note's details fill
+the rest of the window.
 
 ## Creating, editing and deleting
 
@@ -200,17 +201,17 @@ runs git: commit the changes in your notes repo as usual.
 - **Edit the body:** **Edit** / **Save** as before. Saving keeps the frontmatter that's on disk at
   that moment, so a tag or status changed mid-edit isn't reverted.
 - **Layout:** the top row has the note's date, type and repo on the left and its buttons (Add task,
-  favorite, delete, Edit, maximize) on the right; its tags are on the line below.
+  favorite, delete, Edit, maximize) on the right; its tags are on the line below. A title that is
+  the note's `# heading` is shown once, at the top of the rendered note; a task's (its frontmatter
+  `title:`) shows above the body. To change a note's title, edit its `# heading` in the body.
 - **Add task:** on every note, plan, daily plan, PR and agent, it opens the dialog as a task that
   points back to the item, in the `ainotes-tasks` format. A note's path goes in the task's
   `links:` and its tags become the task's starting tags. A PR goes in `prs:` and `TASKS.md`'s PRs
   cell, so the task shows under the PR's linked tasks. An agent's job, repo, worktree, state and
   last status are recorded, and any PRs it links to go in `prs:`. Each origin is also described in
   a line under `## Purpose`.
-- **Maximize:** the last button hides the sidebar and the note list so the note fills the window,
-  in a wider column. Press it again, or Esc, to go back; the sidebar returns only if it was open. A title that is the note's `# heading` is shown once, at the top of the
-  rendered note; a task's (its frontmatter `title:`) shows above the body. To change a note's title,
-  edit its `# heading` in the body.
+- **Maximize:** the last button hides the sidebar and the note list so the note fills the window.
+  Press it again, or Esc, to go back; the sidebar returns only if it was open.
 - **Deadline:** a task's detail pane has a date field next to its status; it saves when you leave
   the field (or press Enter), and × clears it. The frontmatter `deadline:` and the `TASKS.md`
   Deadline cell are updated together. Deadline changes are logged under the task's
