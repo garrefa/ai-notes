@@ -49,6 +49,7 @@ import { displayStatus, displayTag, formatDateHeading, groupNotesByDate, uniqueT
 import { countByState, filterPrs, reposIn, tasksByPrKey } from "@/lib/pr-view"
 import type { LedgerPr, PrState } from "@/lib/prs-parser"
 import { useStatusSettings, type StatusSettings } from "@/lib/status-settings"
+import type { TaskOrigin } from "@/lib/task-origin"
 import {
   buildStatusCatalog,
   defaultStatusFilter,
@@ -200,6 +201,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const [view, setViewNow] = useSelectedView()
   const { favorites, toggle: toggleFavorite, forget: forgetFavorite } = useFavorites(activeWorkspace?.id ?? null, !inDemo)
   const [newEntryOpen, setNewEntryOpen] = useState(false)
+  // Set when the dialog was opened by "Add task" on a note, PR or agent: the new task references it.
+  const [taskOrigin, setTaskOrigin] = useState<TaskOrigin | null>(null)
   // A note created from the "New" dialog opens straight into its editor.
   const [editOnOpenPath, setEditOnOpenPath] = useState<string | null>(null)
 
@@ -343,6 +346,24 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const changeDateRange = (range: DateRange) => guard(() => setDateRange(range))
   const changeStatusFilter = (next: string[] | null) => guard(() => setStatusFilter(next))
   const connected = status === "connected"
+  // A flat folder has no notes/plans/daily/tasks layout to create into.
+  const canCreate = connected && layout !== "flat"
+
+  // The header's "New": any kind, referencing nothing.
+  function openNewEntry() {
+    guard(() => {
+      setTaskOrigin(null)
+      setNewEntryOpen(true)
+    })
+  }
+
+  // "Add task" on a note, PR or agent: a task that references it.
+  function startTaskFrom(origin: TaskOrigin) {
+    guard(() => {
+      setTaskOrigin(origin)
+      setNewEntryOpen(true)
+    })
+  }
 
   // Pull requests view: the PRS.md ledger, filtered like the notes list (the open PR stays listed).
   const ledgerPrs = useMemo(() => prLedger?.prs ?? [], [prLedger])
@@ -626,9 +647,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
       <SidebarInset>
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
           <SidebarTrigger />
-          {/* A flat folder has no notes/plans/daily/tasks layout to create into. */}
-          {connected && layout !== "flat" && (
-            <Button size="sm" className="gap-1.5" onClick={() => guard(() => setNewEntryOpen(true))}>
+          {canCreate && (
+            <Button size="sm" className="gap-1.5" onClick={openNewEntry}>
               <Plus className="size-3.5" />
               New
             </Button>
@@ -860,7 +880,14 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           <ResizablePanel id="detail" className="h-full min-w-0 overflow-y-auto">
             {view === "agents" ? (
               connected && selectedAgent ? (
-                <AgentDetail key={selectedAgent.id} agent={selectedAgent} now={now} prsByKey={prsByKey} onOpenPr={openPr} />
+                <AgentDetail
+                  key={selectedAgent.id}
+                  agent={selectedAgent}
+                  now={now}
+                  prsByKey={prsByKey}
+                  onOpenPr={openPr}
+                  onAddTask={canCreate ? () => startTaskFrom({ kind: "agent", agent: selectedAgent }) : null}
+                />
               ) : (
                 <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
                   {connected ? "Select an agent to see its details." : "Nothing to show yet."}
@@ -874,6 +901,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   tasks={tasksByPr.get(selectedPr.key) ?? []}
                   taskStatusByPath={taskStatusByPath}
                   onOpenTask={openTask}
+                  onAddTask={canCreate ? () => startTaskFrom({ kind: "pr", pr: selectedPr }) : null}
                 />
               ) : (
                 <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -901,6 +929,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                 flatLayout={layout === "flat"}
                 maximized={noteMaximize.maximized}
                 onToggleMaximize={noteMaximize.toggle}
+                onAddTask={canCreate && selected.source !== "tasks" ? () => startTaskFrom({ kind: "note", note: selected }) : null}
               />
             ) : (
               <div className="mx-auto flex h-full max-w-2xl items-center justify-center p-6 text-center text-sm text-muted-foreground">
@@ -926,7 +955,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         onStartDemo={guarded(startDemo)}
         onExitDemo={guarded(exitDemo)}
         onOpenSettings={() => setSettingsOpen(true)}
-        onCreateNew={connected && layout !== "flat" ? () => guard(() => setNewEntryOpen(true)) : null}
+        onCreateNew={canCreate ? openNewEntry : null}
       />
 
       <StatusSettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} catalog={statusCatalog} settings={statusSettings} />
@@ -937,6 +966,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
         defaultKind={defaultKindFor(view)}
         allTags={allTags}
         initialTaskStatus={statusCatalog[0]}
+        origin={taskOrigin}
         onCreate={handleCreate}
       />
 

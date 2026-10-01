@@ -22,6 +22,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   does. Opening a specific note (search, a task link, a note just created) loosens whichever filter
   would hide it.
 - Viewer: **Favorites** is third in the default Library order, right after Pull requests.
+- Viewer: **Add task** on every note, plan, daily plan, PR and agent creates a task that points
+  back to it, in the `ainotes-tasks` format. From a note: its path in `links:` and a line under
+  `## Purpose`, with the note's tags as the task's starting tags. From a PR: it goes in `prs:` and
+  TASKS.md's PRs cell, and the task appears under the PR's linked tasks, with its title, state and
+  Jira under `## Purpose`. From an agent: its job, repo, worktree, state and last status under
+  `## Purpose`, and any PRs it links to in `prs:`.
 
 - Viewer: Settings shows the viewer version more prominently, bottom right above the Reset/Done
   buttons. What "closed" means moved from the dialog's description to an info icon next to each

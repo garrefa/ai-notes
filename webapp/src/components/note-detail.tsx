@@ -3,6 +3,7 @@ import { ChevronDown, History, Maximize2, Minimize2, Pencil, Plus, Trash2, X } f
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { AddTaskButton } from "@/components/add-task-button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { CopyPath } from "@/components/copy-path"
 import { FavoriteButton } from "@/components/favorite-heart"
@@ -127,6 +128,7 @@ export function NoteDetail({
   flatLayout = false,
   maximized,
   onToggleMaximize,
+  onAddTask,
 }: {
   note: Note
   // The note's path, starting with the connected folder's name (shown with a copy button).
@@ -158,6 +160,9 @@ export function NoteDetail({
   // The note fills the content area (no sidebar or note list) and reads wider.
   maximized: boolean
   onToggleMaximize: () => void
+  // Starts a task referencing this note; null where tasks can't be created (a flat folder).
+  // Never offered on a task itself.
+  onAddTask: (() => void) | null
 }) {
   const tagListId = useId()
   const isTask = isTaskFile(note)
@@ -296,6 +301,7 @@ export function NoteDetail({
         <div className="mr-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
           {!flatLayout && [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
         </div>
+        {onAddTask && !isTask && !editing && <AddTaskButton onClick={onAddTask} />}
         <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
         {onDelete && !editing && (
           <Button
