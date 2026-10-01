@@ -239,9 +239,12 @@ npm run build && npm run preview       # production build, http://localhost:4173
 The plugin and the npm package share one version and one [`CHANGELOG.md`](CHANGELOG.md)
 ([Keep a Changelog](https://keepachangelog.com/en/1.1.0/), [semver](https://semver.org/)).
 
-1. Add entries under `## [Unreleased]` as you go.
+1. In each PR, add its changelog entry as a new file in [`changes/`](changes/README.md) (e.g.
+   `changes/viewer-richer-markdown.md`) rather than editing `CHANGELOG.md`, so PRs open at the
+   same time don't conflict on it.
 2. Run `tools/release.sh 0.2.0`. It bumps `.claude-plugin/plugin.json` and `webapp/package.json`,
-   dates the changelog section, commits and tags. It never pushes.
+   folds the `changes/` fragments into a dated changelog section (deleting them), commits and tags.
+   It never pushes.
 3. Review, then `git push && git push origin v0.2.0`. The tag runs
    [`.github/workflows/release.yml`](.github/workflows/release.yml), which publishes
    `ainotes-viewer` to npm (needs a one-time `NPM_TOKEN` repo secret) and creates a GitHub Release.

@@ -42,6 +42,9 @@ export interface NewEntryInput {
   status: Pick<TaskStatus, "key" | "label">
   // Tasks only: the item "Add task" was pressed on, referenced from the new task.
   origin?: TaskOrigin | null
+  // Markdown written in the dialog: the body under a note's or plan's title, a daily plan's list,
+  // a task's Purpose. Empty leaves the usual starter body.
+  body?: string
 }
 
 export interface NewEntry {
@@ -51,6 +54,8 @@ export interface NewEntry {
   fileName: (attempt: number) => string | null
   content: string
   tags: string[]
+  // Whether the dialog supplied the body; without one the new file opens in the editor to fill in.
+  hasBody: boolean
 }
 
 const MAX_SLUG_LENGTH = 60
@@ -87,7 +92,14 @@ function frontmatter(fields: [string, string][]): string {
   return `---\n${fields.map(([k, v]) => `${k}: ${v}`).join("\n")}\n---\n`
 }
 
-function buildContent({ kind, title, date, deadline, status, origin }: NewEntryInput, tags: string[], today: string): string {
+// The dialog's body, trimmed, as a block ending in one newline; "" when nothing was written.
+function bodyBlock(body: string | undefined): string {
+  const text = body?.trim() ?? ""
+  return text ? `${text}\n` : ""
+}
+
+function buildContent({ kind, title, date, deadline, status, origin, body }: NewEntryInput, tags: string[], today: string): string {
+  const written = bodyBlock(body)
   switch (kind) {
     case "note":
     case "plan":
@@ -102,7 +114,7 @@ function buildContent({ kind, title, date, deadline, status, origin }: NewEntryI
           ...(kind === "plan" ? ([["jira", "null"], ["worktree", "null"]] as [string, string][]) : []),
           ["status", kind === "plan" ? "planned" : "n/a"],
           ["links", "[]"],
-        ]) + `\n# ${title}\n\n`
+        ]) + `\n# ${title}\n\n${written}`
       )
     case "daily":
       return (
@@ -114,7 +126,7 @@ function buildContent({ kind, title, date, deadline, status, origin }: NewEntryI
           ["tags", inlineList(tags)],
           ["status", "open"],
           ["links", "[]"],
-        ]) + `\n# Daily plan: ${date}\n\n- [ ] \n`
+        ]) + `\n# Daily plan: ${date}\n\n${written || "- [ ] \n"}`
       )
     case "task":
       return (
@@ -128,7 +140,9 @@ function buildContent({ kind, title, date, deadline, status, origin }: NewEntryI
           ["prs", origin ? quotedList(taskOriginPrs(origin).map((p) => p.ref)) : "[]"],
           ["tags", inlineList(tags)],
           ["links", origin ? quotedList(taskOriginLinks(origin)) : "[]"],
-        ]) + `\n## Purpose\n${origin ? `${taskOriginPurpose(origin)}\n` : ""}\n\n## Updates\n- ${today}: created (${status.label})\n`
+        ]) +
+        `\n## Purpose\n${origin ? `${taskOriginPurpose(origin)}\n` : ""}${origin && written ? "\n" : ""}${written}` +
+        `\n\n## Updates\n- ${today}: created (${status.label})\n`
       )
   }
 }
@@ -141,5 +155,6 @@ export function buildNewEntry(input: NewEntryInput, today: string): NewEntry {
     fileName: (attempt) => (attempt === 1 ? `${base}.md` : input.kind === "daily" ? null : `${base}-${attempt}.md`),
     content: buildContent(input, tags, today),
     tags,
+    hasBody: bodyBlock(input.body) !== "",
   }
 }

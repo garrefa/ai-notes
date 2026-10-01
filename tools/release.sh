@@ -4,11 +4,13 @@
 # share one version number).
 #
 # What it does:
-#   1. Requires a clean tree on the default branch, and an "## [Unreleased]" section in
-#      CHANGELOG.md with at least one bullet under it — that section becomes the release notes.
+#   1. Requires a clean tree on the default branch, an "## [Unreleased]" section in CHANGELOG.md,
+#      and at least one entry pending: a bullet under that section or a fragment file in changes/
+#      (see changes/README.md). Together they become the release notes.
 #   2. Bumps the version in .claude-plugin/plugin.json and webapp/package.json to the given version.
-#   3. Renames "## [Unreleased]" to "## [X.Y.Z] - YYYY-MM-DD" in CHANGELOG.md, adds a fresh empty
-#      "## [Unreleased]" above it, and appends compare/tag links at the bottom.
+#   3. Appends every changes/*.md fragment (file-name order) to the "## [Unreleased]" section and
+#      deletes the fragments, then renames that section to "## [X.Y.Z] - YYYY-MM-DD", adds a fresh
+#      empty "## [Unreleased]" above it, and appends compare/tag links at the bottom.
 #   4. Commits "Release vX.Y.Z" and tags it "vX.Y.Z" (annotated).
 #
 # It does NOT push. Push the commit and the tag yourself once you're happy:
@@ -68,15 +70,22 @@ if git rev-parse "$TAG" >/dev/null 2>&1; then
   exit 1
 fi
 
-UNRELEASED_BODY="$(python3 - <<'PY'
+# Pending entries, one file per PR (changes/README.md documents the format; it isn't one itself).
+FRAGMENTS=()
+while IFS= read -r fragment; do FRAGMENTS+=("$fragment"); done < <(
+  find changes -maxdepth 1 -type f -name '*.md' ! -name README.md 2>/dev/null | LC_ALL=C sort
+)
+
+UNRELEASED_BODY="$(python3 - ${FRAGMENTS[@]+"${FRAGMENTS[@]}"} <<'PY'
 import re, sys
 text = open("CHANGELOG.md").read()
 m = re.search(r"^## \[Unreleased\]\n(.*?)(?=^## \[|\Z)", text, re.S | re.M)
 if not m:
     sys.exit("no '## [Unreleased]' section found in CHANGELOG.md")
-body = m.group(1).strip("\n")
-if not body.strip():
-    sys.exit("'## [Unreleased]' section is empty — add changelog entries before releasing")
+parts = [m.group(1).strip("\n")] + [open(path).read().strip("\n") for path in sys.argv[1:]]
+body = "\n".join(part for part in parts if part.strip())
+if not body:
+    sys.exit("nothing to release — add a fragment in changes/ or entries under '## [Unreleased]'")
 print(body)
 PY
 )" || { echo "release: $UNRELEASED_BODY" >&2; exit 1; }
@@ -103,6 +112,26 @@ for path in ("./.claude-plugin/plugin.json", "./webapp/package.json"):
         f.write("\n")
 PY
 log "bumped .claude-plugin/plugin.json and webapp/package.json to $VERSION"
+
+# The section's full release notes (checked above) replace its body, so the fragments land in it.
+UNRELEASED_BODY="$UNRELEASED_BODY" python3 - <<'PY'
+import os, re
+path = "CHANGELOG.md"
+text = open(path).read()
+body = os.environ["UNRELEASED_BODY"]
+text = re.sub(
+    r"^(## \[Unreleased\]\n).*?(?=^## \[|\Z)",
+    lambda m: f"{m.group(1)}\n{body}\n\n",
+    text,
+    count=1,
+    flags=re.S | re.M,
+)
+open(path, "w").write(text)
+PY
+if [ "${#FRAGMENTS[@]}" -gt 0 ]; then
+  run git rm -q -- "${FRAGMENTS[@]}"
+  log "folded ${#FRAGMENTS[@]} changes/ fragment(s) into CHANGELOG.md"
+fi
 
 python3 - "$VERSION" "$TAG" <<'PY'
 import re, sys
