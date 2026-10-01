@@ -1,8 +1,9 @@
 import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
-import { ChevronDown, History, Pencil, Plus, Trash2, X } from "lucide-react"
+import { ChevronDown, History, Maximize2, Minimize2, Pencil, Plus, Trash2, X } from "lucide-react"
 import Markdown from "react-markdown"
 import remarkGfm from "remark-gfm"
 
+import { AddTaskButton } from "@/components/add-task-button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { CopyPath } from "@/components/copy-path"
 import { FavoriteButton } from "@/components/favorite-heart"
@@ -79,6 +80,16 @@ function formatDraftTime(savedAt: number): string {
   return new Date(savedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
+// Toggles the note between the normal layout and filling the window.
+function MaximizeButton({ maximized, onToggle }: { maximized: boolean; onToggle: () => void }) {
+  const label = maximized ? "Restore layout (Esc)" : "Maximize"
+  return (
+    <Button size="icon-sm" variant="outline" aria-pressed={maximized} aria-label={label} title={label} onClick={onToggle}>
+      {maximized ? <Minimize2 className="text-muted-foreground" /> : <Maximize2 className="text-muted-foreground" />}
+    </Button>
+  )
+}
+
 // A draft left over from a tab that was closed mid-edit.
 function DraftRestoreBanner({ draft, onRestore, onDiscard }: { draft: NoteDraft; onRestore: () => void; onDiscard: () => void }) {
   return (
@@ -115,6 +126,9 @@ export function NoteDetail({
   startEditing = false,
   editorRef,
   flatLayout = false,
+  maximized,
+  onToggleMaximize,
+  onAddTask,
 }: {
   note: Note
   // The note's path, starting with the connected folder's name (shown with a copy button).
@@ -133,7 +147,8 @@ export function NoteDetail({
   taskStatuses: TaskStatus[]
   onSetTaskStatus: (path: string, statusKey: string) => Promise<string | null>
   favorite: boolean
-  onToggleFavorite: () => void
+  // Adds or removes the `fav` tag; null when the file has no frontmatter to hold it.
+  onToggleFavorite: (() => void) | null
   // Where unsaved edits are kept in case the tab closes (null: not kept, e.g. in the demo).
   draftKey: string | null
   // Opens straight into the body editor (a note that was just created).
@@ -143,6 +158,12 @@ export function NoteDetail({
   // "add" affordance is hidden (existing tags, if any, can still be removed), and the
   // date/type/repo line is left out.
   flatLayout?: boolean
+  // The note fills the content area (no sidebar or note list); drives the maximize button's state.
+  maximized: boolean
+  onToggleMaximize: () => void
+  // Starts a task referencing this note; null where tasks can't be created (a flat folder).
+  // Never offered on a task itself.
+  onAddTask: (() => void) | null
 }) {
   const tagListId = useId()
   const isTask = isTaskFile(note)
@@ -273,7 +294,7 @@ export function NoteDetail({
   }
 
   return (
-    <article className="mx-auto max-w-2xl p-6 lg:p-10">
+    <article className="p-6 lg:p-10">
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
       {/* Date and type on the left, the note's actions on the right; tags go on the line below. */}
@@ -281,7 +302,8 @@ export function NoteDetail({
         <div className="mr-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
           {!flatLayout && [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
         </div>
-        <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
+        {onAddTask && !isTask && !editing && <AddTaskButton onClick={onAddTask} />}
+        {onToggleFavorite && <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />}
         {onDelete && !editing && (
           <Button
             size="icon-sm"
@@ -311,6 +333,7 @@ export function NoteDetail({
             Edit
           </Button>
         )}
+        <MaximizeButton maximized={maximized} onToggle={onToggleMaximize} />
       </div>
       <div className="mb-3 flex flex-wrap items-center gap-1.5">
           {note.tags.map((t) => (

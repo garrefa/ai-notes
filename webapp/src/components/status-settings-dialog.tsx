@@ -3,6 +3,7 @@ import { Info, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
+import { appVersionLabel } from "@/lib/app-version"
 import type { StatusSettings } from "@/lib/status-settings"
 import { defaultTaskStatus, isBuiltinStatusKey, type TaskStatus } from "@/lib/task-status"
 import { cn } from "@/lib/utils"
@@ -121,7 +122,7 @@ export function StatusSettingsDialog({
           <StatusGroup heading="Found in this folder's tasks" statuses={discovered} settings={settings} />
         </div>
         <p className="justify-self-end font-mono text-sm font-medium text-foreground/80">
-          ainotes-viewer v{__APP_VERSION__}
+          {appVersionLabel()}
         </p>
         <DialogFooter className="sm:justify-between">
           <Button variant="outline" disabled={!anyOverridden} onClick={settings.resetAll} className="gap-2">

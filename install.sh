@@ -58,7 +58,7 @@ command -v python3 >/dev/null || { echo "python3 is required (used to merge sett
 WS="$(cd "$WS" && pwd)"
 DEST="$WS/.claude"
 SETTINGS="$DEST/settings.json"
-HOOK_SCRIPTS=(session-start-task-prompt.sh detect-unregistered-repo.sh detect-repo-clone.sh)
+HOOK_SCRIPTS=(session-start-task-prompt.sh detect-unregistered-repo.sh detect-notes-repo-change.sh detect-repo-clone.sh)
 # In tools/ but not part of a workspace install: release.sh cuts releases of this repo. Older
 # versions of this script installed it anyway, so install and uninstall both remove a stale copy.
 MAINTAINER_TOOLS=(release.sh)
@@ -278,7 +278,11 @@ import json, os, sys
 path, mode = sys.argv[1], sys.argv[2]
 cmd = lambda name: f'"${{CLAUDE_PROJECT_DIR}}/.claude/hooks/{name}"'
 wanted = {
-    "SessionStart": [("startup", cmd("session-start-task-prompt.sh")), ("startup", cmd("detect-unregistered-repo.sh"))],
+    "SessionStart": [
+        ("startup", cmd("session-start-task-prompt.sh")),
+        ("startup", cmd("detect-unregistered-repo.sh")),
+        ("startup", cmd("detect-notes-repo-change.sh")),
+    ],
     "PostToolUse": [("Bash", cmd("detect-repo-clone.sh"))],
 }
 ours = {c for entries in wanted.values() for _, c in entries}

@@ -176,6 +176,7 @@ anything user-facing stay on your main model.
 |---|---|---|
 | Session start | `session-start-task-prompt.sh` | Asks whether to track the session as a task |
 | Session start | `detect-unregistered-repo.sh` | Suggests registering a repo missing from the config |
+| Session start | `detect-notes-repo-change.sh` | After `notes_repo` changes, alerts you to update launchd/cron jobs still pointing at the old folder |
 | After a `git clone` | `detect-repo-clone.sh` | Suggests registering the newly cloned repo |
 
 All hooks do nothing outside an AINotes workspace.

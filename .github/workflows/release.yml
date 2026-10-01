@@ -23,6 +23,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history: the viewer's build number is the commit count (vite.config.ts), and a
+          # shallow clone would make every release build number 1.
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
