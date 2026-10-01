@@ -162,8 +162,8 @@ flat folder and every note just shows. Editing and saving works the same as any 
 
 ## The Library
 
-The sidebar's **Library** lists **Agents**, **Pull requests**, **All notes**, **Notes**, **Plans**,
-**Daily**, **Tasks** and **Favorites**, in that order by default. Drag an item (or focus it and press
+The sidebar's **Library** lists **Agents**, **Pull requests**, **Favorites**, **All notes**, **Notes**,
+**Plans**, **Daily** and **Tasks**, in that order by default. Drag an item (or focus it and press
 `Alt+↑`/`Alt+↓`) to reorder; the order is remembered in this browser. Once a folder is open, an item
 with nothing to list is hidden (a folder with no plans shows no **Plans**, and **Favorites** only
 appears once something is favorited); **Agents** and **Pull requests** always show, since their
@@ -172,6 +172,15 @@ favorite, say), the viewer moves to **All notes**.
 
 The **Date range** filter applies to **All notes**, **Notes**, **Plans** and **Daily** only. Tasks,
 favorites, PRs and agents always list everything, whatever their date.
+
+The open note follows the filters like every other note. When it stops matching (you change the
+view, tag, date range or task-status filter, or edit its own tags or status), it's deselected and
+the list's first note opens; it isn't reselected if a later filter lets it back in. Changing a
+filter with unsaved edits asks first. Opening a specific note (from `Cmd/Ctrl+K`, a task link on a
+PR, or a note you just created) loosens whichever filter would hide it.
+
+The list column is resizable: drag its edge, or focus the divider and use the arrow keys, for a
+width between 18rem and 32rem (28rem by default). The width is remembered in this browser.
 
 ## Creating, editing and deleting
 
@@ -190,8 +199,16 @@ runs git: commit the changes in your notes repo as usual.
   hidden in a flat folder, which has no layout to create into.
 - **Edit the body:** **Edit** / **Save** as before. Saving keeps the frontmatter that's on disk at
   that moment, so a tag or status changed mid-edit isn't reverted.
-- **Layout:** the top row has the note's date, type and repo on the left and its buttons (favorite,
-  delete, Edit) on the right; its tags are on the line below. A title that is the note's `# heading` is shown once, at the top of the
+- **Layout:** the top row has the note's date, type and repo on the left and its buttons (Add task,
+  favorite, delete, Edit, maximize) on the right; its tags are on the line below.
+- **Add task:** on every note, plan, daily plan, PR and agent, it opens the dialog as a task that
+  points back to the item, in the `ainotes-tasks` format. A note's path goes in the task's
+  `links:` and its tags become the task's starting tags. A PR goes in `prs:` and `TASKS.md`'s PRs
+  cell, so the task shows under the PR's linked tasks. An agent's job, repo, worktree, state and
+  last status are recorded, and any PRs it links to go in `prs:`. Each origin is also described in
+  a line under `## Purpose`.
+- **Maximize:** the last button hides the sidebar and the note list so the note fills the window,
+  in a wider column. Press it again, or Esc, to go back; the sidebar returns only if it was open. A title that is the note's `# heading` is shown once, at the top of the
   rendered note; a task's (its frontmatter `title:`) shows above the body. To change a note's title,
   edit its `# heading` in the body.
 - **Deadline:** a task's detail pane has a date field next to its status; it saves when you leave
@@ -219,9 +236,13 @@ no drafts.
 
 The heart in a note's detail pane favorites it (notes, plans, daily plans and tasks alike).
 Favorites show a heart on their card and are listed together under **Favorites** in the Library,
-newest first; the tag filter still applies there, the date range doesn't. They're stored per folder
-in this browser's `localStorage`, not in the notes repo, so another browser or machine has its own.
-Deleting a note from the viewer drops it from favorites. The demo's favorites last until you reload.
+newest first; the tag filter still applies there, the date range doesn't.
+
+A favorite is the `fav` tag in the note's own frontmatter: the heart adds or removes it, as the tag
+editor would, and adding or removing `fav` by hand does the same. So favorites live in the notes
+repo, committed with everything else and the same in every browser and machine. A file without
+frontmatter has nowhere to keep the tag, so it shows no heart. Favorites from older versions, kept
+in this browser's `localStorage`, are moved into tags the first time the folder opens.
 
 ## Agents
 

@@ -23,6 +23,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   does. Opening a specific note (search, a task link, a note just created) loosens whichever filter
   would hide it.
 - Viewer: **Favorites** is third in the default Library order, right after Pull requests.
+- Viewer: favorites are the `fav` tag in each note's frontmatter instead of a list in the
+  browser's localStorage, so they're committed with the notes repo and the same everywhere. The
+  heart adds or removes the tag. Favorites saved by an earlier version are moved into tags the
+  first time the folder opens.
 - Viewer: **Add task** on every note, plan, daily plan, PR and agent creates a task that points
   back to it, in the `ainotes-tasks` format. From a note: its path in `links:` and a line under
   `## Purpose`, with the note's tags as the task's starting tags. From a PR: it goes in `prs:` and
