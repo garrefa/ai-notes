@@ -479,7 +479,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     // Stay in a view that lists the new file; otherwise go to its own.
     if (view !== "all" && view !== entry.source) setViewNow(entry.source)
     setRevealPath(created.path)
-    setEditOnOpenPath(created.path)
+    // Written in the dialog already: show it. Otherwise open the editor to fill in the starter body.
+    setEditOnOpenPath(entry.hasBody ? null : created.path)
     setNewEntryOpen(false)
   }
 
