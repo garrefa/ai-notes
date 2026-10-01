@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+- New `detect-notes-repo-change.sh` SessionStart hook: when `notes_repo` in `.ai-notes/config.yml`
+  changes (a renamed or moved notes repo), it alerts you to update launchd agents and cron jobs that
+  still point at the old folder, listing each one. It repeats each session until none does.
+  `ainotes-setup` runs the same check whenever it changes `notes_repo` itself, and recommends running
+  the tools from the workspace root with no notes-repo path, since they read `notes_repo` from the
+  config on every run.
 - Viewer: a **Maximize** button on every note hides the sidebar and the note list so the note fills
   the window. Press it again, or Esc, to go back: the sidebar returns only if it was open before.
 - Viewer: a note's details fill the whole detail pane instead of a fixed 42rem column, so they
