@@ -8,6 +8,9 @@ share one version number, bumped together by `tools/release.sh`; see the "Releas
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+New entries don't go in this file: each PR adds a fragment in [`changes/`](changes/README.md),
+which `tools/release.sh` folds into the release's section here.
+
 ## [Unreleased]
 
 - Viewer: a folder no longer shows as "can't be read" or "couldn't be found" while an agent or git
