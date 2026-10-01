@@ -16,6 +16,8 @@ export const DEFAULT_LAST_DAYS = 7
 export const MAX_LAST_DAYS = 3650
 
 export const DEFAULT_DATE_RANGE: DateRangeFilter = { mode: "last", lastDays: DEFAULT_LAST_DAYS, customFrom: "", customTo: "" }
+// A custom range with neither bound: nothing is filtered out by date.
+export const ALL_TIME_DATE_RANGE: DateRangeFilter = { ...DEFAULT_DATE_RANGE, mode: "custom" }
 
 export const DATE_RANGE_MODES: { mode: DateRangeMode; label: string }[] = [
   // Labelled with the chosen count at render time ("Last 7 days").

@@ -39,7 +39,7 @@ import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-direct
 import { useStoredWidth } from "@/hooks/use-stored-width"
 import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
-import { DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
+import { ALL_TIME_DATE_RANGE, DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
 import { draftKey } from "@/lib/drafts"
 import { useFavorites } from "@/lib/favorites"
 import { DEFAULT_LIBRARY_ORDER, isHideableWhenEmpty, useSelectedView, type LibraryView } from "@/lib/library-order"
@@ -104,6 +104,39 @@ function viewMatchesNote(view: View, note: Note, favorites: ReadonlySet<string>)
   if (view === "favorites") return favorites.has(note.path)
   if (view === "all") return true
   return isNoteView(view) && view === note.source
+}
+
+// Empty bounds are open on that side; an undated note is outside any bounded range.
+function inDateRange(note: Note, from: string, to: string) {
+  if (!from && !to) return true
+  return Boolean(note.date && (!from || note.date >= from) && (!to || note.date <= to))
+}
+
+interface NoteFilters {
+  view: View
+  favorites: ReadonlySet<string>
+  // Flat layout (no notes/plans/db convention): files rarely carry the date/tags frontmatter these
+  // filters assume, and the date filter's "last 7 days" default would otherwise hide everything
+  // undated, so tag and date filtering are off there rather than silently emptying the folder.
+  flat: boolean
+  activeTag: string | null
+  dateFrom: string
+  dateTo: string
+  allowedStatuses: ReadonlySet<string>
+  taskStatusByPath: ReadonlyMap<string, TaskStatus>
+}
+
+// What the note list shows. The open note gets no exemption: once it stops matching (a filter
+// changed, its tags or status were edited), it's deselected and the list's first note opens instead.
+function noteMatchesFilters(note: Note, f: NoteFilters) {
+  if (!viewMatchesNote(f.view, note, f.favorites)) return false
+  if (f.view === "tasks") {
+    const status = f.taskStatusByPath.get(note.path)
+    if (status && !f.allowedStatuses.has(status.key)) return false
+  }
+  if (f.flat) return true
+  if (f.activeTag && !note.tags.includes(f.activeTag)) return false
+  return !dateFilterApplies(f.view) || inDateRange(note, f.dateFrom, f.dateTo)
 }
 
 // What the "New" dialog offers first, given the view it was opened from.
@@ -246,50 +279,69 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     const current = new Set(effectiveStatusFilter)
     if (current.has(key)) current.delete(key)
     else current.add(key)
-    setStatusFilter([...current])
+    changeStatusFilter([...current])
   }
 
   const counts = useMemo(() => tagCounts(notes), [notes])
   const allTags = useMemo(() => uniqueTags(notes), [notes])
 
-  const filtered = useMemo(() => {
-    // The note currently open never gets filtered out of its own list — editing a note's
-    // tags to no longer match the active tag filter shouldn't make it vanish mid-edit.
-    let list = notes.filter((n) => viewMatchesNote(view, n, favorites) || n.path === selectedPath)
-    if (view === "tasks") {
-      const allowed = new Set(effectiveStatusFilter)
-      list = list.filter((n) => {
-        const status = taskStatusByPath.get(n.path)
-        return !status || allowed.has(status.key) || n.path === selectedPath
-      })
-    }
-    // Flat layout (no notes/plans/db convention): files rarely carry the date/tags frontmatter
-    // these filters assume, and the date filter's "last 7 days" default would otherwise hide
-    // everything undated — so tag/date filtering is disabled entirely rather than silently
-    // filtering out a folder's worth of undated notes.
-    if (layout !== "flat") {
-      if (activeTag) list = list.filter((n) => n.tags.includes(activeTag) || n.path === selectedPath)
-      if (dateFilterApplies(view) && (dateFrom || dateTo)) {
-        list = list.filter(
-          (n) => (n.date && (!dateFrom || n.date >= dateFrom) && (!dateTo || n.date <= dateTo)) || n.path === selectedPath,
-        )
-      }
-    }
-    return list
-  }, [notes, view, favorites, effectiveStatusFilter, taskStatusByPath, layout, activeTag, dateFrom, dateTo, selectedPath])
+  const filters = useMemo<NoteFilters>(
+    () => ({
+      view,
+      favorites,
+      flat: layout === "flat",
+      activeTag,
+      dateFrom,
+      dateTo,
+      allowedStatuses: new Set(effectiveStatusFilter),
+      taskStatusByPath,
+    }),
+    [view, favorites, layout, activeTag, dateFrom, dateTo, effectiveStatusFilter, taskStatusByPath],
+  )
+  const filtered = useMemo(() => notes.filter((n) => noteMatchesFilters(n, filters)), [notes, filters])
 
-  const selected = notes.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
+  // A note asked for by path (the palette, a task link, a note just created) is shown even if the
+  // current filters hide it: they're loosened to let it through. Applied here, once the note is
+  // in `notes`, because a just-created file only shows up after the folder reloads.
+  const [revealPath, setRevealPath] = useState<string | null>(null)
+  const revealing = revealPath !== null && notes.some((n) => n.path === revealPath)
+  if (revealing) {
+    const note = notes.find((n) => n.path === revealPath)!
+    setRevealPath(null)
+    revealNote(note)
+  }
+
+  // The selected note never outlives a filter that drops it: the selection clears (the list's
+  // first note opens) and doesn't come back if the filter later lets that note through again.
+  if (!revealing && selectedPath && notes.some((n) => n.path === selectedPath) && !filtered.some((n) => n.path === selectedPath)) {
+    setSelectedPath(null)
+  }
+
+  const selected = filtered.find((n) => n.path === selectedPath) ?? filtered[0] ?? null
   const noteMaximize = useMaximizedNote(isNoteView(view) && selected !== null)
   const listWidth = useStoredWidth(NOTE_LIST_WIDTH_KEY, NOTE_LIST_DEFAULT_WIDTH)
 
-  // The open note stays listed while it's edited within a view (see `filtered`), but switching to a
-  // view it doesn't belong to drops it, so the new view opens on its own first item instead.
-  function setView(next: View) {
-    guard(() => {
-      setViewNow(next)
-      if (selected && !viewMatchesNote(next, selected, favorites)) setSelectedPath(null)
-    })
+  // Loosens whichever filters hide `note`, then selects it.
+  function revealNote(note: Note) {
+    const nextView = viewMatchesNote(view, note, favorites) ? view : "all"
+    if (nextView !== view) setViewNow(nextView)
+    if (layout !== "flat") {
+      if (activeTag && !note.tags.includes(activeTag)) setActiveTag(null)
+      if (dateFilterApplies(nextView) && !inDateRange(note, dateFrom, dateTo)) setDateRange(ALL_TIME_DATE_RANGE)
+    }
+    const status = taskStatusByPath.get(note.path)
+    if (nextView === "tasks" && status && !effectiveStatusFilter.includes(status.key)) {
+      setStatusFilter([...effectiveStatusFilter, status.key])
+    }
+    setSelectedPath(note.path)
   }
+
+  // Changing what the list shows can take the open note off screen, so it asks first when that
+  // note has unsaved edits (same as switching views or notes).
+  const setView = (next: View) => guard(() => setViewNow(next))
+  const changeTag = (tag: string | null) => guard(() => setActiveTag(tag))
+  const changeDateRange = (range: DateRange) => guard(() => setDateRange(range))
+  const changeStatusFilter = (next: string[] | null) => guard(() => setStatusFilter(next))
   const connected = status === "connected"
 
   // Pull requests view: the PRS.md ledger, filtered like the notes list (the open PR stays listed).
@@ -377,7 +429,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   function openTask(path: string) {
     guard(() => {
       setViewNow("tasks")
-      setSelectedPath(path)
+      setRevealPath(path)
     })
   }
 
@@ -386,10 +438,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   }
 
   function openNoteFromPalette(path: string) {
-    guard(() => {
-      if (!isNoteView(view)) setViewNow("all")
-      setSelectedPath(path)
-    })
+    guard(() => setRevealPath(path))
   }
 
   async function handleCreate(entry: NewEntry, task: NewTaskRow | null) {
@@ -397,7 +446,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     if (created.notice) showNotice(created.notice)
     // Stay in a view that lists the new file; otherwise go to its own.
     if (view !== "all" && view !== entry.source) setViewNow(entry.source)
-    setSelectedPath(created.path)
+    setRevealPath(created.path)
     setEditOnOpenPath(created.path)
     setNewEntryOpen(false)
   }
@@ -414,8 +463,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     if (hiddenViews.has(view)) setViewNow(hiddenViews.has("all") ? "agents" : "all")
   }, [hiddenViews, view, setViewNow])
 
-  // The "open in the editor" request only applies to the note it was made for.
-  if (editOnOpenPath && selectedPath !== editOnOpenPath) setEditOnOpenPath(null)
+  // The "open in the editor" request only applies to the note it was made for (once it's revealed).
+  if (editOnOpenPath && !revealPath && selectedPath !== editOnOpenPath) setEditOnOpenPath(null)
 
   // Same as notes and PRs: pin the first listed agent as the real selection once one shows.
   useEffect(() => {
@@ -427,17 +476,9 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     if (!selectedPrKey && visiblePrs[0]) setSelectedPrKey(visiblePrs[0].key)
   }, [selectedPrKey, visiblePrs])
 
-  // Nothing is explicitly selected yet (selectedPath is still null) but a note is showing
-  // via the filtered[0] fallback — pin it as the real selection so the "keep the open note
-  // visible" exemptions above actually apply to it, instead of only kicking in once you've
-  // clicked a note card yourself.
-  useEffect(() => {
-    if (!selectedPath && filtered[0]) setSelectedPath(filtered[0].path)
-  }, [selectedPath, filtered])
-
   // The active tag filter no longer matches anything anywhere (its last note just had it
   // removed) — drop the filter rather than leave it silently pinned to a tag that no longer
-  // exists. This never touches selectedPath, so whatever note is open stays open.
+  // exists.
   useEffect(() => {
     if (activeTag && !notes.some((n) => n.tags.includes(activeTag))) {
       setActiveTag(null)
@@ -469,7 +510,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             <SidebarGroup>
               <SidebarGroupLabel className="flex items-center justify-between">
                 Status
-                {statusFilter && <SidebarGroupAction onClick={() => setStatusFilter(null)}>Reset</SidebarGroupAction>}
+                {statusFilter && <SidebarGroupAction onClick={() => changeStatusFilter(null)}>Reset</SidebarGroupAction>}
               </SidebarGroupLabel>
               <SidebarGroupContent className="flex flex-wrap gap-1.5 px-2">
                 {statusCatalog.map((s) => {
@@ -492,14 +533,14 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             </SidebarGroup>
           )}
 
-          {dateFilterApplies(view) && layout !== "flat" && <DateRangeFilter value={dateRange} onChange={setDateRange} />}
+          {dateFilterApplies(view) && layout !== "flat" && <DateRangeFilter value={dateRange} onChange={changeDateRange} />}
 
           {isNoteView(view) && layout !== "flat" && (
             <CollapsibleSidebarGroup
               title="Tags"
               storageKey={TAGS_COLLAPSE_KEY}
               summary={activeTag && displayTag(activeTag)}
-              action={activeTag && <SidebarGroupAction onClick={() => setActiveTag(null)}>Clear</SidebarGroupAction>}
+              action={activeTag && <SidebarGroupAction onClick={() => changeTag(null)}>Clear</SidebarGroupAction>}
               contentClassName="space-y-2 px-2"
             >
               <Input
@@ -514,7 +555,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                   .map(([tag, n]) => (
                     <button
                       key={tag}
-                      onClick={() => setActiveTag(activeTag === tag ? null : tag)}
+                      onClick={() => changeTag(activeTag === tag ? null : tag)}
                       className={`rounded-full border px-2 py-0.5 font-mono text-[11px] transition-colors ${
                         activeTag === tag
                           ? "border-primary bg-primary/10 text-primary"
