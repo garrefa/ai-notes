@@ -11,10 +11,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 ## [Unreleased]
 
 - Viewer: a **Maximize** button on every note hides the sidebar and the note list so the note fills
-  the window, in a wider reading column. Press it again, or Esc, to go back: the sidebar returns
-  only if it was open before.
-- Viewer: the note list is resizable. Drag its edge to make it anywhere from 18rem to 32rem wide
-  (28rem by default); the width is remembered per browser.
+  the window. Press it again, or Esc, to go back: the sidebar returns only if it was open before.
+- Viewer: a note's details fill the whole detail pane instead of a fixed 42rem column, so they
+  widen with the window or a maximized note.
+- Viewer: the note list can be dragged narrower, down to 18rem, from its 28rem default, which is
+  also its widest; the width is remembered per browser.
 - Viewer: the open note no longer sticks around when it stops matching the list. Changing the
   view, tag, date range or task-status filter, or editing the note's own tags or status so it no
   longer fits, deselects it and opens the list's first note instead; it isn't reselected if the

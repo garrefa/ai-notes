@@ -20,7 +20,6 @@ import { useAsyncAction } from "@/hooks/use-async-action"
 import { forgetDraft, loadDraft, storeDraft, type NoteDraft } from "@/lib/drafts"
 import { displayTag, withUpdatedTags, type Note } from "@/lib/notes-frontmatter"
 import { isTaskFile, type TaskStatus } from "@/lib/task-status"
-import { cn } from "@/lib/utils"
 
 const DISCONNECTED_HINT = "check the folder is still connected."
 
@@ -81,7 +80,7 @@ function formatDraftTime(savedAt: number): string {
   return new Date(savedAt).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" })
 }
 
-// A draft left over from a tab that was closed mid-edit.
+// Toggles the note between the normal layout and filling the window.
 function MaximizeButton({ maximized, onToggle }: { maximized: boolean; onToggle: () => void }) {
   const label = maximized ? "Restore layout (Esc)" : "Maximize"
   return (
@@ -91,6 +90,7 @@ function MaximizeButton({ maximized, onToggle }: { maximized: boolean; onToggle:
   )
 }
 
+// A draft left over from a tab that was closed mid-edit.
 function DraftRestoreBanner({ draft, onRestore, onDiscard }: { draft: NoteDraft; onRestore: () => void; onDiscard: () => void }) {
   return (
     <div role="status" className="mb-4 flex flex-wrap items-center gap-2 rounded-lg border border-primary/40 bg-primary/5 p-2.5 text-xs text-muted-foreground">
@@ -157,7 +157,7 @@ export function NoteDetail({
   // "add" affordance is hidden (existing tags, if any, can still be removed), and the
   // date/type/repo line is left out.
   flatLayout?: boolean
-  // The note fills the content area (no sidebar or note list) and reads wider.
+  // The note fills the content area (no sidebar or note list); drives the maximize button's state.
   maximized: boolean
   onToggleMaximize: () => void
   // Starts a task referencing this note; null where tasks can't be created (a flat folder).
@@ -293,7 +293,7 @@ export function NoteDetail({
   }
 
   return (
-    <article className={cn("mx-auto p-6 lg:p-10", maximized ? "max-w-4xl" : "max-w-2xl")}>
+    <article className="p-6 lg:p-10">
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
       {/* Date and type on the left, the note's actions on the right; tags go on the line below. */}

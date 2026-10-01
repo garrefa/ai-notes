@@ -65,11 +65,11 @@ const CHANGELOG_URL = `${PROJECT_REPO_URL}/blob/main/CHANGELOG.md`
 // How often relative times in the Agents view ("updated 3m ago") are recomputed.
 const CLOCK_TICK_MS = 30_000
 const TAGS_COLLAPSE_KEY = "ainotes-tags-collapsed"
-// The list column's width is dragged between these, and remembered per browser.
+// The list column starts at its widest and can be dragged narrower; the width is remembered per browser.
 const NOTE_LIST_WIDTH_KEY = "ainotes-note-list-width"
 const NOTE_LIST_DEFAULT_WIDTH = "28rem"
 const NOTE_LIST_MIN_WIDTH = "18rem"
-const NOTE_LIST_MAX_WIDTH = "32rem"
+const NOTE_LIST_MAX_WIDTH = NOTE_LIST_DEFAULT_WIDTH
 
 // lucide-react dropped brand icons, so the GitHub mark is drawn inline.
 function GitHubMark() {
