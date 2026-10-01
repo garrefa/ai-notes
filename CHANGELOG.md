@@ -13,6 +13,8 @@ which `tools/release.sh` folds into the release's section here.
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-10-01
+
 - Viewer: a folder no longer shows as "can't be read" or "couldn't be found" while an agent or git
   is writing to it. A reload retries `NotReadableError`/`NotFoundError` a few times before giving up,
   ignores file changes under `.git/`, and when a reload does fail it keeps watching the folder, so it
@@ -56,6 +58,24 @@ which `tools/release.sh` folds into the release's section here.
   buttons. What "closed" means moved from the dialog's description to an info icon next to each
   Closed switch, shown on hover. The per-status reset button is gone; **Reset all to defaults**
   remains.
+- Changelog entries are now one fragment file per PR in `changes/` instead of edits to
+  `CHANGELOG.md`, so PRs open at the same time no longer conflict on it. `tools/release.sh` folds
+  the fragments into the release's section and deletes them; see `changes/README.md`.
+- Viewer: the New dialog has a content box, so a note, plan, daily plan or task can be written
+  before it's created: it goes under a note's or plan's title, becomes a daily plan's list, or a
+  task's Purpose. With content the new file opens to read; left empty, it opens in the editor with
+  the usual starter body as before. While the box holds text, Esc or a click outside doesn't close
+  the dialog, and ⌘/Ctrl+Enter creates from inside it.
+- Viewer: richer note rendering. `:shortcode:` emoji become emoji, inline code shows as a code pill
+  instead of with literal backticks, fenced code with a language is syntax-highlighted (light and
+  dark), and GitHub alerts (`> [!NOTE]`, `[!TIP]`, `[!IMPORTANT]`, `[!WARNING]`, `[!CAUTION]`) render
+  as callouts. Web links open in a new tab.
+- Viewer: a link from one note to another — a relative `.md` link or a `[[wiki]]` link naming a note
+  by file name, with or without its date — opens that note in a popover over the current one. Links
+  inside it open the next note in place (Back returns), Maximize fills the window, and Open makes it
+  the main note. A `[[wiki]]` link that names no note shows as plain text.
+- Viewer: a note's action row (Edit, Delete, Favorite, Add task, Maximize) stays pinned to the top
+  of the note pane while the note scrolls, instead of scrolling away with it.
 
 ## [0.2.0] - 2026-09-30
 
@@ -120,6 +140,7 @@ Baseline release. Established the current shape of the toolkit:
 - The notes repo keeps its data at the repo root; installing over an older repo that still uses a
   `db/` folder moves it up automatically.
 
-[Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/garrefa/ai-notes/compare/v0.3.0...HEAD
 [0.1.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.1.0
 [0.2.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.2.0
+[0.3.0]: https://github.com/garrefa/ai-notes/releases/tag/v0.3.0
