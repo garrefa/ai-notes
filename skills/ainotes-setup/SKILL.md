@@ -124,6 +124,25 @@ When the user wants `notes_repo` created fresh (it doesn't exist yet at `<worksp
 If the directory already exists but isn't a git repo, ask before running `git init` in it, and never
 overwrite existing files with template copies.
 
+### Changing `notes_repo`
+
+Whenever this skill changes `notes_repo` in an existing config (the notes repo was renamed or
+moved, or the user points it somewhere else), scheduled jobs may still point at the old folder
+and quietly stop working. A launchd `WorkingDirectory` inside it, or `check-prs.sh` given an
+explicit `PRS.md` path, are typical. So after writing the new value:
+
+1. Look for jobs that still reference `<workspace-root>/<old notes_repo>`: every
+   `~/Library/LaunchAgents/*.plist` on macOS, and the user's `crontab -l`.
+2. Alert the user, listing each one found, or say none were found.
+3. For each job, offer to change it so it no longer hardcodes the notes repo: run the tool from the
+   workspace root with no notes-repo path. `check-prs.sh` and `snapshot-agents.sh` read `notes_repo`
+   from this config on every run. Reload a changed launchd job with `launchctl unload` then
+   `launchctl load -w`. Change a job only with the user's agreement.
+4. Write the new value to `.ai-notes/.last-notes-repo`. That is the
+   `detect-notes-repo-change.sh` hook's memory of the last value it saw. The hook does the same check
+   at session start when `notes_repo` was changed by hand, and keeps alerting each session until no
+   job references the old folder.
+
 ### Migrating a legacy notes repo
 
 Older notes repos (from before the layout was flattened) kept their data (`notes/`, `plans/`,
