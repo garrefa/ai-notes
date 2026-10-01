@@ -296,8 +296,10 @@ export function NoteDetail({
     <article className="p-6 lg:p-10">
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
-      {/* Date and type on the left, the note's actions on the right; tags go on the line below. */}
-      <div className="mb-3 flex items-center gap-1.5">
+      {/* Date and type on the left, the note's actions on the right; tags go on the line below. The
+          row stays pinned to the top of the detail pane as the note scrolls, so Maximize and Edit are
+          always in reach; it spans the article's padding so the note scrolls under a solid band. */}
+      <div className="sticky top-0 z-10 -mx-6 -mt-2 mb-1 flex items-center gap-1.5 bg-background/95 px-6 py-2 backdrop-blur-sm lg:-mx-10 lg:px-10">
         <div className="mr-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
           {!flatLayout && [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
         </div>
