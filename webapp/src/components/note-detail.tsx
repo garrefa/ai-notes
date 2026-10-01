@@ -147,7 +147,8 @@ export function NoteDetail({
   taskStatuses: TaskStatus[]
   onSetTaskStatus: (path: string, statusKey: string) => Promise<string | null>
   favorite: boolean
-  onToggleFavorite: () => void
+  // Adds or removes the `fav` tag; null when the file has no frontmatter to hold it.
+  onToggleFavorite: (() => void) | null
   // Where unsaved edits are kept in case the tab closes (null: not kept, e.g. in the demo).
   draftKey: string | null
   // Opens straight into the body editor (a note that was just created).
@@ -302,7 +303,7 @@ export function NoteDetail({
           {!flatLayout && [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
         </div>
         {onAddTask && !isTask && !editing && <AddTaskButton onClick={onAddTask} />}
-        <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />
+        {onToggleFavorite && <FavoriteButton favorite={favorite} onToggle={onToggleFavorite} />}
         {onDelete && !editing && (
           <Button
             size="icon-sm"

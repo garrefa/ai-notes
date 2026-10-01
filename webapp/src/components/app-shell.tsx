@@ -41,7 +41,7 @@ import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
 import { ALL_TIME_DATE_RANGE, DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
 import { draftKey } from "@/lib/drafts"
-import { useFavorites } from "@/lib/favorites"
+import { canFavorite, useFavorites } from "@/lib/favorites"
 import { DEFAULT_LIBRARY_ORDER, isHideableWhenEmpty, useSelectedView, type LibraryView } from "@/lib/library-order"
 import type { EntryKind, NewEntry } from "@/lib/new-entry"
 import { displayPath, isTasksLedger, type NewTaskRow } from "@/lib/notes-fs"
@@ -199,7 +199,12 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   const inDemo = activeWorkspace?.demo ?? false
 
   const [view, setViewNow] = useSelectedView()
-  const { favorites, toggle: toggleFavorite, forget: forgetFavorite } = useFavorites(activeWorkspace?.id ?? null, !inDemo)
+  const { favorites, toggle: toggleFavorite } = useFavorites({
+    notes,
+    saveNote,
+    workspaceId: inDemo ? null : (activeWorkspace?.id ?? null),
+    onError: showNotice,
+  })
   const [newEntryOpen, setNewEntryOpen] = useState(false)
   // Set when the dialog was opened by "Add task" on a note, PR or agent: the new task references it.
   const [taskOrigin, setTaskOrigin] = useState<TaskOrigin | null>(null)
@@ -474,7 +479,6 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
 
   async function handleDelete(path: string) {
     await deleteEntry(path)
-    forgetFavorite(path)
     setSelectedPath(null)
   }
 
@@ -922,7 +926,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
                 taskStatuses={statusCatalog}
                 onSetTaskStatus={setTaskStatusByKey}
                 favorite={favorites.has(selected.path)}
-                onToggleFavorite={() => toggleFavorite(selected.path)}
+                onToggleFavorite={canFavorite(selected) ? () => toggleFavorite(selected.path) : null}
                 draftKey={activeWorkspace && !inDemo ? draftKey(activeWorkspace.id, selected.path) : null}
                 startEditing={selected.path === editOnOpenPath}
                 editorRef={editorRef}
