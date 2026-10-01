@@ -39,6 +39,7 @@ import { useNotesDirectory, type NotesDirectory } from "@/hooks/use-notes-direct
 import { useStoredWidth } from "@/hooks/use-stored-width"
 import { useNow } from "@/hooks/use-now"
 import { agentStatus, countByFilter, groupAgents, SNAPSHOT_STALE_AFTER_MS, type AgentFilter } from "@/lib/agents"
+import { appVersionLabel } from "@/lib/app-version"
 import { ALL_TIME_DATE_RANGE, DEFAULT_DATE_RANGE, describeDateRange, resolveDateRange, type DateRangeFilter as DateRange } from "@/lib/date-range"
 import { draftKey } from "@/lib/drafts"
 import { canFavorite, useFavorites } from "@/lib/favorites"
@@ -643,12 +644,14 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
             title={`Build ${__APP_BUILD_ID__} · what's new in each release`}
             className="px-1 font-mono text-[11px] text-muted-foreground hover:text-foreground"
           >
-            AINotes v{__APP_VERSION__}
+            {appVersionLabel()}
           </a>
         </SidebarFooter>
       </Sidebar>
 
-      <SidebarInset>
+      {/* Exactly one viewport tall, so the page itself never scrolls: the note list and the note
+          detail each scroll on their own inside it. */}
+      <SidebarInset className="h-svh overflow-hidden">
         <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border px-3">
           <SidebarTrigger />
           {canCreate && (
