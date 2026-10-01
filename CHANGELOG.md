@@ -10,6 +10,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+- Viewer: the note list and the note detail scroll independently. The page itself is one window
+  tall and no longer scrolls as a whole.
+- Viewer: the version reads "AINotes v0.2.0 (123)" in both the sidebar and Settings, with the build
+  number in parentheses: the commit count of the build. The release workflow now checks out full
+  history so that count is right.
+
 - Viewer: a **Maximize** button on every note hides the sidebar and the note list so the note fills
   the window. Press it again, or Esc, to go back: the sidebar returns only if it was open before.
 - Viewer: a note's details fill the whole detail pane instead of a fixed 42rem column, so they
