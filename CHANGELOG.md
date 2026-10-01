@@ -15,6 +15,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
   only if it was open before.
 - Viewer: the note list is resizable. Drag its edge to make it anywhere from 18rem to 32rem wide
   (28rem by default); the width is remembered per browser.
+- Viewer: the open note no longer sticks around when it stops matching the list. Changing the
+  view, tag, date range or task-status filter, or editing the note's own tags or status so it no
+  longer fits, deselects it and opens the list's first note instead; it isn't reselected if the
+  filter later lets it back in. Changing a filter with unsaved edits asks first, as switching notes
+  does. Opening a specific note (search, a task link, a note just created) loosens whichever filter
+  would hide it.
+- Viewer: **Favorites** is third in the default Library order, right after Pull requests.
 
 - Viewer: Settings shows the viewer version more prominently, bottom right above the Reset/Done
   buttons. What "closed" means moved from the dialog's description to an info icon next to each
