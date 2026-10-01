@@ -1,12 +1,11 @@
 import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
 import { ChevronDown, History, Maximize2, Minimize2, Pencil, Plus, Trash2, X } from "lucide-react"
-import Markdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 
 import { AddTaskButton } from "@/components/add-task-button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { CopyPath } from "@/components/copy-path"
 import { FavoriteButton } from "@/components/favorite-heart"
+import { MarkdownBody } from "@/components/markdown-body"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { Button } from "@/components/ui/button"
 import {
@@ -297,8 +296,10 @@ export function NoteDetail({
     <article className="p-6 lg:p-10">
       {pendingDraft && <DraftRestoreBanner draft={pendingDraft} onRestore={restoreDraft} onDiscard={dismissDraft} />}
 
-      {/* Date and type on the left, the note's actions on the right; tags go on the line below. */}
-      <div className="mb-3 flex items-center gap-1.5">
+      {/* Date and type on the left, the note's actions on the right; tags go on the line below. The
+          row stays pinned to the top of the detail pane as the note scrolls, so Maximize and Edit are
+          always in reach; it spans the article's padding so the note scrolls under a solid band. */}
+      <div className="sticky top-0 z-10 -mx-6 -mt-2 mb-1 flex items-center gap-1.5 bg-background/95 px-6 py-2 backdrop-blur-sm lg:-mx-10 lg:px-10">
         <div className="mr-auto min-w-0 truncate font-mono text-xs text-muted-foreground">
           {!flatLayout && [note.date, note.type, note.repo].filter(Boolean).join(" · ")}
         </div>
@@ -453,9 +454,7 @@ export function NoteDetail({
           className="min-h-[50vh] w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-sm leading-relaxed text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       ) : (
-        <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-primary prose-pre:overflow-x-auto">
-          <Markdown remarkPlugins={[remarkGfm]}>{note.body}</Markdown>
-        </div>
+        <MarkdownBody notePath={note.path}>{note.body}</MarkdownBody>
       )}
 
       <ConfirmDialog

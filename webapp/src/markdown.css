@@ -1,0 +1,89 @@
+/* Rendered-note extras that typography's prose doesn't style: GitHub alerts and highlight.js tokens.
+   Colors follow GitHub's light/dark palettes, keyed on the app's .dark class (set by the
+   ThemeProvider), not prefers-color-scheme, so they track the in-app theme toggle. */
+
+/* > [!NOTE] / [!TIP] / [!IMPORTANT] / [!WARNING] / [!CAUTION] (remark-github-blockquote-alert) */
+.markdown-body .markdown-alert {
+  --alert-note: #0969da;
+  --alert-tip: #1a7f37;
+  --alert-important: #8250df;
+  --alert-warning: #9a6700;
+  --alert-caution: #d1242f;
+  --alert-color: var(--alert-note);
+  margin: 1em 0;
+  padding: 0.5rem 1rem;
+  border-left: 0.25em solid var(--alert-color);
+  font-style: normal;
+  color: inherit;
+}
+.dark .markdown-body .markdown-alert {
+  --alert-note: #58a6ff;
+  --alert-tip: #3fb950;
+  --alert-important: #a371f7;
+  --alert-warning: #d29922;
+  --alert-caution: #f85149;
+}
+.markdown-body .markdown-alert-tip { --alert-color: var(--alert-tip); }
+.markdown-body .markdown-alert-important { --alert-color: var(--alert-important); }
+.markdown-body .markdown-alert-warning { --alert-color: var(--alert-warning); }
+.markdown-body .markdown-alert-caution { --alert-color: var(--alert-caution); }
+.markdown-body .markdown-alert > :first-child { margin-top: 0; }
+.markdown-body .markdown-alert > :last-child { margin-bottom: 0; }
+/* prose quotes blockquote paragraphs; an alert isn't a quotation. */
+.markdown-body .markdown-alert p::before,
+.markdown-body .markdown-alert p::after { content: none; }
+.markdown-body .markdown-alert-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 500;
+  color: var(--alert-color);
+}
+.markdown-body .markdown-alert-title svg { fill: currentColor; }
+
+/* highlight.js tokens (rehype-highlight), GitHub light / dark */
+.markdown-body .hljs-comment,
+.markdown-body .hljs-quote { color: #6e7781; font-style: italic; }
+.markdown-body .hljs-keyword,
+.markdown-body .hljs-selector-tag,
+.markdown-body .hljs-type,
+.markdown-body .hljs-doctag { color: #cf222e; }
+.markdown-body .hljs-string,
+.markdown-body .hljs-regexp,
+.markdown-body .hljs-addition { color: #0a3069; }
+.markdown-body .hljs-number,
+.markdown-body .hljs-literal,
+.markdown-body .hljs-attr,
+.markdown-body .hljs-attribute,
+.markdown-body .hljs-variable,
+.markdown-body .hljs-meta { color: #0550ae; }
+.markdown-body .hljs-title,
+.markdown-body .hljs-section,
+.markdown-body .hljs-built_in { color: #8250df; }
+.markdown-body .hljs-name,
+.markdown-body .hljs-symbol,
+.markdown-body .hljs-bullet { color: #116329; }
+.markdown-body .hljs-deletion { color: #82071e; }
+
+.dark .markdown-body .hljs-comment,
+.dark .markdown-body .hljs-quote { color: #8b949e; }
+.dark .markdown-body .hljs-keyword,
+.dark .markdown-body .hljs-selector-tag,
+.dark .markdown-body .hljs-type,
+.dark .markdown-body .hljs-doctag { color: #ff7b72; }
+.dark .markdown-body .hljs-string,
+.dark .markdown-body .hljs-regexp,
+.dark .markdown-body .hljs-addition { color: #a5d6ff; }
+.dark .markdown-body .hljs-number,
+.dark .markdown-body .hljs-literal,
+.dark .markdown-body .hljs-attr,
+.dark .markdown-body .hljs-attribute,
+.dark .markdown-body .hljs-variable,
+.dark .markdown-body .hljs-meta { color: #79c0ff; }
+.dark .markdown-body .hljs-title,
+.dark .markdown-body .hljs-section,
+.dark .markdown-body .hljs-built_in { color: #d2a8ff; }
+.dark .markdown-body .hljs-name,
+.dark .markdown-body .hljs-symbol,
+.dark .markdown-body .hljs-bullet { color: #7ee787; }
+.dark .markdown-body .hljs-deletion { color: #ffa198; }

@@ -8,8 +8,15 @@ share one version number, bumped together by `tools/release.sh`; see the "Releas
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versions follow
 [Semantic Versioning](https://semver.org/).
 
+New entries don't go in this file: each PR adds a fragment in [`changes/`](changes/README.md),
+which `tools/release.sh` folds into the release's section here.
+
 ## [Unreleased]
 
+- Viewer: a folder no longer shows as "can't be read" or "couldn't be found" while an agent or git
+  is writing to it. A reload retries `NotReadableError`/`NotFoundError` a few times before giving up,
+  ignores file changes under `.git/`, and when a reload does fail it keeps watching the folder, so it
+  reconnects on its own at the next change on disk instead of waiting for a Retry click.
 - New `detect-notes-repo-change.sh` SessionStart hook: when `notes_repo` in `.ai-notes/config.yml`
   changes (a renamed or moved notes repo), it alerts you to update launchd agents and cron jobs that
   still point at the old folder, listing each one. It repeats each session until none does.

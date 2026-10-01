@@ -27,6 +27,7 @@ import { DateRangeFilter } from "@/components/date-range-filter"
 import { FavoriteMark } from "@/components/favorite-heart"
 import { NewEntryDialog } from "@/components/new-entry-dialog"
 import { NoteDetail, type NoteEditorHandle } from "@/components/note-detail"
+import { NoteLinksProvider } from "@/components/note-links"
 import { NewVersionBanner } from "@/components/new-version-banner"
 import { PrDetail } from "@/components/pr-detail"
 import { PrList } from "@/components/pr-list"
@@ -468,13 +469,18 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
     guard(() => setRevealPath(path))
   }
 
+  function describeNotePath(path: string) {
+    return activeWorkspace ? displayPath(activeWorkspace.folderName, path, layout) : path
+  }
+
   async function handleCreate(entry: NewEntry, task: NewTaskRow | null) {
     const created = await createEntry(entry, task)
     if (created.notice) showNotice(created.notice)
     // Stay in a view that lists the new file; otherwise go to its own.
     if (view !== "all" && view !== entry.source) setViewNow(entry.source)
     setRevealPath(created.path)
-    setEditOnOpenPath(created.path)
+    // Written in the dialog already: show it. Otherwise open the editor to fill in the starter body.
+    setEditOnOpenPath(entry.hasBody ? null : created.path)
     setNewEntryOpen(false)
   }
 
@@ -512,7 +518,8 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
   }, [activeTag, notes])
 
   return (
-    <>
+    // A note's references to other notes open them in a preview popover.
+    <NoteLinksProvider notes={notes} onOpenNote={openNoteFromPalette} describePath={describeNotePath}>
       <Sidebar>
         <SidebarHeader>
           <WorkspaceSwitcher
@@ -989,6 +996,6 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
           { label: resolvingUnsaved ? "Saving…" : "Save", variant: "default", onClick: saveThenContinue },
         ]}
       />
-    </>
+    </NoteLinksProvider>
   )
 }

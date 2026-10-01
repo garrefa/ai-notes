@@ -3,6 +3,7 @@ import { useId, useState, type FormEvent, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { useAsyncAction } from "@/hooks/use-async-action"
 import { buildNewEntry, ENTRY_KINDS, kindNeedsTag, kindNeedsTitle, parseTagInput, type EntryKind, type NewEntry } from "@/lib/new-entry"
 import type { NewTaskRow } from "@/lib/notes-fs"
@@ -12,6 +13,14 @@ import type { TaskStatus } from "@/lib/task-status"
 import { cn } from "@/lib/utils"
 
 const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+
+// Where the content box's text goes in each kind of file, and what to suggest writing there.
+const CONTENT_FIELD: Record<EntryKind, { label: string; placeholder: string }> = {
+  note: { label: "Content (optional)", placeholder: "Markdown, written under the title." },
+  plan: { label: "Content (optional)", placeholder: "## Goal\n\n## Steps\n- " },
+  daily: { label: "Tasks (optional)", placeholder: "- [ ] First thing\n- [ ] Second thing" },
+  task: { label: "Purpose (optional)", placeholder: "What this task is for, and what done looks like." },
+}
 
 function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: string; hint?: string; children: ReactNode }) {
   return (
@@ -46,9 +55,21 @@ export function NewEntryDialog({
   origin: TaskOrigin | null
   onCreate: (entry: NewEntry, task: NewTaskRow | null) => Promise<void>
 }) {
+  // Content typed in the form: a stray click outside or Esc then leaves it alone (Cancel still discards).
+  const [hasDraft, setHasDraft] = useState(false)
+  const keepDraft = (e: Event) => {
+    if (hasDraft) e.preventDefault()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (!next) setHasDraft(false)
+        onOpenChange(next)
+      }}
+    >
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg" onInteractOutside={keepDraft} onEscapeKeyDown={keepDraft}>
         {open && (
           <NewEntryForm
             defaultKind={defaultKind}
@@ -56,7 +77,11 @@ export function NewEntryDialog({
             initialTaskStatus={initialTaskStatus}
             origin={origin}
             onCreate={onCreate}
-            onCancel={() => onOpenChange(false)}
+            onDraftChange={setHasDraft}
+            onCancel={() => {
+              setHasDraft(false)
+              onOpenChange(false)
+            }}
           />
         )}
       </DialogContent>
@@ -70,6 +95,7 @@ function NewEntryForm({
   initialTaskStatus,
   origin,
   onCreate,
+  onDraftChange,
   onCancel,
 }: {
   defaultKind: EntryKind
@@ -77,6 +103,8 @@ function NewEntryForm({
   initialTaskStatus: TaskStatus
   origin: TaskOrigin | null
   onCreate: (entry: NewEntry, task: NewTaskRow | null) => Promise<void>
+  // Whether the content box holds text the user would lose by closing.
+  onDraftChange: (hasDraft: boolean) => void
   onCancel: () => void
 }) {
   const id = useId()
@@ -85,6 +113,8 @@ function NewEntryForm({
   const [date, setDate] = useState(() => localIsoDate())
   const [deadline, setDeadline] = useState("")
   const [tagText, setTagText] = useState(() => (origin ? taskOriginTags(origin).join(", ") : ""))
+  // Kept across kind switches: what's typed is the user's, whatever kind it ends up in.
+  const [body, setBody] = useState("")
   const [validation, setValidation] = useState<string | null>(null)
   const create = useAsyncAction("Couldn't create it — check the folder is still connected.")
 
@@ -105,7 +135,7 @@ function NewEntryForm({
     if (problem) return
     const cleanTitle = title.trim()
     const entry = buildNewEntry(
-      { kind, title: cleanTitle, date, tags, deadline: deadline || null, status: initialTaskStatus, origin },
+      { kind, title: cleanTitle, date, tags, deadline: deadline || null, status: initialTaskStatus, origin, body },
       localIsoDate(),
     )
     const task: NewTaskRow | null =
@@ -192,7 +222,32 @@ function NewEntryForm({
         </datalist>
       </Field>
 
-      {(validation || create.error) && <p className="text-sm text-destructive">{validation ?? create.error}</p>}
+      <Field
+        label={CONTENT_FIELD[kind].label}
+        htmlFor={`${id}-body`}
+        hint={body.trim() ? undefined : "Leave it empty to start from the usual template in the editor."}
+      >
+        <Textarea
+          id={`${id}-body`}
+          value={body}
+          onChange={(e) => {
+            setBody(e.target.value)
+            onDraftChange(e.target.value.trim() !== "")
+          }}
+          placeholder={CONTENT_FIELD[kind].placeholder}
+          spellCheck={false}
+          className="max-h-[40dvh] min-h-28 resize-y font-mono text-xs leading-relaxed"
+          onKeyDown={(e) => {
+            // ⌘/Ctrl+Enter creates from inside the box; plain Enter is a new line.
+            if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault()
+              e.currentTarget.form?.requestSubmit()
+            }
+          }}
+        />
+      </Field>
+
+      {(validation || create.error) &&<p className="text-sm text-destructive">{validation ?? create.error}</p>}
 
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel} disabled={create.busy}>
