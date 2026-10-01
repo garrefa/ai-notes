@@ -1,6 +1,6 @@
 {
   "name": "ainotes",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A git-backed second brain for Claude Code: dated, tagged notes and plans, a PR ledger, task tracking, daily plans, and reports across every repo in a workspace.",
   "author": {
     "name": "Alexandre Garrefa",
