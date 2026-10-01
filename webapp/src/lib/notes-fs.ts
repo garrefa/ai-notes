@@ -22,6 +22,7 @@ import {
   updateLedgerStatus,
   type LedgerUpdateResult,
 } from "@/lib/tasks-ledger"
+import type { TaskPrRef } from "@/lib/task-origin"
 import type { TaskStatus } from "@/lib/task-status"
 
 // Every note path below is relative to the workspace's *data dir* — see resolveWorkspace.
@@ -284,6 +285,8 @@ export interface NewTaskRow {
   created: string
   deadline: string | null
   status: Pick<TaskStatus, "key" | "closed">
+  // PRs the task references from the start (an "Add task" on a PR or agent); links in the PRs cell.
+  prs?: TaskPrRef[]
 }
 
 // Writes a new note/plan/daily/task file, indexes it under its tags in INDEX.md (created if the
@@ -319,7 +322,7 @@ export async function createEntry(
         Created: task.created,
         Deadline: task.deadline ?? EMPTY_CELL,
         Jira: EMPTY_CELL,
-        PRs: EMPTY_CELL,
+        PRs: task.prs?.length ? task.prs.map((p) => `[${escapeCell(p.ref)}](${p.url})`).join(", ") : EMPTY_CELL,
         File: taskFileLink(path),
       },
       task.status.closed,

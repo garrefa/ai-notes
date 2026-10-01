@@ -10,6 +10,41 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 ## [Unreleased]
 
+- New `detect-notes-repo-change.sh` SessionStart hook: when `notes_repo` in `.ai-notes/config.yml`
+  changes (a renamed or moved notes repo), it alerts you to update launchd agents and cron jobs that
+  still point at the old folder, listing each one. It repeats each session until none does.
+  `ainotes-setup` runs the same check whenever it changes `notes_repo` itself, and recommends running
+  the tools from the workspace root with no notes-repo path, since they read `notes_repo` from the
+  config on every run.
+- Viewer: the note list and the note detail scroll independently. The page itself is one window
+  tall and no longer scrolls as a whole.
+- Viewer: the version reads "AINotes v0.2.0 (123)" in both the sidebar and Settings, with the build
+  number in parentheses: the commit count of the build. The release workflow now checks out full
+  history so that count is right.
+- Viewer: a **Maximize** button on every note hides the sidebar and the note list so the note fills
+  the window. Press it again, or Esc, to go back: the sidebar returns only if it was open before.
+- Viewer: a note's details fill the whole detail pane instead of a fixed 42rem column, so they
+  widen with the window or a maximized note.
+- Viewer: the note list can be dragged narrower, down to 18rem, from its 28rem default, which is
+  also its widest; the width is remembered per browser.
+- Viewer: the open note no longer sticks around when it stops matching the list. Changing the
+  view, tag, date range or task-status filter, or editing the note's own tags or status so it no
+  longer fits, deselects it and opens the list's first note instead; it isn't reselected if the
+  filter later lets it back in. Changing a filter with unsaved edits asks first, as switching notes
+  does. Opening a specific note (search, a task link, a note just created) loosens whichever filter
+  would hide it.
+- Viewer: **Favorites** is third in the default Library order, right after Pull requests.
+- Viewer: favorites are the `fav` tag in each note's frontmatter instead of a list in the
+  browser's localStorage, so they're committed with the notes repo and the same everywhere. The
+  heart adds or removes the tag. Favorites saved by an earlier version are moved into tags the
+  first time the folder opens.
+- Viewer: **Add task** on every note, plan, daily plan, PR and agent creates a task that points
+  back to it, in the `ainotes-tasks` format. From a note: its path in `links:` and a line under
+  `## Purpose`, with the note's tags as the task's starting tags. From a PR: it goes in `prs:` and
+  TASKS.md's PRs cell, and the task appears under the PR's linked tasks, with its title, state and
+  Jira under `## Purpose`. From an agent: its job, repo, worktree, state and last status under
+  `## Purpose`, and any PRs it links to in `prs:`.
+
 - Viewer: Settings shows the viewer version more prominently, bottom right above the Reset/Done
   buttons. What "closed" means moved from the dialog's description to an info icon next to each
   Closed switch, shown on hover. The per-status reset button is gone; **Reset all to defaults**
