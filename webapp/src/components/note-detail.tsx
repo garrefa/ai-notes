@@ -1,12 +1,11 @@
 import { useEffect, useId, useImperativeHandle, useState, type Ref } from "react"
 import { ChevronDown, History, Maximize2, Minimize2, Pencil, Plus, Trash2, X } from "lucide-react"
-import Markdown from "react-markdown"
-import remarkGfm from "remark-gfm"
 
 import { AddTaskButton } from "@/components/add-task-button"
 import { ConfirmDialog } from "@/components/confirm-dialog"
 import { CopyPath } from "@/components/copy-path"
 import { FavoriteButton } from "@/components/favorite-heart"
+import { MarkdownBody } from "@/components/markdown-body"
 import { TaskStatusDot } from "@/components/task-status-dot"
 import { Button } from "@/components/ui/button"
 import {
@@ -453,9 +452,7 @@ export function NoteDetail({
           className="min-h-[50vh] w-full resize-y rounded-lg border border-border bg-background p-3 font-mono text-sm leading-relaxed text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
       ) : (
-        <div className="prose prose-sm dark:prose-invert max-w-none prose-headings:font-semibold prose-a:text-primary prose-pre:overflow-x-auto">
-          <Markdown remarkPlugins={[remarkGfm]}>{note.body}</Markdown>
-        </div>
+        <MarkdownBody notePath={note.path}>{note.body}</MarkdownBody>
       )}
 
       <ConfirmDialog
