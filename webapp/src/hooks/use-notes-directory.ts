@@ -93,6 +93,20 @@ function observedRootIsGone(records: FileSystemObserverObservation[]) {
   return records.some((r) => r.type === "disappeared" && r.relativePathComponents.length === 0)
 }
 
+const GIT_DIR = ".git"
+
+function isUnderGitDir(path: string[] | undefined) {
+  return path?.[0] === GIT_DIR
+}
+
+// A commit, pull or rebase touches dozens of files under .git/ that the viewer never reads; only
+// the note files it rewrites matter, and those show up as changes outside .git/.
+function outsideGitDir(records: FileSystemObserverObservation[]) {
+  return records.filter(
+    (r) => !isUnderGitDir(r.relativePathComponents) || !isUnderGitDir(r.relativePathMovedFrom ?? r.relativePathComponents),
+  )
+}
+
 export function useNotesDirectory() {
   const [status, setStatus] = useState<ConnectionStatus>(() => (isSupported() ? "disconnected" : "unsupported"))
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -119,6 +133,9 @@ export function useNotesDirectory() {
   // (a slow directory read, a debounced reload) can tell it's stale and bail
   // instead of writing that workspace's notes into the current one.
   const generationRef = useRef(0)
+  // Bumped on every reload: a retrying reload can still be running when a newer change starts
+  // another, and only the newest one's result (success or failure) should reach the UI.
+  const reloadSeqRef = useRef(0)
 
   const stopObserving = useCallback(() => {
     observerRef.current?.disconnect()
@@ -178,21 +195,31 @@ export function useNotesDirectory() {
     [applyWorkspaceData, setFolderAvailability, stopObserving],
   )
 
+  // A failed reload shows the folder as unavailable but keeps the watcher and data dir, so the
+  // next change on disk reloads again and, once it succeeds, reconnects without a Retry click.
   const reload = useCallback(async () => {
     const dataDir = dataDirRef.current
     const ws = activeRef.current
     const layout = layoutRef.current
     if (!dataDir || !ws || !layout) return
     const generation = generationRef.current
+    const seq = ++reloadSeqRef.current
+    const isStale = () => generation !== generationRef.current || seq !== reloadSeqRef.current
     try {
       const next = await reloadWorkspace(dataDir, layout, ws.label)
-      if (generation !== generationRef.current) return
+      if (isStale()) return
       applyWorkspaceData(next)
+      setStatus("connected")
+      setError(null)
+      setFolderAvailability(ws.id, "available")
     } catch (e) {
-      if (generation !== generationRef.current) return
-      markUnavailable(ws.id, toFolderUnavailable(e, ws.label))
+      if (isStale()) return
+      applyWorkspaceData(EMPTY_WORKSPACE_DATA)
+      setStatus("unavailable")
+      setError(toFolderUnavailable(e, ws.label).message)
+      setFolderAvailability(ws.id, "missing")
     }
-  }, [applyWorkspaceData, markUnavailable])
+  }, [applyWorkspaceData, setFolderAvailability])
 
   const scheduleReload = useCallback(() => {
     if (reloadTimerRef.current) clearTimeout(reloadTimerRef.current)
@@ -248,7 +275,9 @@ export function useNotesDirectory() {
         // Nothing else can change a demo's in-memory files, so there's nothing to watch.
         if (isDemoWorkspace(ws)) return "connected"
 
-        const observer = new FileSystemObserver((records) => {
+        const observer = new FileSystemObserver((allRecords) => {
+          const records = outsideGitDir(allRecords)
+          if (records.length === 0) return
           if (observedRootIsGone(records)) {
             markUnavailable(ws.id, toFolderUnavailable(new DOMException("gone", "NotFoundError"), ws.label))
           } else {

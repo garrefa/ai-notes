@@ -20,6 +20,12 @@ import { toFolderUnavailable, withTimeout } from "@/lib/folder-errors"
 // A handle to a removed folder or an unmounted volume can stall instead of failing.
 export const FOLDER_TIMEOUT_MS = 10_000
 const PERMISSION_MODE = "readwrite"
+// A reload often races a writer (an agent saving a note, a git commit or rebase): a file changed
+// between getFile() and text() throws NotReadableError, and one replaced by an atomic rename throws
+// NotFoundError. Both clear up once the write lands, so a reload retries them before giving up.
+const TRANSIENT_READ_ERRORS = new Set(["NotReadableError", "NotFoundError"])
+const RELOAD_ATTEMPTS = 3
+const RELOAD_RETRY_DELAY_MS = 300
 
 export interface WorkspaceData {
   notes: Note[]
@@ -57,6 +63,26 @@ async function guarded<T>(work: Promise<T>, label: string, timeoutMs: number): P
   }
 }
 
+function isTransientReadError(e: unknown): boolean {
+  return e instanceof DOMException && TRANSIENT_READ_ERRORS.has(e.name)
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Backs off a little longer before each retry, giving a multi-file write (a commit, a rebase) time to land.
+async function retryTransientReadErrors<T>(read: () => Promise<T>): Promise<T> {
+  for (let attempt = 1; ; attempt++) {
+    try {
+      return await read()
+    } catch (e) {
+      if (attempt >= RELOAD_ATTEMPTS || !isTransientReadError(e)) throw e
+      await delay(RELOAD_RETRY_DELAY_MS * attempt)
+    }
+  }
+}
+
 // Resolves the data dir and reads it. Assumes permission is already granted.
 export function loadWorkspace(handle: FileSystemDirectoryHandle, label: string, timeoutMs = FOLDER_TIMEOUT_MS) {
   return guarded(
@@ -70,14 +96,19 @@ export function loadWorkspace(handle: FileSystemDirectoryHandle, label: string, 
 }
 
 // Re-reads an already open workspace's data dir (after a file-watch event or a save). Needs the
-// layout from the original resolveWorkspace call — a reload never re-resolves it.
+// layout from the original resolveWorkspace call — a reload never re-resolves it. Transient read
+// errors are retried; the timeout covers every attempt together.
 export function reloadWorkspace(
   dataDir: FileSystemDirectoryHandle,
   layout: DataLayout,
   label: string,
   timeoutMs = FOLDER_TIMEOUT_MS,
 ) {
-  return guarded(readWorkspaceData(dataDir, layout), label, timeoutMs)
+  return guarded(
+    retryTransientReadErrors(() => readWorkspaceData(dataDir, layout)),
+    label,
+    timeoutMs,
+  )
 }
 
 export function queryFolderPermission(handle: FileSystemDirectoryHandle, label: string, timeoutMs = FOLDER_TIMEOUT_MS) {
