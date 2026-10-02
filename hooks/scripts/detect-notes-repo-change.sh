@@ -127,7 +127,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "The notes folder in $root_json changed from '$prev_json' to '$cur_json' since the last session. Near the top of the conversation, alert the user that scheduled jobs (launchd agents, cron) may still point at the old folder and need updating. Scheduled jobs still referencing $root_json/$prev_json: $jobs_json. For each one, offer to fix it so it no longer hardcodes the notes repo: run the ainotes tools from the workspace root ($root_json) with no notes-repo path, since check-prs.sh and snapshot-agents.sh locate the notes repo on every run. Then reload it (launchctl unload/load -w for launchd). Change a job only if the user agrees. This alert repeats each session until no job references the old folder; if none was found, it won't repeat."
+    "additionalContext": "The notes folder in $root_json changed from '$prev_json' to '$cur_json' since the last session. Near the top of the conversation, alert the user that scheduled jobs (launchd agents, cron) may still point at the old folder and need updating. Scheduled jobs still referencing $root_json/$prev_json: $jobs_json. ainotes's own jobs (launchd label com.ainotes.*, crontab tag ainotes-schedule:) are fixed with .claude/tools/schedule.sh apply. For any other, offer to fix it so it no longer hardcodes the notes repo: run the ainotes tools from the workspace root ($root_json) with no notes-repo path, since check-prs.sh and snapshot-agents.sh locate the notes repo on every run. Then reload it (launchctl unload/load -w for launchd). Change a job only if the user agrees. This alert repeats each session until no job references the old folder; if none was found, it won't repeat."
   }
 }
 EOF

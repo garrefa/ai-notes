@@ -56,8 +56,8 @@ Run from anywhere in the workspace. `T=<workspace>/.claude/tools` (or the plugin
 | "review status" | `$T/pr-review.sh status` |
 | change the cap / model / level | edit the `pr_review:` section of `<notes repo>/.config.yml` |
 
-Scheduling is optional and safe: run `check-pending-pr-reviews --review` from cron or launchd. With
-nothing pending it costs $0.
+Scheduling is optional and safe: it's the `pr-review` job of `ainotes-schedules` (for example
+`pr-review: every 30m 09:00-18:00 weekdays` under `schedules:`). With nothing pending a run costs $0.
 
 ## What this skill will never do
 

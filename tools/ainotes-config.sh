@@ -101,3 +101,7 @@ config_value() {
     }
   ' "$file"
 }
+
+# workspace_id DIR — a stable number for a workspace path, so per-workspace launchd labels and
+# crontab markers (schedule.sh) never collide across workspaces. cksum is POSIX.
+workspace_id() { printf '%s' "$1" | cksum | cut -d' ' -f1; }

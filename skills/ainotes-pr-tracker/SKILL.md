@@ -160,7 +160,7 @@ state (rows that merged or closed move out, newly discovered PRs are added), the
 table is rebuilt from scratch. Any non-table content below that heading is dropped. Unless
 `--dry-run` is given, it then commits `PRS.md` in the notes repo (git runs at the notes repo root). Running it outside
 "check prs" is entirely optional — nothing in this skill runs it on a timer; if you want it on a
-schedule, set that up yourself (cron, launchd, a CI job, etc.). When it has run, treat its changes to `PRS.md` like any other update.
+schedule, use the `check-prs` job of `ainotes-schedules` ("configure schedules"), or set up cron, launchd or a CI job yourself. When it has run, treat its changes to `PRS.md` like any other update.
 
 ## Relationship to ad hoc tracking notes
 
