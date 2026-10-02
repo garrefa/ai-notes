@@ -5,11 +5,11 @@ import {
   FolderOpen,
   FolderPlus,
   GitPullRequest,
+  Glasses,
   ListChecks,
   ListTodo,
   LogOut,
   Plus,
-  ScanSearch,
   Settings,
   type LucideIcon,
 } from "lucide-react"
@@ -35,7 +35,7 @@ const SOURCE_ICONS: Record<NoteSource, LucideIcon> = {
   plans: ListTodo,
   daily: FileText,
   tasks: ListChecks,
-  reviews: ScanSearch,
+  reviews: Glasses,
 }
 
 // cmdk's default filter runs a fuzzy-match scoring algorithm over `value` + every

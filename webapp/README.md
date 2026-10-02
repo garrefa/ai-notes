@@ -163,18 +163,19 @@ flat folder and every note just shows. Editing and saving works the same as any 
 
 ## The Library
 
-The sidebar's **Library** lists **Agents**, **Pull requests**, **Favorites**, **All notes**, **Notes**,
-**Plans**, **Daily**, **Tasks** and **Reviews**, in that order by default. Drag an item (or focus it and press
-`Alt+↑`/`Alt+↓`) to reorder; the order is remembered in this browser. Once a folder is open, an item
+The sidebar's **Library** lists **Agents**, **Pull requests**, **PR Reviews**, **Favorites**, **All
+notes**, **Notes**, **Plans**, **Daily** and **Tasks**, in that order by default. Drag an item (or
+focus it and press `Alt+↑`/`Alt+↓`) to reorder; the order is remembered in this browser, and an item
+added in a later version slots in after the one it follows by default. Once a folder is open, an item
 with nothing to list is hidden (a folder with no plans shows no **Plans**, and **Favorites** only
 appears once something is favorited); **Agents** and **Pull requests** always show, since their
 empty state explains how to fill them. If the item you're on empties (you unfavorite the last
 favorite, say), the viewer moves to **All notes**.
 
-The **Date range** filter applies to **All notes**, **Notes**, **Plans**, **Daily** and **Reviews**
+The **Date range** filter applies to **All notes**, **Notes**, **Plans**, **Daily** and **PR Reviews**
 only. Tasks, favorites, PRs and agents always list everything, whatever their date.
 
-**Reviews** lists `reviews/`, the notes `ainotes-review-notes` files for each PR you review. A
+**PR Reviews** lists `reviews/`, the notes `ainotes-review-notes` files for each PR you review. A
 review is titled by its `# Review: repo#123 · …` heading, shows its latest verdict (Approved,
 Commented or Changes requested) as its status, and is dated by its latest review (`last_reviewed:`),
 so a re-reviewed PR comes back up the list. The `<!-- review-history:end -->` marker in its body
