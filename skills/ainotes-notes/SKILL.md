@@ -32,8 +32,8 @@ no `notes_repo` key and renaming the notes folder needs no config edit. Read the
 trusting stale copies of those values in prose anywhere, including in this file. The `jira` block is
 optional — when it's absent, leave `jira: null` on every plan and never ask about tickets.
 
-Untracked local runtime files live in `<notes_repo>/.state/` (gitignored); the PR auto-reviewer keeps
-its state in `<notes_repo>/.dm-pr-review/` (only its `ledger.jsonl` is tracked).
+Untracked local runtime files live in `<notes_repo>/.state/` (gitignored), including the PR
+auto-reviewer's `.state/dm-pr-review/`. Its spend ledger is tracked at `<notes_repo>/pr-reviews-ledger.jsonl`.
 
 ## Who writes the file
 
@@ -63,8 +63,8 @@ yourself (or tell the user) before moving on. If it returns an `error`, report i
 <notes_repo>/
   README.md  CLAUDE.md  .gitignore   # repo docs
   .config.yml                      # toolkit config (kind: ainotes-config)
-  .state/                          # untracked local runtime files (gitignored)
-  .dm-pr-review/                   # PR auto-reviewer state (only ledger.jsonl tracked)
+  .state/                          # untracked local runtime files (gitignored), incl. dm-pr-review/
+  pr-reviews-ledger.jsonl          # PR auto-reviewer spend ledger (tracked)
   notes/YYYY-MM-DD-slug.md
   plans/YYYY-MM-DD-slug.md
   tasks/YYYY-MM-DD-slug.md         # owned by ainotes-tasks

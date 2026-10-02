@@ -129,8 +129,8 @@ Older notes repos that keep their data under a `db/` folder are flattened automa
 ~/projects/my-workspace/          <- workspace root: the parent of the notes repo
 ├── notes/                        <- the notes repo (any folder name); its own git repo
 │   ├── .config.yml               <- per-workspace settings (see tools/config.example.yml)
-│   ├── .state/                   <- untracked local runtime files (gitignored)
-│   ├── .dm-pr-review/            <- PR auto-reviewer state (only ledger.jsonl tracked)
+│   ├── .state/                   <- untracked local runtime files (gitignored), incl. dm-pr-review/
+│   ├── pr-reviews-ledger.jsonl   <- PR auto-reviewer spend ledger (tracked)
 │   ├── notes/  plans/  tasks/  daily/
 │   ├── INDEX.md                  <- tag -> files
 │   ├── PRS.md                    <- PR ledger

@@ -24,10 +24,10 @@
 # Settings are the `dm_pr_review:` section of the ainotes config (<notes repo>/.config.yml, found
 # by walking up from the current directory, else this script's directory; see ainotes-config.sh):
 # self_github_login (default: `gh api user`), review_model (opus), review_level (high),
-# per_review_budget_usd (8) and monthly_budget_usd (100). State lives in
-# <notes repo>/.dm-pr-review/: state.json, ledger.jsonl, review.log, repos/ (clone cache) and
-# run/. Git tracks only ledger.jsonl there (committed after every recorded call), and the rest is
-# gitignored. Needs `claude` (Claude Code), `gh` (authenticated), `git` and `jq` on PATH. It is
+# per_review_budget_usd (8) and monthly_budget_usd (100). The spend ledger is
+# <notes repo>/pr-reviews-ledger.jsonl, tracked and committed after every recorded call. Local state
+# lives in the gitignored <notes repo>/.state/dm-pr-review/: state.json, review.log, repos/ (clone
+# cache) and run/. Needs `claude` (Claude Code), `gh` (authenticated), `git` and `jq` on PATH. It is
 # bash 3.2-safe.
 #
 # Exit status: 0 when the review was done or skipped, 3 when the monthly budget is spent, 1 on failure.
@@ -43,9 +43,11 @@ CONFIG="$(find_ainotes_config "$PWD" || find_ainotes_config "$SCRIPT_DIR" || tru
 WORKSPACE="$(workspace_root_of "$CONFIG")"
 NOTES_DIR="$(notes_dir_of "$CONFIG")"
 [[ -n "$NOTES_DIR" && -d "$NOTES_DIR" ]] || { echo "Notes repo not found for $CONFIG." >&2; exit 1; }
-STATE_DIR="$NOTES_DIR/.dm-pr-review"
+STATE_DIR="$NOTES_DIR/.state/dm-pr-review"
+LEDGER_REL="pr-reviews-ledger.jsonl"          # relative to the notes repo (tracked), for git
+OLD_LEDGER_REL=".dm-pr-review/ledger.jsonl"   # where it used to be tracked
 STATE="$STATE_DIR/state.json"
-LEDGER="$STATE_DIR/ledger.jsonl"
+LEDGER="$NOTES_DIR/$LEDGER_REL"
 LOG="$STATE_DIR/review.log"
 RUN_DIR="$STATE_DIR/run"
 REPO_CACHE="$STATE_DIR/repos"
@@ -95,21 +97,26 @@ ensure_state() {
   ensure_gitignore
 }
 
-# The state dir holds private clones and logs: make sure the notes repo ignores all of it except the
-# ledger (install.sh adds the same lines; this covers a repo set up some other way).
+# The state dir holds private clones and logs: make sure the notes repo ignores .state/
+# (install.sh applies the same rules; this covers a repo set up some other way).
 ensure_gitignore() {
-  local gi="$NOTES_DIR/.gitignore" line
-  for line in '.dm-pr-review/*' '!.dm-pr-review/ledger.jsonl'; do
-    grep -qxF -- "$line" "$gi" 2>/dev/null || printf '%s\n' "$line" >> "$gi"
-  done
+  local gi="$NOTES_DIR/.gitignore" updated
+  updated="$(notes_gitignore_updated "$gi")"
+  [[ "$updated" == "$(cat "$gi" 2>/dev/null)" ]] || printf '%s\n' "$updated" > "$gi"
 }
 
 # commit_ledger MESSAGE — commit just the ledger to the notes repo (no-op outside git or if unchanged)
 commit_ledger() {
   git -C "$NOTES_DIR" rev-parse --git-dir >/dev/null 2>&1 || return 0
-  git -C "$NOTES_DIR" add -- .dm-pr-review/ledger.jsonl >>"$LOG" 2>&1 || return 0
-  git -C "$NOTES_DIR" diff --cached --quiet -- .dm-pr-review/ledger.jsonl && return 0
-  git -C "$NOTES_DIR" commit -q -m "$1" -- .dm-pr-review/ledger.jsonl >>"$LOG" 2>&1 \
+  local paths=("$LEDGER_REL")
+  # First commit after the ledger moved: record the old tracked path's removal in the same commit.
+  if [[ ! -e "$NOTES_DIR/$OLD_LEDGER_REL" ]] \
+     && git -C "$NOTES_DIR" ls-files --error-unmatch -- "$OLD_LEDGER_REL" >/dev/null 2>&1; then
+    git -C "$NOTES_DIR" rm -q --cached -- "$OLD_LEDGER_REL" >>"$LOG" 2>&1 && paths+=("$OLD_LEDGER_REL")
+  fi
+  git -C "$NOTES_DIR" add -- "$LEDGER_REL" >>"$LOG" 2>&1 || return 0
+  git -C "$NOTES_DIR" diff --cached --quiet -- "${paths[@]}" && return 0
+  git -C "$NOTES_DIR" commit -q -m "$1" -- "${paths[@]}" >>"$LOG" 2>&1 \
     || log "ledger commit failed (left uncommitted)"
 }
 

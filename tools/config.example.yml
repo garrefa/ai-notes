@@ -90,7 +90,8 @@ domain_taxonomy: {}
 
 # Optional: the ainotes-dm-pr-review auto-reviewer (tools/pending-reviews.sh --review and
 # tools/dm-pr-review.sh). Every key has a default, so the whole section can be omitted. Its state
-# (ledger, clone cache, logs) lives in <notes repo>/.dm-pr-review/, where git tracks only ledger.jsonl.
+# spend ledger is <notes repo>/pr-reviews-ledger.jsonl (tracked); local state (clone cache, logs) is
+# in <notes repo>/.state/dm-pr-review/.
 dm_pr_review:
   self_github_login: null      # your GitHub login (default: `gh api user`)
   review_model: opus           # model for the headless /code-review run

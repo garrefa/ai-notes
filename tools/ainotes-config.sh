@@ -57,6 +57,31 @@ state_dir_of() {
   if config_is_legacy "$1"; then dirname "$1"; else echo "$(dirname "$1")/.state"; fi
 }
 
+# notes_gitignore_rules — the .gitignore lines every notes repo needs for its runtime state. All of
+# .state/ is local; tracked data (e.g. the PR auto-reviewer's pr-reviews-ledger.jsonl) lives at the
+# notes repo's root instead.
+notes_gitignore_rules() {
+  printf '%s\n' '.state/'
+}
+
+# notes_gitignore_updated FILE — print FILE's content with older runtime-state rules (the
+# pre-.state/ .dm-pr-review/ ones) dropped and the current notes_gitignore_rules appended where
+# missing (FILE itself is not modified).
+notes_gitignore_updated() {
+  local file="$1" line
+  if [[ -f "$file" ]]; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      case "$line" in
+        '.dm-pr-review/*'|'!.dm-pr-review/ledger.jsonl'|'.state/*'|'!.state/dm-pr-review/'|'.state/dm-pr-review/*'|'!.state/dm-pr-review/ledger.jsonl') continue ;;
+      esac
+      printf '%s\n' "$line"
+    done < "$file"
+  fi
+  while IFS= read -r line; do
+    grep -qxF -- "$line" "$file" 2>/dev/null || printf '%s\n' "$line"
+  done < <(notes_gitignore_rules)
+}
+
 # find_workspace_root DIR — kept for existing callers: the workspace root above DIR
 find_workspace_root() {
   local config
