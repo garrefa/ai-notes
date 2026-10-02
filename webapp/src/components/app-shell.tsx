@@ -410,6 +410,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
       plans: bySource("plans"),
       daily: bySource("daily"),
       tasks: bySource("tasks"),
+      reviews: bySource("reviews"),
       favorites: notes.filter((n) => favorites.has(n.path)).length,
     }
   }, [notes, favorites])
@@ -434,6 +435,7 @@ function WorkspaceView({ directory, statusSettings }: { directory: NotesDirector
       plans: { count: itemCounts.plans, title: plural(itemCounts.plans, "plan", "plans") },
       daily: { count: itemCounts.daily, title: plural(itemCounts.daily, "daily plan", "daily plans") },
       tasks: { count: openTasks, title: plural(openTasks, "open task", "open tasks") },
+      reviews: { count: itemCounts.reviews, title: plural(itemCounts.reviews, "PR review", "PR reviews") },
       favorites: { count: itemCounts.favorites, title: plural(itemCounts.favorites, "favorite", "favorites") },
       prs: { count: prCounts.pending, title: plural(prCounts.pending, "pending PR", "pending PRs") },
       agents:

@@ -1,5 +1,18 @@
 import { useEffect } from "react"
-import { FileText, FlaskConical, FolderOpen, FolderPlus, GitPullRequest, ListChecks, ListTodo, LogOut, Plus, Settings } from "lucide-react"
+import {
+  FileText,
+  FlaskConical,
+  FolderOpen,
+  FolderPlus,
+  GitPullRequest,
+  ListChecks,
+  ListTodo,
+  LogOut,
+  Plus,
+  ScanSearch,
+  Settings,
+  type LucideIcon,
+} from "lucide-react"
 
 import {
   CommandDialog,
@@ -13,9 +26,17 @@ import {
 import { TaskStatusDot } from "@/components/task-status-dot"
 import type { WorkspaceSummary } from "@/hooks/use-notes-directory"
 import type { TaskStatus } from "@/lib/task-status"
-import { displayTag, type Note } from "@/lib/notes-frontmatter"
+import { displayTag, type Note, type NoteSource } from "@/lib/notes-frontmatter"
 import { PR_STATES, prTitle } from "@/lib/pr-view"
 import type { LedgerPr } from "@/lib/prs-parser"
+
+const SOURCE_ICONS: Record<NoteSource, LucideIcon> = {
+  notes: FileText,
+  plans: ListTodo,
+  daily: FileText,
+  tasks: ListChecks,
+  reviews: ScanSearch,
+}
 
 // cmdk's default filter runs a fuzzy-match scoring algorithm over `value` + every
 // `keywords` entry on every keystroke, for every item. That's fine for short strings
@@ -146,7 +167,7 @@ export function CommandPalette({
         <CommandSeparator />
         <CommandGroup heading="Notes & plans">
           {notes.map((note) => {
-            const Icon = note.source === "plans" ? ListTodo : note.source === "tasks" ? ListChecks : FileText
+            const Icon = SOURCE_ICONS[note.source]
             const taskStatus = taskStatusByPath.get(note.path)
             return (
               <CommandItem

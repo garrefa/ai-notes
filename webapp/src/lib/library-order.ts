@@ -3,9 +3,9 @@
 
 import { useCallback, useState } from "react"
 
-export type LibraryView = "all" | "notes" | "plans" | "daily" | "tasks" | "favorites" | "prs" | "agents"
+export type LibraryView = "all" | "notes" | "plans" | "daily" | "tasks" | "reviews" | "favorites" | "prs" | "agents"
 
-export const DEFAULT_LIBRARY_ORDER: LibraryView[] = ["agents", "prs", "favorites", "all", "notes", "plans", "daily", "tasks"]
+export const DEFAULT_LIBRARY_ORDER: LibraryView[] = ["agents", "prs", "favorites", "all", "notes", "plans", "daily", "tasks", "reviews"]
 
 // Items that list notes and so disappear from the Library while they have nothing to list.
 // Agents and Pull requests always show: their empty state explains how to fill them.
