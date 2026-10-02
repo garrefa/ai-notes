@@ -1,5 +1,5 @@
 import { useState, type DragEvent, type KeyboardEvent } from "react"
-import { Bot, CalendarDays, GitPullRequest, GripVertical, Heart, ListChecks, ListTodo, NotebookText, ScanSearch, StickyNote, type LucideIcon } from "lucide-react"
+import { Bot, CalendarDays, GitPullRequest, Glasses, GripVertical, Heart, ListChecks, ListTodo, NotebookText, StickyNote, type LucideIcon } from "lucide-react"
 
 import {
   SidebarGroup,
@@ -19,7 +19,7 @@ const LIBRARY_ITEMS: Record<LibraryView, { label: string; icon: LucideIcon }> = 
   plans: { label: "Plans", icon: ListTodo },
   daily: { label: "Daily", icon: CalendarDays },
   tasks: { label: "Tasks", icon: ListChecks },
-  reviews: { label: "Reviews", icon: ScanSearch },
+  reviews: { label: "PR Reviews", icon: Glasses },
   favorites: { label: "Favorites", icon: Heart },
   prs: { label: "Pull requests", icon: GitPullRequest },
   agents: { label: "Agents", icon: Bot },
