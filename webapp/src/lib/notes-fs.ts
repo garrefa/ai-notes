@@ -26,7 +26,7 @@ import type { TaskPrRef } from "@/lib/task-origin"
 import type { TaskStatus } from "@/lib/task-status"
 
 // Every note path below is relative to the workspace's *data dir* — see resolveWorkspace.
-const WATCHED_DIRS: NoteSource[] = ["notes", "plans", "daily", "tasks"]
+const WATCHED_DIRS: NoteSource[] = ["notes", "plans", "daily", "tasks", "reviews"]
 const LEGACY_DATA_DIR_NAME = "db"
 const ROOT_MARKER_DIRS = ["notes", "plans"]
 // Ledger files that sit at the data dir's root rather than inside one of WATCHED_DIRS.
