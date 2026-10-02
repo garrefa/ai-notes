@@ -32,3 +32,17 @@
 - The viewer launcher moves from `<workspace>/run-viewer.sh` to `<workspace>/bin/run-viewer`, with
   no extension. Install removes the old copy it installed, and leaves a `run-viewer.sh` of your
   own alone. Uninstall removes either one, and `bin/` if that leaves it empty.
+- Scheduled jobs: new `tools/schedule.sh` and `ainotes-schedules` skill. You pick which tools run
+  unattended (`snapshot-agents`, `check-prs`, `pr-review` = `check-pending-pr-reviews --review`,
+  `clean-worktrees` = `clean-merged-worktrees.sh --delete`), how often (1m to 24h), and optionally
+  an hours window and weekdays only. The choices are a `schedules:` section of the ainotes config,
+  one line per job (`pr-review: every 30m 09:00-18:00 weekdays`), and become per-user launchd jobs
+  on macOS or crontab lines elsewhere.
+  - Each run checks the window when it fires, holds a lock so it never overlaps itself, and logs
+    to `<notes repo>/.state/schedules/<job>.log` with its last exit status in `<job>.last`.
+  - `install.sh` asks about every job on install, and on update shows the current schedules and
+    offers to change them. Without a terminal it only re-applies them; `--no-schedule` leaves
+    launchd/cron alone; `--uninstall` removes every job of the workspace. "setup ainotes" offers
+    them once the config exists, and "configure schedules" changes them any time.
+  - The snapshot job an earlier install set up keeps its launchd label and is adopted as
+    `snapshot-agents: every 1m`; the installer's old one-off snapshot question is gone.

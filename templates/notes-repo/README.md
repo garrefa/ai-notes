@@ -51,5 +51,6 @@ check-prs.sh --verbose        # log progress + print the diff
 check-prs.sh path/to/PRS.md   # point it at a different file
 ```
 
-Schedule it yourself (cron, launchd, CI) at whatever cadence you want — it's idempotent and a
-true no-op run touches nothing.
+Schedule it as the `check-prs` job ("configure schedules", see `ainotes-schedules`), or yourself
+(cron, launchd, CI) at whatever cadence you want — it's idempotent and a true no-op run touches
+nothing.

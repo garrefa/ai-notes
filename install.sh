@@ -17,7 +17,8 @@
 #                           older <ws>/run-viewer.sh that this script installed)
 #   hook wiring             -> merged into <ws>/.claude/settings.json (existing settings are kept)
 #   notes repo's db/ layout -> migrated up a level in place, if an older repo still has one
-#   tools/snapshot-agents.sh -> offered on a schedule (launchd on macOS, cron elsewhere) — see below
+#   scheduled jobs          -> offered and applied via tools/schedule.sh (launchd on macOS, cron
+#                           elsewhere) — see below
 #
 # It never creates the config or the notes repo — run "setup ainotes" in Claude Code from the
 # workspace afterwards; the ainotes-setup skill asks the questions and creates both (the config is
@@ -32,19 +33,23 @@
 # ignores .state/. Safe to re-run: each step is
 # a no-op once done.
 #
-# Scheduling snapshot-agents.sh: when run interactively (a real terminal, not CI/a script feeding
-# stdin) and not `--dry-run`, install asks once whether to schedule it to run every 60s — needed
-# for the viewer's Agents view to have anything to show. Say yes and it sets up a per-user launchd
-# job (macOS) or a crontab line (everything else) for you; say no (or pass --no-schedule to skip
-# the question outright) and nothing is touched — schedule it yourself later however you like.
-# Re-running install replaces its own entry rather than duplicating it. --uninstall always removes
-# it, no asking, if this script was the one that set it up.
+# Scheduled jobs: the toolkit's scripts can run on a schedule — the agents snapshot (feeds the
+# viewer's Agents view), the PRS.md refresh, automated PR reviews and merged-worktree cleanup.
+# Which ones, how often and in which hours is the `schedules:` section of <notes repo>/.config.yml;
+# tools/schedule.sh turns it into per-user launchd jobs (macOS) or crontab lines. In a real
+# terminal, install asks which jobs to schedule (the first time) or shows them and offers to change
+# them (later runs); either way it then re-applies the saved schedules so they run the freshly
+# installed tools. Without a terminal it only re-applies. --no-schedule leaves launchd/cron alone.
+# There's nothing to schedule before the notes repo exists — say "configure schedules" in Claude
+# Code after "setup ainotes" (the ainotes-schedules skill). A snapshot job set up by an older
+# install is adopted as `snapshot-agents: every 1m`. --uninstall removes every job of this
+# workspace, no asking.
 set -euo pipefail
 
 SRC="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FORCE=0 DRY_RUN=0 UNINSTALL=0 NO_SCHEDULE=0 WS=""
 
-usage() { sed -n '2,34p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
+usage() { sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
 
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -69,13 +74,6 @@ HOOK_SCRIPTS=(session-start-task-prompt.sh detect-unregistered-repo.sh detect-no
 # In tools/ but not part of a workspace install: release.sh cuts releases of this repo. Older
 # versions of this script installed it anyway, so install and uninstall both remove a stale copy.
 MAINTAINER_TOOLS=(release.sh)
-
-# Stable per-workspace identifier for the optional schedule below, so re-running install replaces
-# its own entry instead of duplicating it, and installing into more than one workspace never
-# collides. cksum is POSIX and needs no extra dependency beyond what's already required.
-WS_ID="$(printf '%s' "$WS" | cksum | cut -d' ' -f1)"
-LAUNCHD_LABEL="com.ainotes.snapshot-agents.$WS_ID"
-CRON_MARKER="# ainotes-snapshot-agents:$WS_ID ($WS)"
 
 # shellcheck source=tools/ainotes-config.sh
 source "$SRC/tools/ainotes-config.sh"
@@ -163,16 +161,6 @@ prepare_notes_repo() {
   fi
 }
 
-# snapshot_log_path — where the scheduled snapshot-agents.sh logs (the notes repo's .state/)
-snapshot_log_path() {
-  local config
-  if config="$(workspace_config)" && ! config_is_legacy "$config"; then
-    echo "$(state_dir_of "$config")/snapshot-agents.log"
-  else
-    echo "$WS/.ai-notes/snapshot-agents.log"
-  fi
-}
-
 # If the notes repo still has the old db/ layout (db/notes, db/PRS.md, ...), move everything up to
 # the repo root and remove the empty db/. A no-op when there's no config yet, no notes repo yet, or
 # the repo is already flat.
@@ -203,112 +191,45 @@ migrate_notes_repo() {
   [ "$DRY_RUN" = 1 ] || log "removed empty $db_dir"
 }
 
-# --- optional: schedule tools/snapshot-agents.sh ----------------------------------------------
+# --- scheduled jobs (tools/schedule.sh) -----------------------------------------------------
+# Which tools run on a schedule, how often and in which hours lives in the config's schedules:
+# section; schedule.sh turns it into launchd jobs (macOS) or crontab lines and owns all of that.
+SCHEDULER="$DEST/tools/schedule.sh"
 
-launchd_plist_path() { echo "$HOME/Library/LaunchAgents/$LAUNCHD_LABEL.plist"; }
-
-schedule_launchd() {
-  local script="$1" plist
-  plist="$(launchd_plist_path)"
-  if [ "$DRY_RUN" = 1 ]; then
-    echo "would: write $plist and load it with launchctl (every 60s)"
-    return 0
-  fi
-  local logfile
-  logfile="$(snapshot_log_path)"
-  mkdir -p "$HOME/Library/LaunchAgents" "$(dirname "$logfile")"
-  cat > "$plist" <<PLIST
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$LAUNCHD_LABEL</string>
-  <key>ProgramArguments</key>
-  <array><string>$script</string></array>
-  <key>StartInterval</key><integer>60</integer>
-  <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>$logfile</string>
-  <key>StandardErrorPath</key><string>$logfile</string>
-</dict>
-</plist>
-PLIST
-  launchctl unload "$plist" >/dev/null 2>&1 || true
-  if launchctl load -w "$plist" 2>/dev/null; then
-    log "scheduled via launchd: $plist (every 60s; logs at $logfile)"
-  else
-    echo "ainotes: wrote $plist but 'launchctl load' failed — load it yourself: launchctl load -w \"$plist\"" >&2
-  fi
-}
-
-unschedule_launchd() {
-  local plist
-  plist="$(launchd_plist_path)"
-  [ -f "$plist" ] || return 0
-  run launchctl unload "$plist"
-  run rm -f "$plist"
-  log "removed launchd job $plist"
-}
-
-schedule_cron() {
-  local script="$1"
-  if [ "$DRY_RUN" = 1 ]; then
-    echo "would: add a crontab line running $script every minute"
-    return 0
-  fi
-  command -v crontab >/dev/null 2>&1 || {
-    echo "ainotes: no crontab command found — schedule $script yourself" >&2
-    return 0
-  }
-  { crontab -l 2>/dev/null | grep -vF "$CRON_MARKER"
-    printf '* * * * * %s %s\n' "$script" "$CRON_MARKER"
-  } | crontab -
-  log "scheduled via cron: runs every minute ($CRON_MARKER)"
-}
-
-unschedule_cron() {
-  command -v crontab >/dev/null 2>&1 || return 0
-  crontab -l 2>/dev/null | grep -qF "$CRON_MARKER" || return 0
-  if [ "$DRY_RUN" = 1 ]; then
-    echo "would: remove the crontab entry for this workspace"
-    return 0
-  fi
-  crontab -l 2>/dev/null | grep -vF "$CRON_MARKER" | crontab -
-  log "removed crontab entry for this workspace"
-}
-
-# Asks once (only in a real terminal, only outside --dry-run/--no-schedule) whether to schedule
-# snapshot-agents.sh, and does it with whichever of launchd/cron fits the OS. A "no" (or a
-# non-interactive run) leaves everything untouched — the viewer's Agents view just stays empty
-# until AGENTS.json exists some other way.
-maybe_schedule_snapshot_agents() {
-  local script="$DEST/tools/snapshot-agents.sh"
-
-  if [ "$DRY_RUN" = 1 ]; then
-    echo "would: ask whether to schedule $script every 60s (launchd on macOS, cron elsewhere) — skip with --no-schedule"
-    return 0
-  fi
+# In a terminal (and without --no-schedule), ask which jobs to schedule: straight away the first
+# time, or after showing the current ones when the config already has a schedules: section. Then,
+# asked or not, re-apply the saved schedules so every job points at the freshly installed tools.
+configure_schedules() {
+  local reply
   if [ "$NO_SCHEDULE" = 1 ]; then
-    log "skipping the scheduling question (--no-schedule)"
+    log "leaving scheduled jobs as they are (--no-schedule)"
     return 0
   fi
-  [ -t 0 ] || return 0
-
-  echo
-  echo "ainotes: the viewer's Agents view is fed by tools/snapshot-agents.sh, refreshed on a"
-  echo "schedule. Set it up to run every 60 seconds now?"
-  read -r -p "  [y/N] " reply
-  case "$reply" in
-    y|Y|yes|Yes|YES) ;;
-    *)
-      log "not scheduled — run \"$script\" by hand, or set up your own cron/launchd job later"
-      return 0
-      ;;
-  esac
-
-  case "$(uname -s)" in
-    Darwin) schedule_launchd "$script" ;;
-    *) schedule_cron "$script" ;;
-  esac
+  if ! workspace_config >/dev/null || config_is_legacy "$(workspace_config)"; then
+    log "scheduled jobs can be set up once the notes repo exists: say \"configure schedules\" in Claude Code after \"setup ainotes\""
+    return 0
+  fi
+  if [ "$DRY_RUN" = 1 ]; then
+    "$SRC/tools/schedule.sh" --workspace "$WS" --dry-run apply
+    echo "would: ask which jobs to schedule (snapshot-agents, check-prs, pr-review, clean-worktrees) — skip with --no-schedule"
+    return 0
+  fi
+  if [ -t 0 ]; then
+    echo
+    if grep -qE '^schedules:' "$(workspace_config)"; then
+      "$SCHEDULER" --workspace "$WS" list
+      read -r -p "ainotes: change which jobs run on a schedule, how often or when? [y/N] " reply
+    else
+      echo "ainotes: the toolkit's scripts can run on a schedule (launchd on macOS, cron elsewhere):"
+      echo "the viewer's agents snapshot, the PRS.md refresh, automated PR reviews and worktree cleanup."
+      read -r -p "ainotes: choose which to schedule now? [Y/n] " reply
+      reply="${reply:-y}"
+    fi
+    case "$reply" in
+      y|Y|yes|Yes|YES) "$SCHEDULER" --workspace "$WS" configure; return 0 ;;
+    esac
+  fi
+  "$SCHEDULER" --workspace "$WS" apply
 }
 
 RUN_VIEWER="$WS/bin/run-viewer"
@@ -428,10 +349,7 @@ PY
 }
 
 if [ "$UNINSTALL" = 1 ]; then
-  case "$(uname -s)" in
-    Darwin) unschedule_launchd ;;
-    *) unschedule_cron ;;
-  esac
+  "$SRC/tools/schedule.sh" --workspace "$WS" $([ "$DRY_RUN" = 1 ] && echo --dry-run) remove-all
   for s in "$SRC"/skills/ainotes-*; do run rm -rf "$DEST/skills/$(basename "$s")"; done
   for a in "$SRC"/agents/*.md; do run rm -f "$DEST/agents/$(basename "$a")"; done
   for h in "${HOOK_SCRIPTS[@]}"; do run rm -f "$DEST/hooks/$h"; done
@@ -467,7 +385,7 @@ fi
 copy_file "$SRC/templates/workspace/run-viewer" "$RUN_VIEWER"
 remove_run_viewer "$LEGACY_RUN_VIEWER"
 edit_settings add
-maybe_schedule_snapshot_agents
+configure_schedules
 
 cat <<EOF
 

@@ -27,8 +27,8 @@ cd ~/projects/my-workspace && claude                         # then say: setup a
 bin/run-viewer                                               # open the viewer, any time
 ```
 
-Say **yes** when the installer offers to schedule the agents snapshot (it fills the viewer's Agents
-view), and always start `claude` from the workspace root.
+When the installer asks which scripts to schedule, pick at least the agents snapshot (it fills the
+viewer's Agents view), and always start `claude` from the workspace root.
 
 ### Update
 
@@ -88,7 +88,7 @@ GitHub is the only supported VCS today.
 One install serves every workspace, and it works wherever you launch Claude inside one. Update with
 `claude plugin update ainotes`. Skills and agents are namespaced (`ainotes:ainotes-setup`), but the
 plain names and trigger phrases work too. The plugin doesn't install the [tools](#tools) into your
-workspace or schedule the agents snapshot; the Tools section covers running them without an install.
+workspace or schedule them; the Tools section covers running them without an install.
 
 ### From a clone
 
@@ -111,13 +111,27 @@ along any arguments (`--port`, `--no-open`).
 |---|---|
 | `--dry-run` | Show what would change, change nothing |
 | `--force` | Overwrite existing toolkit files (this is how you update; local edits to them are lost) |
-| `--no-schedule` | Don't ask about scheduling the agents snapshot (for scripts and CI) |
-| `--uninstall` | Remove everything it installed, including a schedule it set up (a `bin/run-viewer` or `run-viewer.sh` you wrote yourself is left alone) |
+| `--no-schedule` | Don't ask about scheduled jobs and leave launchd/cron alone (for scripts and CI) |
+| `--uninstall` | Remove everything it installed, including every scheduled job of the workspace (a `bin/run-viewer` or `run-viewer.sh` you wrote yourself is left alone) |
 
-**Scheduling**: in an interactive terminal, the installer offers to run `tools/snapshot-agents.sh`
-every 60 seconds — a launchd job on macOS, a crontab line elsewhere. Re-running replaces its own
-entry instead of adding another. If you scheduled it yourself from a clone's path, point that job
-at `<workspace>/.claude/tools/snapshot-agents.sh` before deleting the clone.
+**Scheduling**: four of the tools can run unattended — a launchd job on macOS, a crontab line
+elsewhere. You choose which ones, how often, and optionally an hours window and weekdays only:
+
+| Job | Runs | Suggested |
+|---|---|---|
+| `snapshot-agents` | `snapshot-agents.sh` (the viewer's Agents view) | `every 1m` |
+| `check-prs` | `check-prs.sh` (refreshes `PRS.md`) | `every 30m` |
+| `pr-review` | `check-pending-pr-reviews --review` (costs money per review; $0 when none are pending) | `every 30m 09:00-18:00 weekdays` |
+| `clean-worktrees` | `clean-merged-worktrees.sh --delete` | `every 24h` |
+
+The choices are saved in the `schedules:` section of `<notes repo>/.config.yml`. In an interactive
+terminal the installer asks about each job the first time, and on later runs shows them and offers
+to change them; it always re-applies them so the jobs run the freshly installed tools. Change them
+any time by saying "configure schedules" in Claude Code (`ainotes-schedules`), or with
+`.claude/tools/schedule.sh configure | set <job> <spec> | list`. Before the notes repo exists
+there's nothing to save them in, so "setup ainotes" offers them at the end. A snapshot job set up
+by an older install is kept as `snapshot-agents: every 1m`. Jobs you set up yourself are never
+touched.
 
 Older notes repos that keep their data under a `db/` folder are flattened automatically on install.
 
@@ -150,6 +164,7 @@ always go through worktrees and your normal review.
 | Skill | Say | Does |
 |---|---|---|
 | `ainotes-setup` | "setup ainotes", "register new repos" | Creates or updates the notes repo's `.config.yml` (and the notes repo itself) |
+| `ainotes-schedules` | "configure schedules", "what's scheduled", "only run reviews during working hours" | Picks which tools run on launchd/cron, how often and in which hours (the `schedules:` section) |
 | `ainotes-notes` | `note: ...`, `plan: ...` | Writes dated, tagged notes and plans; keeps `INDEX.md` current |
 | `ainotes-task` | "work on X in `<repo>`" | Worktree → plan → approve → execute → review → asks before committing |
 | `ainotes-tasks` | `new task: ...`, "what are my open tasks" | Cross-session task ledger |
@@ -182,7 +197,7 @@ anything user-facing stay on your main model.
 |---|---|---|
 | Session start | `session-start-task-prompt.sh` | Asks whether to track the session as a task |
 | Session start | `detect-unregistered-repo.sh` | Suggests registering a repo missing from the config |
-| Session start | `detect-notes-repo-change.sh` | After the notes folder is renamed, alerts you to update launchd/cron jobs still pointing at the old folder |
+| Session start | `detect-notes-repo-change.sh` | After the notes folder is renamed, alerts you to update launchd/cron jobs still pointing at the old folder (`schedule.sh apply` fixes ainotes's own) |
 | After a `git clone` | `detect-repo-clone.sh` | Suggests registering the newly cloned repo |
 
 All hooks do nothing outside an AINotes workspace.
@@ -193,12 +208,13 @@ Plain scripts, no LLM needed. The installer puts them in `<workspace>/.claude/to
 
 | Tool | Does |
 |---|---|
-| `snapshot-agents.sh` | Writes `AGENTS.json` (the Claude Code sessions and jobs in the workspace) for the viewer's Agents view. Needs `jq`; meant to run every 60 seconds (the installer can schedule it). |
+| `snapshot-agents.sh` | Writes `AGENTS.json` (the Claude Code sessions and jobs in the workspace) for the viewer's Agents view. Needs `jq`; meant to run every 60 seconds (the `snapshot-agents` job). |
 | `check-prs.sh` | The mechanical part of "check prs": reconciles `PRS.md` with GitHub and commits. Needs `gh` and `jq`; safe to schedule. |
 | `check-pending-pr-reviews` | Lists open PRs requesting your review directly (no dependabot, stale or already-approved PRs by default), least recently updated first. `--review` runs `pr-review.sh` on each; Claude only starts if something is pending. Needs `gh` and `jq`. |
 | `pr-review.sh` | Reviews one PR headlessly (`claude -p` + `/code-review`, read-only) and posts the approval or inline comments as you; skips already-reviewed commits; enforces the monthly cap in the `pr_review:` section of the notes repo's `.config.yml`; logs cost/tokens. Needs `claude`, `gh`, `git`, `jq`. |
 | `review-note.sh` | Writes or extends a PR's review note in `reviews/` from a review JSON on stdin (or `--input`), indexes a new note in `INDEX.md`, and commits only those files. Needs `jq`; no LLM, so headless reviewers can call it too. |
 | `clean-merged-worktrees.sh` | Lists worktrees whose branches were merged (squash and rebase merges too); deletes them only with `--delete`. |
+| `schedule.sh` | Runs the tools above on a schedule: `list`, `set <job> <spec>`, `configure` (interactive), `apply`, `remove-all`. Turns the config's `schedules:` section into launchd jobs or crontab lines; each run checks its hours window and holds a lock. |
 | `config.example.yml` | Every config key, with comments. |
 
 Every script takes `--help`. Without installing anything, run the first two from inside a workspace
@@ -225,7 +241,7 @@ it reads and writes the Markdown files directly and nothing leaves your machine.
   and tags.
 - **Library**: Agents and Pull requests first, then the note views; empty items are hidden. Counts
   per item; drag to reorder. The order and your last selection are remembered.
-- **Agents**: who's working (with a spinner), idle, or waiting on you. Empty until the agents snapshot is scheduled
+- **Agents**: who's working (with a spinner), idle, or waiting on you. Empty until the `snapshot-agents` job is scheduled
   (see [Install options](#install-options)).
 - **Pull requests**: the `PRS.md` ledger with CI, review and merge hints.
 - **Version**: the release number sits at the bottom of the sidebar. When a newer one is deployed,

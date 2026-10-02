@@ -89,7 +89,7 @@ ignored_repos: []
 domain_taxonomy: {}
 
 # Optional: the ainotes-pr-review auto-reviewer (tools/check-pending-pr-reviews --review and
-# tools/pr-review.sh). Every key has a default, so the whole section can be omitted. Its state
+# tools/pr-review.sh). Every key has a default, so the whole section can be omitted. Its
 # spend ledger is <notes repo>/pr-reviews-ledger.jsonl (tracked); local state (clone cache, logs) is
 # in <notes repo>/.state/pr-review/.
 pr_review:
@@ -98,3 +98,14 @@ pr_review:
   review_level: high           # /code-review effort level (low | medium | high | xhigh | max)
   per_review_budget_usd: 8     # hard cap per review (claude --max-budget-usd)
   monthly_budget_usd: 100      # hard cap per calendar month across all reviews (dry runs included)
+
+# Optional: which tools run on a schedule (tools/schedule.sh; launchd on macOS, cron elsewhere).
+# One line per job: `off`, or `every <N>m|<N>h` (1m to 24h) optionally followed by an hours window
+# `HH:MM-HH:MM` and `weekdays` (Mon-Fri). Written by install.sh, "configure schedules"
+# (ainotes-schedules) and `schedule.sh set`; after editing by hand, run `schedule.sh apply`.
+# Logs: <notes repo>/.state/schedules/<job>.log.
+schedules:
+  snapshot-agents: every 1m                       # AGENTS.json for the viewer's Agents view
+  check-prs: every 30m                            # reconcile PRS.md with GitHub
+  pr-review: every 30m 09:00-18:00 weekdays       # check-pending-pr-reviews --review (costs per review)
+  clean-worktrees: off                            # clean-merged-worktrees.sh --delete

@@ -69,6 +69,10 @@ Run when no config is found by the discovery rule (walking up from the current d
 4. **Run the repo scan** (below) to populate `ignored_repos` and `domain_taxonomy`.
 5. **Write the file** to `<notes repo>/.config.yml` using the canonical schema below, show the user the final result, and confirm
    it looks right.
+6. **Offer scheduled jobs.** Ask whether any of the toolkit's scripts should run on a schedule (the
+   viewer's agents snapshot, the PRS.md refresh, automated PR reviews, worktree cleanup). If yes,
+   run the `ainotes-schedules` interview; it adds the `schedules:` section. If no, say they can do it
+   any time with "configure schedules".
 
 ### Canonical config schema
 
@@ -140,7 +144,10 @@ are typical. After the rename:
 1. Look for jobs that still reference `<workspace-root>/<old notes folder>`: every
    `~/Library/LaunchAgents/*.plist` on macOS, and the user's `crontab -l`.
 2. Alert the user, listing each one found, or say none were found.
-3. For each job, offer to change it so it no longer hardcodes the notes repo: run the tool from the
+3. Jobs labelled `com.ainotes.<job>.<id>` (or crontab lines tagged `# ainotes-schedule:`) are
+   ainotes's own: fix them all with `<workspace>/.claude/tools/schedule.sh apply`, which re-renders
+   them with the new paths (see `ainotes-schedules`). For any other job, offer to change it so it
+   no longer hardcodes the notes repo: run the tool from the
    workspace root with no notes-repo path. `check-prs.sh` and `snapshot-agents.sh` find the notes
    repo through the config-discovery rule on every run. Reload a changed launchd job with
    `launchctl unload` then `launchctl load -w`. Change a job only with the user's agreement.
