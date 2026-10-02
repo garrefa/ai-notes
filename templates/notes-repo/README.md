@@ -10,8 +10,8 @@ INDEX.md
 PRS.md
 TASKS.md
 .config.yml      # toolkit config (kind: ainotes-config)
-.state/          # untracked local runtime files (gitignored)
-.dm-pr-review/   # PR auto-reviewer state (only ledger.jsonl tracked)
+.state/          # untracked local runtime files (gitignored), incl. the PR auto-reviewer's dm-pr-review/
+pr-reviews-ledger.jsonl   # PR auto-reviewer spend ledger (tracked)
 ```
 
 - `Add a note ...` / `note: ...` → `notes/YYYY-MM-DD-slug.md`

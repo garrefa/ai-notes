@@ -3,8 +3,6 @@
 AGENTS.json
 AGENTS.json.*
 
-# Untracked runtime state (caches, logs, rename tracker)
+# Untracked runtime state (caches, logs, rename tracker, the PR auto-reviewer's clone cache);
+# its tracked spend ledger is pr-reviews-ledger.jsonl at the root
 .state/
-# PR auto-reviewer state (ainotes-dm-pr-review): only the spend ledger is tracked
-.dm-pr-review/*
-!.dm-pr-review/ledger.jsonl

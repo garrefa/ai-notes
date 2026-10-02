@@ -25,16 +25,17 @@ tools/pending-reviews.sh --review       # gh only: PRs requesting your review di
        │      {summary, key_changes, risk, follow_ups, findings[]}
        ├─ zero findings → gh pr review --approve (summary as the body)
        │  findings      → inline COMMENT review (falls back to body-only if GitHub rejects a line)
-       ├─ ledger.jsonl gets one line (PR, SHA, result, cost_usd, tokens); state.json records the SHA
+       ├─ pr-reviews-ledger.jsonl gets one line (PR, SHA, result, cost_usd, tokens); state.json records the SHA
        └─ review JSON piped to tools/review-note.sh (ainotes-review-notes) → <notes_repo>/reviews/
 ```
 
 - **Settings:** the `dm_pr_review:` section of the ainotes config (`<notes repo>/.config.yml`):
   `self_github_login` (default: `gh api user`), `review_model` (opus), `review_level` (high),
   `per_review_budget_usd` (8) and `monthly_budget_usd` (100). Every key is optional.
-- **State:** `<notes repo>/.dm-pr-review/` (created by install). It holds `state.json`, `ledger.jsonl`,
-  `review.log`, and `repos/` and `run/` (clone cache and temporary worktrees). Git tracks only
-  `ledger.jsonl`, which the reviewer commits after every recorded call; the rest is gitignored.
+- **Ledger:** `<notes repo>/pr-reviews-ledger.jsonl`, git-tracked. The reviewer commits it after
+  every recorded call, and only it.
+- **Local state:** `<notes repo>/.state/dm-pr-review/` (gitignored, created by install). It holds
+  `state.json`, `review.log`, and `repos/` and `run/` (clone cache and temporary worktrees).
 - **Budget:** every model call counts, dry runs included. Each review's `--max-budget-usd` is
   min(`per_review_budget_usd`, what's left this month), so the cap can't be overrun.
 - **Filters** on `pending-reviews.sh` decide what gets reviewed: `--include-teams`,

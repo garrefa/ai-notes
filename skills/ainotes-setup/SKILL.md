@@ -155,7 +155,8 @@ Older workspaces kept the config at `<workspace>/.ai-notes/config.yml` (with a `
 That location is still read as a fallback, and `install.sh` (install or update) migrates it
 automatically: it moves the config to `<notes>/.config.yml` (adding the `kind: ainotes-config`
 marker and dropping `notes_repo`), merges `<workspace>/.dm-pr-review/config.yml` into a
-`dm_pr_review:` section, moves `<workspace>/.dm-pr-review/` to `<notes>/.dm-pr-review/`, moves the
+`dm_pr_review:` section, moves `<workspace>/.dm-pr-review/` into the notes repo (its ledger becomes
+`<notes>/pr-reviews-ledger.jsonl`, the rest `<notes>/.state/dm-pr-review/`), moves the
 `.ai-notes/` runtime files into `<notes>/.state/`, and removes the empty `.ai-notes/`. If a user
 hits the legacy layout while this skill runs, point them at `install.sh` rather than migrating by hand.
 

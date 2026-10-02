@@ -27,11 +27,12 @@
 #     `kind: ainotes-config` marker, losing the notes_repo key); .ai-notes/ runtime files
 #     (default-branches.txt, .last-notes-repo, snapshot-agents.log) move to <notes repo>/.state/;
 #     the emptied .ai-notes/ is removed;
-#   - an older <ws>/.dm-pr-review/ moves to <notes repo>/.dm-pr-review/, its config.yml folded into
-#     the config's dm_pr_review: section;
+#   - an older <ws>/.dm-pr-review/ (or <notes repo>/.dm-pr-review/) moves into the notes repo: its
+#     ledger.jsonl becomes <notes repo>/pr-reviews-ledger.jsonl, the rest <notes repo>/.state/dm-pr-review/,
+#     and its config.yml is folded into the config's dm_pr_review: section;
 #   - a notes repo still using the db/ layout (db/notes, db/PRS.md, ...) is flattened to its root.
-# It also makes sure <notes repo>/.dm-pr-review/ exists and that the notes repo's .gitignore
-# ignores .state/ and everything in .dm-pr-review/ except ledger.jsonl. Safe to re-run: each step is
+# It also makes sure <notes repo>/.state/dm-pr-review/ exists and that the notes repo's .gitignore
+# ignores .state/ (dropping older .dm-pr-review/ rules). Safe to re-run: each step is
 # a no-op once done.
 #
 # Scheduling snapshot-agents.sh: when run interactively (a real terminal, not CI/a script feeding
@@ -146,18 +147,13 @@ migrate_config() {
 # Move an older <ws>/.dm-pr-review/ (PR auto-reviewer state) into the notes repo, folding its
 # config.yml into the ainotes config's dm_pr_review: section.
 migrate_dm_pr_review() {
-  local old="$WS/.dm-pr-review" config notes_dir dest oldcfg
+  local old="$WS/.dm-pr-review" config notes_dir oldcfg
   [ -d "$old" ] || return 0
   if ! config="$(workspace_config)" || config_is_legacy "$config"; then
     [ "$DRY_RUN" = 1 ] && echo "would: move $old into the notes repo once the config has been migrated"
     return 0
   fi
   notes_dir="$(notes_dir_of "$config")"
-  dest="$notes_dir/.dm-pr-review"
-  if [ -e "$dest" ]; then
-    echo "ainotes: both $old and $dest exist — leaving both; merge them by hand" >&2
-    return 0
-  fi
   oldcfg="$old/config.yml"
   if [ -f "$oldcfg" ] && ! grep -qE '^dm_pr_review:' "$config"; then
     if [ "$DRY_RUN" = 1 ]; then
@@ -175,6 +171,27 @@ migrate_dm_pr_review() {
     fi
   fi
   [ -f "$oldcfg" ] && run rm -f "$oldcfg"
+  relocate_dm_pr_review "$old" "$notes_dir"
+}
+
+# relocate_dm_pr_review OLD_DIR NOTES_DIR — split an older dm-pr-review state folder: its ledger.jsonl
+# becomes the tracked <notes repo>/pr-reviews-ledger.jsonl, everything else goes to the local
+# <notes repo>/.state/dm-pr-review/. Never overwrites; leaves what it can't move and says so.
+relocate_dm_pr_review() {
+  local old="$1" notes_dir="$2" ledger="$2/pr-reviews-ledger.jsonl" dest="$2/.state/dm-pr-review"
+  if [ -f "$old/ledger.jsonl" ]; then
+    if [ -e "$ledger" ]; then
+      echo "ainotes: both $old/ledger.jsonl and $ledger exist — leaving both; merge them by hand" >&2
+    else
+      run mv "$old/ledger.jsonl" "$ledger"
+      log "moved $old/ledger.jsonl -> $ledger"
+    fi
+  fi
+  if [ -e "$dest" ]; then
+    echo "ainotes: both $old and $dest exist — leaving $old; merge it by hand" >&2
+    return 0
+  fi
+  run mkdir -p "$notes_dir/.state"
   run mv "$old" "$dest"
   log "moved $old -> $dest"
 }
@@ -187,19 +204,28 @@ dm_setting() {
   if [ -n "$value" ]; then printf '  %s: %s\n' "$key" "$value"; fi
 }
 
-# Every run: make sure the notes repo has its .dm-pr-review/ folder and ignores runtime state
-# (.state/, and everything in .dm-pr-review/ except the spend ledger).
+# Every run: make sure the notes repo has the PR auto-reviewer's local state folder
+# (.state/dm-pr-review/; an older <notes repo>/.dm-pr-review/ is split into it and the root-level
+# pr-reviews-ledger.jsonl) and that its .gitignore has the current runtime-state rules.
 prepare_notes_repo() {
-  local config notes_dir gi line
+  local config notes_dir gi updated
   config="$(workspace_config)" || return 0
   config_is_legacy "$config" && return 0
   notes_dir="$(notes_dir_of "$config")"
-  [ -d "$notes_dir/.dm-pr-review" ] || { run mkdir -p "$notes_dir/.dm-pr-review"; log "created $notes_dir/.dm-pr-review"; }
+  [ -d "$notes_dir/.dm-pr-review" ] && relocate_dm_pr_review "$notes_dir/.dm-pr-review" "$notes_dir"
+  if [ ! -d "$notes_dir/.state/dm-pr-review" ]; then
+    run mkdir -p "$notes_dir/.state/dm-pr-review"
+    [ "$DRY_RUN" = 1 ] || log "created $notes_dir/.state/dm-pr-review"
+  fi
   gi="$notes_dir/.gitignore"
-  for line in '.state/' '.dm-pr-review/*' '!.dm-pr-review/ledger.jsonl'; do
-    grep -qxF -- "$line" "$gi" 2>/dev/null && continue
-    if [ "$DRY_RUN" = 1 ]; then echo "would: add '$line' to $gi"; else printf '%s\n' "$line" >> "$gi"; log "added '$line' to $gi"; fi
-  done
+  updated="$(notes_gitignore_updated "$gi")"
+  [ "$updated" = "$(cat "$gi" 2>/dev/null)" ] && return 0
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "would: update $gi with the runtime-state rules ($(notes_gitignore_rules | tr '\n' ' '))"
+  else
+    printf '%s\n' "$updated" > "$gi"
+    log "updated $gi (runtime-state rules: $(notes_gitignore_rules | tr '\n' ' '))"
+  fi
 }
 
 # snapshot_log_path — where the scheduled snapshot-agents.sh logs (the notes repo's .state/)

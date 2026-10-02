@@ -15,7 +15,8 @@
   - A monthly USD cap is enforced through `--max-budget-usd`, there is a per-review cost and token
     ledger, and every review is filed via `review-note.sh`.
   - Settings are a `dm_pr_review:` section of the ainotes config, and every key has a default.
-    State lives in `<notes repo>/.dm-pr-review/`, where git tracks only `ledger.jsonl`.
+    The spend ledger is tracked at `<notes repo>/pr-reviews-ledger.jsonl`, and local state (clone
+    cache, logs) lives in the gitignored `<notes repo>/.state/dm-pr-review/`.
 - Notes-repo template documents the new `reviews/` folder.
 - The ainotes config moves from `<workspace>/.ai-notes/config.yml` to `<notes repo>/.config.yml`,
   marked by `kind: ainotes-config`. Tools find it by walking up and checking each directory and its
@@ -26,8 +27,9 @@
   `install.sh` migrates existing workspaces on install or update:
   - it moves the config and the runtime files, and folds an old `.dm-pr-review/config.yml` into
     `dm_pr_review:`;
-  - it moves `<workspace>/.dm-pr-review/` into the notes repo and removes the empty `.ai-notes/`;
-  - it adds the `.state/` and `.dm-pr-review/` ignore rules.
+  - it moves `<workspace>/.dm-pr-review/` into the notes repo (ledger to `pr-reviews-ledger.jsonl`, the
+    rest to `.state/dm-pr-review/`) and removes the empty `.ai-notes/`;
+  - it adds the `.state/` ignore rule.
 
   A legacy `.ai-notes/config.yml` is still read until it has been migrated.
 - The viewer launcher moves from `<workspace>/run-viewer.sh` to `<workspace>/bin/run-viewer`, with
