@@ -195,7 +195,7 @@ Plain scripts, no LLM needed. The installer puts them in `<workspace>/.claude/to
 |---|---|
 | `snapshot-agents.sh` | Writes `AGENTS.json` (the Claude Code sessions and jobs in the workspace) for the viewer's Agents view. Needs `jq`; meant to run every 60 seconds (the installer can schedule it). |
 | `check-prs.sh` | The mechanical part of "check prs": reconciles `PRS.md` with GitHub and commits. Needs `gh` and `jq`; safe to schedule. |
-| `pending-reviews.sh` | Lists open PRs requesting your review directly (no dependabot, stale or already-approved PRs by default), least recently updated first. `--review` runs `dm-pr-review.sh` on each; Claude only starts if something is pending. Needs `gh` and `jq`. |
+| `check-pending-pr-reviews` | Lists open PRs requesting your review directly (no dependabot, stale or already-approved PRs by default), least recently updated first. `--review` runs `dm-pr-review.sh` on each; Claude only starts if something is pending. Needs `gh` and `jq`. |
 | `dm-pr-review.sh` | Reviews one PR headlessly (`claude -p` + `/code-review`, read-only) and posts the approval or inline comments as you; skips already-reviewed commits; enforces the monthly cap in the `dm_pr_review:` section of the notes repo's `.config.yml`; logs cost/tokens. Needs `claude`, `gh`, `git`, `jq`. |
 | `review-note.sh` | Writes or extends a PR's review note in `reviews/` from a review JSON on stdin (or `--input`), indexes a new note in `INDEX.md`, and commits only those files. Needs `jq`; no LLM, so headless reviewers can call it too. |
 | `clean-merged-worktrees.sh` | Lists worktrees whose branches were merged (squash and rebase merges too); deletes them only with `--delete`. |

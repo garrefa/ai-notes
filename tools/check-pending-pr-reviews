@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 #
-# pending-reviews.sh — AI-free list of open PRs in a GitHub org where your review is requested, least recently
+# check-pending-pr-reviews — AI-free list of open PRs in a GitHub org where your review is requested, least recently
 # updated first (that's also the order --review works through them). By default it shows only PRs
 # requesting you directly (not via a team) and hides PRs from dependabot[bot] and PRs that are stale
 # (no update in 5+ days) or already approved (overall review decision APPROVED).
 #
-# Usage: pending-reviews.sh [ORG] [--include-teams] [--include-stale] [--include-approved] [--include-dependabot]
+# Usage: check-pending-pr-reviews [ORG] [--include-teams] [--include-stale] [--include-approved] [--include-dependabot]
 #                           [--no-drafts] [--no-bots]
 #                           [--json | --review | --review-dry-run]
 #   ORG                 GitHub org (default: vcs.org from <notes repo>/.config.yml)

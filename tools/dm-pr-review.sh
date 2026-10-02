@@ -12,7 +12,7 @@
 # overrun. Each published review is filed as a note in <notes_repo>/reviews/ via review-note.sh
 # (ainotes-review-notes).
 #
-# Usually driven by `pending-reviews.sh --review`, which only calls this when PRs are pending, so
+# Usually driven by `check-pending-pr-reviews --review`, which only calls this when PRs are pending, so
 # an empty queue costs $0.
 #
 # Usage: dm-pr-review.sh <command>
