@@ -7,7 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 This is the second brain for the surrounding workspace. It holds every note and plan for any of that
 workspace's repos, organized as dated, tagged Markdown files — see the `ainotes-notes` skill for the
 full format (frontmatter schema, domain taxonomy, filenames, `INDEX.md`). Workspace-level settings
-(domain taxonomy, Jira project, GitHub org) live in `../.ai-notes/config.yml`, not here.
+(domain taxonomy, Jira project, GitHub org) live in `.config.yml` in this repo, not here.
 
 There is no build/lint/test tooling here — it's plain Markdown content, not code.
 
@@ -15,6 +15,9 @@ There is no build/lint/test tooling here — it's plain Markdown content, not co
 
 ```
 README.md  CLAUDE.md  .gitignore   # repo docs stay at the root
+.config.yml                        # toolkit config (kind: ainotes-config), git-tracked
+.state/                            # untracked local runtime files (gitignored)
+.dm-pr-review/                     # PR auto-reviewer state (only ledger.jsonl tracked)
 notes/YYYY-MM-DD-slug.md
 plans/YYYY-MM-DD-slug.md
 tasks/YYYY-MM-DD-slug.md

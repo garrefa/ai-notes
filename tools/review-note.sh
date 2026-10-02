@@ -3,7 +3,7 @@
 # review-note.sh — standalone, AI-free writer for PR review notes (the ainotes-review-notes skill).
 #
 # Takes one finished PR review as JSON and records it in the notes repo as
-# <notes_repo>/reviews/<first-review-date>-<repo>-<number>.md — one note per PR. The first review
+# <notes repo>/reviews/<first-review-date>-<repo>-<number>.md — one note per PR. The first review
 # creates the note; every later review of the same PR (e.g. a re-review after new commits) appends
 # a dated section and a row to the note's review history, and the frontmatter is refreshed to the
 # latest review. A new note is indexed in INDEX.md under `pr-review`, the repo, its domains (from
@@ -33,9 +33,9 @@
 #   --dry-run     print the note that would be written (and the INDEX.md tags); change nothing
 #   --no-commit   write and index the note but leave committing to the caller
 #
-# Configuration comes from the ainotes workspace's .ai-notes/config.yml, found by walking up from
-# the current directory (else this script's own directory) until a directory containing .ai-notes/
-# turns up: `notes_repo` locates the notes repo, `domain_taxonomy` tags the note's domains.
+# Configuration comes from the ainotes config, `.config.yml` inside the notes repo, found by walking
+# up from the current directory (else this script's own directory; see ainotes-config.sh). The
+# folder holding it is the notes repo; its `domain_taxonomy` tags the note's domains.
 # If INDEX.md already has uncommitted edits, indexing is skipped (and said so on stderr) rather
 # than sweeping someone else's edits into this commit. Needs `jq` and `git` on PATH (bash 3.2-safe).
 #
@@ -70,11 +70,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ainotes-config.sh
 source "$SCRIPT_DIR/ainotes-config.sh"
 
-WORKSPACE_ROOT="$(find_workspace_root "$PWD" || find_workspace_root "$SCRIPT_DIR" || true)"
-[[ -n "$WORKSPACE_ROOT" ]] || { echo "No ainotes workspace (.ai-notes/) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
-CONFIG="$WORKSPACE_ROOT/.ai-notes/config.yml"
-NOTES_DIR="$WORKSPACE_ROOT/$(config_value "$CONFIG" notes_repo || true)"
-[[ -d "$NOTES_DIR" && "$NOTES_DIR" != "$WORKSPACE_ROOT/" ]] || { echo "notes_repo not found: $NOTES_DIR" >&2; exit 1; }
+CONFIG="$(find_ainotes_config "$PWD" || find_ainotes_config "$SCRIPT_DIR" || true)"
+[[ -n "$CONFIG" ]] || { echo "No ainotes config (<notes repo>/.config.yml) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
+NOTES_DIR="$(notes_dir_of "$CONFIG")"
+[[ -n "$NOTES_DIR" && -d "$NOTES_DIR" ]] || { echo "Notes repo not found for $CONFIG: ${NOTES_DIR:-unset}" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
 # Input

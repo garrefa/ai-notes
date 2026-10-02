@@ -6,9 +6,8 @@ description: Capture notes and plans into the workspace's notes repo, a git-back
 # Notes (notes repo)
 
 The notes repo is the only place notes and plans go for this workspace, regardless of what repo the
-conversation is otherwise touching. Its name is a config value, not a hardcoded assumption — read
-`notes_repo` from `.ai-notes/config.yml` (see below for how to find that file); `<notes_repo>` below
-means that value. It's a **git repo of its own** (`<notes_repo>/.git`) — separate from every code
+conversation is otherwise touching. Its name isn't hardcoded — it is whichever folder holds
+`.config.yml` (see below for how to find it); `<notes_repo>` below means that folder. It's a **git repo of its own** (`<notes_repo>/.git`) — separate from every code
 repo — but a simple one: no worktrees, no branches per note, no Jira ticket, no review gate. That
 machinery exists for the code repos because it's how the real engineering process works; the notes
 repo just records that process happened, so it stays lightweight. Commit directly to its default
@@ -19,13 +18,22 @@ This skill owns *what* gets written, in what format, and the (simple) git commit
 skill only to persist the plan note and later update it — it never touches the notes repo's git history
 itself.
 
-Shared config lives at `.ai-notes/config.yml` at the workspace root — find it by walking up
-from the current directory until a `.ai-notes/` directory turns up (same discovery pattern as `.git`;
-never a path hardcoded to one specific workspace, since one ainotes-* installation can serve several
-independent workspaces, each with its own `.ai-notes/`). Read it for the current `notes_repo`,
+Shared config lives at `.config.yml` inside the notes repo (`<workspace>/<notes folder>/.config.yml`),
+git-tracked with it (workspace settings, no secrets). Its first key is `kind: ainotes-config`, the
+marker that tells it apart from any other `.config.yml`. **Config-discovery rule:** walk up from the
+current directory; at each directory, if it contains a `.config.yml` with `kind: ainotes-config`,
+that directory is the notes repo; otherwise, if one of its immediate subfolders does, that subfolder
+is the notes repo. The notes repo's parent is the **workspace root**. Never use a path hardcoded to one
+specific workspace, since one ainotes-* installation can serve several independent workspaces, each
+with its own notes repo. (A legacy `<workspace>/.ai-notes/config.yml` is still read as a fallback
+until `install.sh` migrates it.) The notes repo is identified by where the config lives, so there is
+no `notes_repo` key and renaming the notes folder needs no config edit. Read the config for
 `domain_taxonomy`, `preferred_epics`, and (if present) `jira.project_key`/`jira.base_url` rather than
 trusting stale copies of those values in prose anywhere, including in this file. The `jira` block is
 optional — when it's absent, leave `jira: null` on every plan and never ask about tickets.
+
+Untracked local runtime files live in `<notes_repo>/.state/` (gitignored); the PR auto-reviewer keeps
+its state in `<notes_repo>/.dm-pr-review/` (only its `ledger.jsonl` is tracked).
 
 ## Who writes the file
 
@@ -54,6 +62,9 @@ yourself (or tell the user) before moving on. If it returns an `error`, report i
 ```
 <notes_repo>/
   README.md  CLAUDE.md  .gitignore   # repo docs
+  .config.yml                      # toolkit config (kind: ainotes-config)
+  .state/                          # untracked local runtime files (gitignored)
+  .dm-pr-review/                   # PR auto-reviewer state (only ledger.jsonl tracked)
   notes/YYYY-MM-DD-slug.md
   plans/YYYY-MM-DD-slug.md
   tasks/YYYY-MM-DD-slug.md         # owned by ainotes-tasks
@@ -88,7 +99,7 @@ files. The date is still duplicated into frontmatter as the canonical machine-re
 date: YYYY-MM-DD
 type: note | plan
 repo: <repo or null>        # plans targeting a workspace repo set this; freeform notes usually null
-domain: []                  # one or more tags from domain_taxonomy in .ai-notes/config.yml
+domain: []                  # one or more tags from domain_taxonomy in `.config.yml`
 epic: null                  # epic key or name, if any — always ask, don't assume none (see preferred_epics below)
 tags: []                    # free-form, on top of domain/epic — required, at least one total across domain+tags
 jira: null                  # plans only, once ainotes-task step 6 gets/creates a ticket (stays null without a jira config block)
@@ -103,7 +114,7 @@ Every file needs at least one tag across `domain` + `tags` combined — untagged
 sharpening, not an excuse to skip tagging.
 
 **Domain taxonomy** (pick one or more that fit the topic — this is the primary cross-reference axis
-across repos and time): read `domain_taxonomy` from `.ai-notes/config.yml` for the current domain →
+across repos and time): read `domain_taxonomy` from `.config.yml` for the current domain →
 repos map. That file is the only source of domains — don't invent a fixed list here or carry one
 over from another workspace. It's a living list, edited in place in that file the moment a note or plan genuinely
 doesn't fit any existing domain — prefer reusing an existing domain over inventing a near-duplicate;
@@ -127,7 +138,7 @@ section (tokens, tool calls, wall time; any USD figure flagged as directional) �
 If an epic is given, also add `epic:<key>` to `tags` so notes under the same epic are greppable
 together, in addition to the structured `epic:` field.
 
-**Preferred epics**: read `preferred_epics` from `.ai-notes/config.yml` and offer it as suggestions when
+**Preferred epics**: read `preferred_epics` from `.config.yml` and offer it as suggestions when
 asking about an epic (step 1 below) — never as a substitute for asking, and never assume "none" just
 because nothing was mentioned. If the user names an epic not in that list, use what they said and add
 it to `preferred_epics` once it's confirmed as real/ongoing; don't remove an entry until it's actually
@@ -135,7 +146,7 @@ closed.
 
 ## Adding a note
 
-1. Ask about an epic if not already stated — offer `preferred_epics` from `.ai-notes/config.yml` as
+1. Ask about an epic if not already stated — offer `preferred_epics` from `.config.yml` as
    options, but accept anything the user actually says.
 2. Grep `<notes_repo>/` for matching `domain`/`epic`/`repo` (filenames only, `grep -l`) to find
    related earlier notes, and link them via `links: []` if relevant.

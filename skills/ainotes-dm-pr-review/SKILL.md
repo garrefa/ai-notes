@@ -20,7 +20,7 @@ tools/pending-reviews.sh --review       # gh only: PRs requesting your review di
        ├─ skip if closed/merged, approved by you at head, or already reviewed by us at head
        ├─ stop (exit 3) if < $1 is left in the monthly budget
        ├─ private clone cache → detached worktree at the PR head (never your own checkouts)
-       ├─ claude -p --model <models.review> --max-budget-usd min(per-review cap, remaining)
+       ├─ claude -p --model <review_model> --max-budget-usd min(per-review cap, remaining)
        │    → /code-review <review.level>; read-only tools, no MCP; structured output
        │      {summary, key_changes, risk, follow_ups, findings[]}
        ├─ zero findings → gh pr review --approve (summary as the body)
@@ -29,10 +29,12 @@ tools/pending-reviews.sh --review       # gh only: PRs requesting your review di
        └─ review JSON piped to tools/review-note.sh (ainotes-review-notes) → <notes_repo>/reviews/
 ```
 
-- **Config and state:** `<workspace>/.dm-pr-review/`. That holds `config.yml` (`self_github_login`,
-  `models.review`, `review.level`, `review.per_review_budget_usd`, `budget.monthly_usd`; created
-  on first use from `tools/dm-pr-review.config.example.yml`), `state.json`, `ledger.jsonl`,
-  `review.log`, and `repos/` and `run/` (clone cache and temporary worktrees).
+- **Settings:** the `dm_pr_review:` section of the ainotes config (`<notes repo>/.config.yml`):
+  `self_github_login` (default: `gh api user`), `review_model` (opus), `review_level` (high),
+  `per_review_budget_usd` (8) and `monthly_budget_usd` (100). Every key is optional.
+- **State:** `<notes repo>/.dm-pr-review/` (created by install). It holds `state.json`, `ledger.jsonl`,
+  `review.log`, and `repos/` and `run/` (clone cache and temporary worktrees). Git tracks only
+  `ledger.jsonl`, which the reviewer commits after every recorded call; the rest is gitignored.
 - **Budget:** every model call counts, dry runs included. Each review's `--max-budget-usd` is
   min(`per_review_budget_usd`, what's left this month), so the cap can't be overrun.
 - **Filters** on `pending-reviews.sh` decide what gets reviewed: `--include-teams`,
@@ -51,7 +53,7 @@ Run from anywhere in the workspace. `T=<workspace>/.claude/tools` (or the plugin
 | "dry-run review <PR>" | `$T/dm-pr-review.sh dry-run <url>`: real review, nothing posted, cost counts |
 | "review spend [month]" | `$T/dm-pr-review.sh spend [YYYY-MM]` |
 | "review status" | `$T/dm-pr-review.sh status` |
-| change the cap / model / level | edit `<workspace>/.dm-pr-review/config.yml` |
+| change the cap / model / level | edit the `dm_pr_review:` section of `<notes repo>/.config.yml` |
 
 Scheduling is optional and safe: run `pending-reviews.sh --review` from cron or launchd. With
 nothing pending it costs $0.

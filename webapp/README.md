@@ -8,7 +8,7 @@ viewer. You can track several notes repos at once and switch between them in one
 
 There is no server component: the app runs entirely in the browser and reads the notes repo straight
 from disk through the [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API).
-It only reads the notes repo you pick; it never reads your workspace's `.ai-notes/config.yml`.
+It only reads the notes repo you pick; it never reads your workspace's `.config.yml`.
 
 ## Requirements
 
@@ -99,8 +99,8 @@ new ones relative to that date, and avoid weekday or month names, which the date
 ## Connect your notes repos
 
 1. Open the app and click **Connect folder** in the sidebar.
-2. In the folder picker, choose your **notes repo**: the folder named by `notes_repo` in your
-   workspace config (it has `notes/`, `plans/` and the rest of the layout directly inside it).
+2. In the folder picker, choose your **notes repo**: the folder holding your
+   workspace's `.config.yml` (it has `notes/`, `plans/` and the rest of the layout directly inside it).
 3. Grant read/write access when the browser asks. Write access is only used when you create, edit
    or delete something from the viewer (see [Creating, editing and deleting](#creating-editing-and-deleting)).
 

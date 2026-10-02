@@ -9,7 +9,8 @@
 #
 # Reads the hook input's `command` and `cwd` (via jq, or python3 if jq is absent; exits 0 silently
 # with neither). The workspace root is found by walking up from that `cwd` (falling back to
-# $CLAUDE_PROJECT_DIR, then $PWD) for .ai-notes/config.yml; exits 0 silently if there is none.
+# $CLAUDE_PROJECT_DIR, then $PWD) for the ainotes config (<notes repo>/.config.yml, or a legacy
+# .ai-notes/config.yml); exits 0 silently if there is none.
 
 # Print a string field from the hook's JSON input on stdin, or nothing. $1 is a dotted path
 # (e.g. "cwd" or "tool_input.command").
@@ -28,17 +29,33 @@ print(v if isinstance(v, str) else "")' "$1" 2>/dev/null
   fi
 }
 
-# Walk up from $1 looking for .ai-notes/config.yml; print the workspace root, or fail.
-find_workspace_root() {
+# ainotes config discovery — keep in sync with tools/ainotes-config.sh. The config is
+# <notes repo>/.config.yml (marked `kind: ainotes-config`); the folder holding it is the notes repo
+# and its parent is the workspace root. A legacy <workspace>/.ai-notes/config.yml is still honored.
+is_ainotes_config() {
+  [ -f "$1" ] && grep -qE '^kind:[[:space:]]*["'"'"']?ainotes-config' "$1"
+}
+
+# Walk up from $1 (checking each directory and its immediate subfolders); print the config path.
+find_ainotes_config() {
   dir="$1"
   while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-    if [ -f "$dir/.ai-notes/config.yml" ]; then
-      printf '%s\n' "$dir"
-      return 0
-    fi
+    if is_ainotes_config "$dir/.config.yml"; then printf '%s\n' "$dir/.config.yml"; return 0; fi
+    for candidate in "$dir"/*/.config.yml; do
+      if is_ainotes_config "$candidate"; then printf '%s\n' "$candidate"; return 0; fi
+    done
+    if [ -f "$dir/.ai-notes/config.yml" ]; then printf '%s\n' "$dir/.ai-notes/config.yml"; return 0; fi
     dir="$(dirname "$dir")"
   done
   return 1
+}
+
+# The notes folder's name for a config (legacy layout: its notes_repo key, default "notes").
+notes_repo_name() {
+  case "$1" in
+    */.ai-notes/config.yml) name="$(read_config_scalar "$1" notes_repo)"; printf '%s\n' "${name:-notes}" ;;
+    *) basename "$(dirname "$1")" ;;
+  esac
 }
 
 # Print a top-level scalar key ($2) from a simple YAML file ($1) without needing yq: strips a
@@ -91,7 +108,8 @@ case "$command" in
   *) exit 0 ;;
 esac
 
-root="$(find_workspace_root "$cwd")" || exit 0
+config="$(find_ainotes_config "$cwd")" || exit 0
+root="$(dirname "$(dirname "$config")")"
 
 # Pull out everything after the "clone" token, pad every control-operator character (; & |) with
 # spaces so one glued to a word becomes its own token, then walk it word by word (unquoted
@@ -148,8 +166,7 @@ esac
 [ -d "$full/.git" ] || exit 0
 
 repo="$(basename "$full")"
-config="$root/.ai-notes/config.yml"
-notes_repo="$(read_config_scalar "$config" notes_repo)"
+notes_repo="$(notes_repo_name "$config")"
 
 case "$repo" in
   ""|.ai-notes|.claude|"${notes_repo:-notes}")
@@ -162,11 +179,12 @@ if registered_repos "$config" | grep -qxF "$repo"; then
 fi
 
 repo_json="$(json_escape "$repo")"
+config_json="$(json_escape "$config")"
 cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "You just cloned '$repo_json' into the workspace root. Invoke the ainotes-setup skill's repo-registration flow scoped to just this one new repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update .ai-notes/config.yml accordingly."
+    "additionalContext": "You just cloned '$repo_json' into the workspace root. Invoke the ainotes-setup skill's repo-registration flow scoped to just this one new repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the ainotes config ($config_json) accordingly."
   }
 }
 EOF

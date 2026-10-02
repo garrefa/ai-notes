@@ -44,7 +44,7 @@ This also upgrades an older install made from a clone; you can delete the clone 
 npx ainotes-viewer@latest install --uninstall ~/projects/my-workspace
 ```
 
-Your notes repo and `.ai-notes/` are left untouched.
+Your notes repo (including its `.config.yml`) is left untouched.
 
 ## What you get
 
@@ -63,7 +63,7 @@ Your notes repo and `.ai-notes/` are left untouched.
 
 Workspaces stay fully separate — for example `~/work/` with Jira and Slack, `~/personal/`, and
 `~/study/` with no Jira at all. Everything workspace-specific lives in that workspace's
-`.ai-notes/config.yml`, so one toolkit serves them all.
+the notes repo's `.config.yml`, so one toolkit serves them all.
 
 ## Requirements
 
@@ -126,9 +126,11 @@ Older notes repos that keep their data under a `db/` folder are flattened automa
 ### Workspace layout
 
 ```text
-~/projects/my-workspace/          <- workspace root: wherever .ai-notes/ lives
-├── .ai-notes/config.yml          <- per-workspace settings (see tools/config.example.yml)
-├── notes/                        <- the notes repo (name set by notes_repo); its own git repo
+~/projects/my-workspace/          <- workspace root: the parent of the notes repo
+├── notes/                        <- the notes repo (any folder name); its own git repo
+│   ├── .config.yml               <- per-workspace settings (see tools/config.example.yml)
+│   ├── .state/                   <- untracked local runtime files (gitignored)
+│   ├── .dm-pr-review/            <- PR auto-reviewer state (only ledger.jsonl tracked)
 │   ├── notes/  plans/  tasks/  daily/
 │   ├── INDEX.md                  <- tag -> files
 │   ├── PRS.md                    <- PR ledger
@@ -138,7 +140,8 @@ Older notes repos that keep their data under a `db/` folder are flattened automa
 ```
 
 Skills find the workspace the way git finds `.git`: they walk up from the current directory to the
-nearest folder containing `.ai-notes/`, so a note written in `~/study/` never lands in your work
+nearest notes repo (a folder with a `.config.yml` whose first key is `kind: ainotes-config`, or whose
+immediate subfolder has one; its parent is the workspace root), so a note written in `~/study/` never lands in your work
 notes. The notes repo is a journal, so its commits go straight to `main`; code changes in your repos
 always go through worktrees and your normal review.
 
@@ -146,7 +149,7 @@ always go through worktrees and your normal review.
 
 | Skill | Say | Does |
 |---|---|---|
-| `ainotes-setup` | "setup ainotes", "register new repos" | Creates or updates `.ai-notes/config.yml` and the notes repo |
+| `ainotes-setup` | "setup ainotes", "register new repos" | Creates or updates the notes repo's `.config.yml` (and the notes repo itself) |
 | `ainotes-notes` | `note: ...`, `plan: ...` | Writes dated, tagged notes and plans; keeps `INDEX.md` current |
 | `ainotes-task` | "work on X in `<repo>`" | Worktree → plan → approve → execute → review → asks before committing |
 | `ainotes-tasks` | `new task: ...`, "what are my open tasks" | Cross-session task ledger |
@@ -179,7 +182,7 @@ anything user-facing stay on your main model.
 |---|---|---|
 | Session start | `session-start-task-prompt.sh` | Asks whether to track the session as a task |
 | Session start | `detect-unregistered-repo.sh` | Suggests registering a repo missing from the config |
-| Session start | `detect-notes-repo-change.sh` | After `notes_repo` changes, alerts you to update launchd/cron jobs still pointing at the old folder |
+| Session start | `detect-notes-repo-change.sh` | After the notes folder is renamed, alerts you to update launchd/cron jobs still pointing at the old folder |
 | After a `git clone` | `detect-repo-clone.sh` | Suggests registering the newly cloned repo |
 
 All hooks do nothing outside an AINotes workspace.
@@ -193,7 +196,7 @@ Plain scripts, no LLM needed. The installer puts them in `<workspace>/.claude/to
 | `snapshot-agents.sh` | Writes `AGENTS.json` (the Claude Code sessions and jobs in the workspace) for the viewer's Agents view. Needs `jq`; meant to run every 60 seconds (the installer can schedule it). |
 | `check-prs.sh` | The mechanical part of "check prs": reconciles `PRS.md` with GitHub and commits. Needs `gh` and `jq`; safe to schedule. |
 | `pending-reviews.sh` | Lists open PRs requesting your review directly (no dependabot, stale or already-approved PRs by default), least recently updated first. `--review` runs `dm-pr-review.sh` on each; Claude only starts if something is pending. Needs `gh` and `jq`. |
-| `dm-pr-review.sh` | Reviews one PR headlessly (`claude -p` + `/code-review`, read-only) and posts the approval or inline comments as you; skips already-reviewed commits; enforces the monthly cap in `<workspace>/.dm-pr-review/config.yml`; logs cost/tokens. Needs `claude`, `gh`, `git`, `jq`. |
+| `dm-pr-review.sh` | Reviews one PR headlessly (`claude -p` + `/code-review`, read-only) and posts the approval or inline comments as you; skips already-reviewed commits; enforces the monthly cap in the `dm_pr_review:` section of the notes repo's `.config.yml`; logs cost/tokens. Needs `claude`, `gh`, `git`, `jq`. |
 | `review-note.sh` | Writes or extends a PR's review note in `reviews/` from a review JSON on stdin (or `--input`), indexes a new note in `INDEX.md`, and commits only those files. Needs `jq`; no LLM, so headless reviewers can call it too. |
 | `clean-merged-worktrees.sh` | Lists worktrees whose branches were merged (squash and rebase merges too); deletes them only with `--delete`. |
 | `config.example.yml` | Every config key, with comments. |

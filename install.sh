@@ -18,12 +18,20 @@
 #   notes repo's db/ layout -> migrated up a level in place, if an older repo still has one
 #   tools/snapshot-agents.sh -> offered on a schedule (launchd on macOS, cron elsewhere) — see below
 #
-# It never creates .ai-notes/config.yml or the notes repo — run "setup ainotes" in Claude Code
-# from the workspace afterwards; the ainotes-setup skill asks the questions and creates both. It
-# DOES fix up an existing notes repo that predates the flat layout: if `.ai-notes/config.yml`
-# points at one with a `db/` folder (db/notes, db/PRS.md, ...), that folder's contents are moved up
-# to the repo root and the empty `db/` is removed, on every run (not just --force — this is data
-# layout, not a toolkit file to protect). Safe to re-run: a no-op once there's no `db/` left.
+# It never creates the config or the notes repo — run "setup ainotes" in Claude Code from the
+# workspace afterwards; the ainotes-setup skill asks the questions and creates both (the config is
+# <notes repo>/.config.yml). On every run (not just --force — this is data layout, not a toolkit
+# file to protect), and honoring --dry-run, it migrates older layouts in place:
+#   - a legacy <ws>/.ai-notes/config.yml moves to <notes repo>/.config.yml (gaining the
+#     `kind: ainotes-config` marker, losing the notes_repo key); .ai-notes/ runtime files
+#     (default-branches.txt, .last-notes-repo, snapshot-agents.log) move to <notes repo>/.state/;
+#     the emptied .ai-notes/ is removed;
+#   - an older <ws>/.dm-pr-review/ moves to <notes repo>/.dm-pr-review/, its config.yml folded into
+#     the config's dm_pr_review: section;
+#   - a notes repo still using the db/ layout (db/notes, db/PRS.md, ...) is flattened to its root.
+# It also makes sure <notes repo>/.dm-pr-review/ exists and that the notes repo's .gitignore
+# ignores .state/ and everything in .dm-pr-review/ except ledger.jsonl. Safe to re-run: each step is
+# a no-op once done.
 #
 # Scheduling snapshot-agents.sh: when run interactively (a real terminal, not CI/a script feeding
 # stdin) and not `--dry-run`, install asks once whether to schedule it to run every 60s — needed
@@ -76,17 +84,144 @@ source "$SRC/tools/ainotes-config.sh"
 run() { if [ "$DRY_RUN" = 1 ]; then echo "would: $*"; else "$@"; fi; }
 log() { echo "ainotes: $*"; }
 
-# If .ai-notes/config.yml points at a notes repo that still has the old db/ layout (db/notes,
-# db/PRS.md, ...), move everything up to the repo root and remove the empty db/. A no-op when
-# there's no config yet, no notes repo yet, or the repo is already flat. Runs regardless of --force
-# (this fixes a data layout, not a toolkit file), and honors --dry-run like everything else here.
+# workspace_config — this workspace's ainotes config (new or legacy layout); fails if there's none.
+workspace_config() {
+  local c
+  c="$(find_ainotes_config "$WS")" || return 1
+  [ "$(workspace_root_of "$c")" = "$WS" ] || return 1
+  echo "$c"
+}
+
+# Move a legacy .ai-notes/config.yml into the notes repo it names, as .config.yml (marker added,
+# notes_repo dropped), and .ai-notes/ runtime files into <notes repo>/.state/. Never overwrites: if
+# the destination already exists it warns and leaves both for you to reconcile.
+migrate_config() {
+  local legacy="$WS/.ai-notes/config.yml" notes_repo notes_dir new pair from to
+  [ -f "$legacy" ] || return 0
+  notes_repo="$(config_value "$legacy" notes_repo)"
+  notes_dir="$WS/${notes_repo:-notes}"
+  if [ ! -d "$notes_dir" ]; then
+    echo "ainotes: $legacy names notes repo '${notes_repo:-notes}', but $notes_dir doesn't exist — not migrating it; run \"setup ainotes\"" >&2
+    return 0
+  fi
+  new="$notes_dir/.config.yml"
+  if [ -e "$new" ]; then
+    echo "ainotes: both $legacy and $new exist — leaving both; merge them by hand and delete $legacy" >&2
+    return 0
+  fi
+
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "would: write $new (kind: ainotes-config + $legacy without its notes_repo key) and remove $legacy"
+  else
+    { printf '# ainotes config: moved here from .ai-notes/config.yml by install.sh on %s.\n' "$(date +%F)"
+      printf '# The folder holding this file is the notes repo; see tools/config.example.yml for every key.\n'
+      printf 'kind: ainotes-config\n\n'
+      grep -vE '^notes_repo:' "$legacy"
+    } > "$new.tmp"
+    mv "$new.tmp" "$new"
+    rm -f "$legacy"
+  fi
+  log "moved .ai-notes/config.yml -> ${notes_repo:-notes}/.config.yml"
+
+  for pair in default-branches.txt:default-branches.txt .last-notes-repo:last-notes-repo snapshot-agents.log:snapshot-agents.log; do
+    from="$WS/.ai-notes/${pair%%:*}"
+    to="$notes_dir/.state/${pair#*:}"
+    [ -e "$from" ] || continue
+    if [ -e "$to" ]; then log "kept existing $to; left $from in place"; continue; fi
+    run mkdir -p "$notes_dir/.state"
+    run mv "$from" "$to"
+    log "moved .ai-notes/${pair%%:*} -> ${notes_repo:-notes}/.state/${pair#*:}"
+  done
+
+  if [ "$DRY_RUN" = 1 ]; then
+    echo "would: remove $WS/.ai-notes if it's empty"
+  elif rmdir "$WS/.ai-notes" 2>/dev/null; then
+    log "removed empty $WS/.ai-notes"
+  else
+    log "left $WS/.ai-notes in place — it still holds: $(ls -A "$WS/.ai-notes" | tr '\n' ' ')"
+  fi
+}
+
+# Move an older <ws>/.dm-pr-review/ (PR auto-reviewer state) into the notes repo, folding its
+# config.yml into the ainotes config's dm_pr_review: section.
+migrate_dm_pr_review() {
+  local old="$WS/.dm-pr-review" config notes_dir dest oldcfg
+  [ -d "$old" ] || return 0
+  if ! config="$(workspace_config)" || config_is_legacy "$config"; then
+    [ "$DRY_RUN" = 1 ] && echo "would: move $old into the notes repo once the config has been migrated"
+    return 0
+  fi
+  notes_dir="$(notes_dir_of "$config")"
+  dest="$notes_dir/.dm-pr-review"
+  if [ -e "$dest" ]; then
+    echo "ainotes: both $old and $dest exist — leaving both; merge them by hand" >&2
+    return 0
+  fi
+  oldcfg="$old/config.yml"
+  if [ -f "$oldcfg" ] && ! grep -qE '^dm_pr_review:' "$config"; then
+    if [ "$DRY_RUN" = 1 ]; then
+      echo "would: append a dm_pr_review: section to $config from $oldcfg"
+    else
+      { printf '\n# PR auto-reviewer (ainotes-dm-pr-review); merged from .dm-pr-review/config.yml by install.sh.\n'
+        printf 'dm_pr_review:\n'
+        dm_setting self_github_login "$oldcfg" self_github_login
+        dm_setting review_model "$oldcfg" models review
+        dm_setting review_level "$oldcfg" review level
+        dm_setting per_review_budget_usd "$oldcfg" review per_review_budget_usd
+        dm_setting monthly_budget_usd "$oldcfg" budget monthly_usd
+      } >> "$config"
+      log "merged $oldcfg into the dm_pr_review: section of $config"
+    fi
+  fi
+  [ -f "$oldcfg" ] && run rm -f "$oldcfg"
+  run mv "$old" "$dest"
+  log "moved $old -> $dest"
+}
+
+# dm_setting NEW_KEY FILE OLD_KEY... — print "  NEW_KEY: value" when FILE has OLD_KEY (config_value args)
+dm_setting() {
+  local key="$1" file="$2" value
+  shift 2
+  value="$(config_value "$file" "$@")"
+  if [ -n "$value" ]; then printf '  %s: %s\n' "$key" "$value"; fi
+}
+
+# Every run: make sure the notes repo has its .dm-pr-review/ folder and ignores runtime state
+# (.state/, and everything in .dm-pr-review/ except the spend ledger).
+prepare_notes_repo() {
+  local config notes_dir gi line
+  config="$(workspace_config)" || return 0
+  config_is_legacy "$config" && return 0
+  notes_dir="$(notes_dir_of "$config")"
+  [ -d "$notes_dir/.dm-pr-review" ] || { run mkdir -p "$notes_dir/.dm-pr-review"; log "created $notes_dir/.dm-pr-review"; }
+  gi="$notes_dir/.gitignore"
+  for line in '.state/' '.dm-pr-review/*' '!.dm-pr-review/ledger.jsonl'; do
+    grep -qxF -- "$line" "$gi" 2>/dev/null && continue
+    if [ "$DRY_RUN" = 1 ]; then echo "would: add '$line' to $gi"; else printf '%s\n' "$line" >> "$gi"; log "added '$line' to $gi"; fi
+  done
+}
+
+# snapshot_log_path — where the scheduled snapshot-agents.sh logs (the notes repo's .state/)
+snapshot_log_path() {
+  local config
+  if config="$(workspace_config)" && ! config_is_legacy "$config"; then
+    echo "$(state_dir_of "$config")/snapshot-agents.log"
+  else
+    echo "$WS/.ai-notes/snapshot-agents.log"
+  fi
+}
+
+# If the notes repo still has the old db/ layout (db/notes, db/PRS.md, ...), move everything up to
+# the repo root and remove the empty db/. A no-op when there's no config yet, no notes repo yet, or
+# the repo is already flat.
 migrate_notes_repo() {
-  local config="$WS/.ai-notes/config.yml"
-  [ -f "$config" ] || return 0
+  local config
+  config="$(workspace_config)" || return 0
 
   local notes_repo notes_dir db_dir entry base dest
-  notes_repo="$(config_value "$config" notes_repo)"
-  notes_dir="$WS/${notes_repo:-notes}"
+  notes_dir="$(notes_dir_of "$config")"
+  [ -n "$notes_dir" ] || notes_dir="$WS/notes"
+  notes_repo="$(basename "$notes_dir")"
   db_dir="$notes_dir/db"
   [ -d "$db_dir" ] || return 0
 
@@ -117,7 +252,9 @@ schedule_launchd() {
     echo "would: write $plist and load it with launchctl (every 60s)"
     return 0
   fi
-  mkdir -p "$HOME/Library/LaunchAgents"
+  local logfile
+  logfile="$(snapshot_log_path)"
+  mkdir -p "$HOME/Library/LaunchAgents" "$(dirname "$logfile")"
   cat > "$plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -128,14 +265,14 @@ schedule_launchd() {
   <array><string>$script</string></array>
   <key>StartInterval</key><integer>60</integer>
   <key>RunAtLoad</key><true/>
-  <key>StandardOutPath</key><string>$WS/.ai-notes/snapshot-agents.log</string>
-  <key>StandardErrorPath</key><string>$WS/.ai-notes/snapshot-agents.log</string>
+  <key>StandardOutPath</key><string>$logfile</string>
+  <key>StandardErrorPath</key><string>$logfile</string>
 </dict>
 </plist>
 PLIST
   launchctl unload "$plist" >/dev/null 2>&1 || true
   if launchctl load -w "$plist" 2>/dev/null; then
-    log "scheduled via launchd: $plist (every 60s; logs at $WS/.ai-notes/snapshot-agents.log)"
+    log "scheduled via launchd: $plist (every 60s; logs at $logfile)"
   else
     echo "ainotes: wrote $plist but 'launchctl load' failed — load it yourself: launchctl load -w \"$plist\"" >&2
   fi
@@ -334,11 +471,14 @@ if [ "$UNINSTALL" = 1 ]; then
   run rm -rf "$DEST/templates/notes-repo"
   for d in tools templates agents hooks skills; do [ -d "$DEST/$d" ] && run rmdir "$DEST/$d" 2>/dev/null || true; done
   [ -f "$SETTINGS" ] && edit_settings remove
-  log "uninstalled from $WS (.ai-notes/ and your notes repo were left untouched)"
+  log "uninstalled from $WS (your notes repo and its .config.yml were left untouched)"
   exit 0
 fi
 
+migrate_config
+migrate_dm_pr_review
 migrate_notes_repo
+prepare_notes_repo
 
 for s in "$SRC"/skills/ainotes-*; do copy_dir "$s" "$DEST/skills/$(basename "$s")"; done
 for a in "$SRC"/agents/*.md; do copy_file "$a" "$DEST/agents/$(basename "$a")"; done
@@ -363,6 +503,6 @@ cat <<EOF
 
 Done. Next steps:
   1. cd "$WS" && claude
-  2. Say "setup ainotes" — it creates .ai-notes/config.yml and (optionally) your notes repo.
+  2. Say "setup ainotes" — it creates your notes repo and its .config.yml (skip if you already have one).
   3. Open the viewer any time with ./run-viewer.sh from the workspace root.
 EOF

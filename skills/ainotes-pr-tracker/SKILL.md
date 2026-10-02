@@ -1,7 +1,7 @@
 ---
 name: ainotes-pr-tracker
 description: >-
-  Maintain <notes_repo>/PRS.md (the notes repo is `notes_repo` in .ai-notes/config.yml), a master ledger of every PR opened across this workspace's repos and its merge/close status. Register a row whenever a PR is opened in any workspace repo (gh pr create, ainotes-task, or ad hoc). Triggered on demand by "check prs" / "check PR status" — reconciles every pending row against GitHub, moves the ones that merged or closed, and reports two lists: updated and still pending.
+  Maintain <notes_repo>/PRS.md (the notes repo is the folder holding `.config.yml`), a master ledger of every PR opened across this workspace's repos and its merge/close status. Register a row whenever a PR is opened in any workspace repo (gh pr create, ainotes-task, or ad hoc). Triggered on demand by "check prs" / "check PR status" — reconciles every pending row against GitHub, moves the ones that merged or closed, and reports two lists: updated and still pending.
 ---
 
 # PR Tracker (ainotes-pr-tracker)
@@ -10,7 +10,7 @@ Companion to `ainotes-notes`: keeps one always-current ledger of every PR this w
 "did we ever merge that?" doesn't require re-deriving it from memory or re-scrolling GitHub. This
 skill owns `<notes_repo>/PRS.md` — `ainotes-notes` doesn't touch it.
 
-(`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml`, and
+(`<notes_repo>` below means the folder holding the workspace's `.config.yml`, and
 `<vcs.org>` means its `vcs.org` value — see the `ainotes-notes` skill for the config-discovery rule and the canonical layout,
 including what to do with a legacy repo that still has its data under `db/`. The
 `Jira` column holds `—` for every row when the config has no `jira` block.)
@@ -149,7 +149,7 @@ through `ledger-keeper` (above). It does the reconciliation mechanically (no nar
 `gh search prs --owner <vcs.org> --author @me --state open` to fold in open PRs you authored that
 aren't in the ledger yet (e.g. opened outside Claude). It needs only `gh` (authenticated) and `jq`.
 Usage: `check-prs.sh [--dry-run] [--verbose] [--org ORG] [PRS.md path]` — the `PRS.md` path is optional
-(by default it's found via `.ai-notes/config.yml` as `<workspace>/<notes_repo>/PRS.md`), `--org`
+(by default it's found via `.config.yml` as `<notes_repo>/PRS.md`), `--org`
 overrides `vcs.org`, `--dry-run` prints the diff without writing or committing, and `--verbose` logs
 each step.
 

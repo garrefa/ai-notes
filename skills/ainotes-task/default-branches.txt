@@ -1,7 +1,7 @@
 # Format reference for the ainotes-task default-branch cache.
 #
 # The live cache is NOT this file: ainotes-task reads and appends to
-# <workspace-root>/.ai-notes/default-branches.txt, creating it on first use.
+# <notes repo>/.state/default-branches.txt, creating it on first use.
 # One line per repo: "<repo> <branch>". Lines starting with "#" are ignored.
 #
 # Example:

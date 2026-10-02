@@ -21,11 +21,14 @@
 #   spend [YYYY-MM]              spend summary for a month (default: current)
 #   status                       config summary and this month's spend
 #
-# State and config live in <workspace>/.dm-pr-review/ (config.yml, state.json, ledger.jsonl,
-# review.log, repos/, run/). config.yml is created from dm-pr-review.config.example.yml on first
-# use, with self_github_login taken from `gh api user`. The workspace is found by walking up from
-# the current directory, else this script's directory, to the one containing .ai-notes/. Needs
-# `claude` (Claude Code), `gh` (authenticated), `git` and `jq` on PATH. It is bash 3.2-safe.
+# Settings are the `dm_pr_review:` section of the ainotes config (<notes repo>/.config.yml, found
+# by walking up from the current directory, else this script's directory; see ainotes-config.sh):
+# self_github_login (default: `gh api user`), review_model (opus), review_level (high),
+# per_review_budget_usd (8) and monthly_budget_usd (100). State lives in
+# <notes repo>/.dm-pr-review/: state.json, ledger.jsonl, review.log, repos/ (clone cache) and
+# run/. Git tracks only ledger.jsonl there (committed after every recorded call), and the rest is
+# gitignored. Needs `claude` (Claude Code), `gh` (authenticated), `git` and `jq` on PATH. It is
+# bash 3.2-safe.
 #
 # Exit status: 0 when the review was done or skipped, 3 when the monthly budget is spent, 1 on failure.
 
@@ -35,10 +38,12 @@ export LC_ALL=C
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ainotes-config.sh
 source "$SCRIPT_DIR/ainotes-config.sh"
-WORKSPACE="$(find_workspace_root "$PWD" || find_workspace_root "$SCRIPT_DIR" || true)"
-[[ -n "$WORKSPACE" ]] || { echo "No ainotes workspace (.ai-notes/) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
-STATE_DIR="$WORKSPACE/.dm-pr-review"
-CONFIG="$STATE_DIR/config.yml"
+CONFIG="$(find_ainotes_config "$PWD" || find_ainotes_config "$SCRIPT_DIR" || true)"
+[[ -n "$CONFIG" ]] || { echo "No ainotes config (<notes repo>/.config.yml) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
+WORKSPACE="$(workspace_root_of "$CONFIG")"
+NOTES_DIR="$(notes_dir_of "$CONFIG")"
+[[ -n "$NOTES_DIR" && -d "$NOTES_DIR" ]] || { echo "Notes repo not found for $CONFIG." >&2; exit 1; }
+STATE_DIR="$NOTES_DIR/.dm-pr-review"
 STATE="$STATE_DIR/state.json"
 LEDGER="$STATE_DIR/ledger.jsonl"
 LOG="$STATE_DIR/review.log"
@@ -47,7 +52,6 @@ REPO_CACHE="$STATE_DIR/repos"
 LOCK_DIR="$STATE_DIR/.lock"
 PROMPT="$SCRIPT_DIR/dm-pr-review.prompt.md"
 SCHEMA="$SCRIPT_DIR/dm-pr-review.schema.json"
-CONFIG_EXAMPLE="$SCRIPT_DIR/dm-pr-review.config.example.yml"
 
 MIN_REVIEW_BUDGET_USD=1   # don't start a review with less than this left in the month
 
@@ -66,8 +70,19 @@ REVIEW_DENIED_TOOLS=(Edit Write NotebookEdit WebFetch WebSearch
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
 die() { echo "error: $*" >&2; log "error: $*"; exit 1; }
-# cfg <key|parent.key> — scalar from config.yml (one level of nesting, via ainotes-config.sh)
-cfg() { if [[ "$1" == *.* ]]; then config_value "$CONFIG" "${1%%.*}" "${1#*.}"; else config_value "$CONFIG" "$1"; fi; }
+# cfg KEY — a setting from the config's `dm_pr_review:` section, or its default
+cfg() {
+  local v; v="$(config_value "$CONFIG" dm_pr_review "$1")"
+  if [[ -n "$v" ]]; then echo "$v"; return; fi
+  case "$1" in
+    self_github_login) [[ -n "${GH_LOGIN_CACHE:-}" ]] || GH_LOGIN_CACHE="$(gh api user -q .login 2>/dev/null || true)"
+                       echo "$GH_LOGIN_CACHE" ;;
+    review_model) echo opus ;;
+    review_level) echo high ;;
+    per_review_budget_usd) echo 8 ;;
+    monthly_budget_usd) echo 100 ;;
+  esac
+}
 
 # Float comparison: float_ge a b  ->  a >= b
 float_ge() { awk -v a="$1" -v b="$2" 'BEGIN { exit !(a >= b) }'; }
@@ -75,13 +90,27 @@ float_min() { awk -v a="$1" -v b="$2" 'BEGIN { printf "%.2f", (a < b ? a : b) }'
 
 ensure_state() {
   mkdir -p "$STATE_DIR" "$RUN_DIR" "$REPO_CACHE"
-  if [[ ! -f "$CONFIG" ]]; then
-    local me; me=$(gh api user -q .login 2>/dev/null || true)
-    sed "s/^self_github_login:.*/self_github_login: ${me:-CHANGE-ME}/" "$CONFIG_EXAMPLE" > "$CONFIG"
-    echo "Created $CONFIG (self_github_login: ${me:-CHANGE-ME}); review its budgets." >&2
-  fi
   [[ -f "$STATE" ]] || echo '{"reviews":{}}' > "$STATE"
   touch "$LEDGER" "$LOG"
+  ensure_gitignore
+}
+
+# The state dir holds private clones and logs: make sure the notes repo ignores all of it except the
+# ledger (install.sh adds the same lines; this covers a repo set up some other way).
+ensure_gitignore() {
+  local gi="$NOTES_DIR/.gitignore" line
+  for line in '.dm-pr-review/*' '!.dm-pr-review/ledger.jsonl'; do
+    grep -qxF -- "$line" "$gi" 2>/dev/null || printf '%s\n' "$line" >> "$gi"
+  done
+}
+
+# commit_ledger MESSAGE — commit just the ledger to the notes repo (no-op outside git or if unchanged)
+commit_ledger() {
+  git -C "$NOTES_DIR" rev-parse --git-dir >/dev/null 2>&1 || return 0
+  git -C "$NOTES_DIR" add -- .dm-pr-review/ledger.jsonl >>"$LOG" 2>&1 || return 0
+  git -C "$NOTES_DIR" diff --cached --quiet -- .dm-pr-review/ledger.jsonl && return 0
+  git -C "$NOTES_DIR" commit -q -m "$1" -- .dm-pr-review/ledger.jsonl >>"$LOG" 2>&1 \
+    || log "ledger commit failed (left uncommitted)"
 }
 
 # state_get <jq filter> [jq args...]
@@ -110,7 +139,7 @@ month_spend() {
   jq -s -r --arg m "$month" '[.[] | select(.month == $m) | .cost_usd] | add // 0 | . * 100 | round / 100' "$LEDGER"
 }
 
-remaining_budget() { awk -v cap="$(cfg budget.monthly_usd)" -v s="$(month_spend)" 'BEGIN { printf "%.2f", cap - s }'; }
+remaining_budget() { awk -v cap="$(cfg monthly_budget_usd)" -v s="$(month_spend)" 'BEGIN { printf "%.2f", cap - s }'; }
 
 # record_spend <kind> <user> <pr> <sha> <result> <claude-json-file>
 record_spend() {
@@ -126,6 +155,7 @@ record_spend() {
         cache_creation: ($o.usage.cache_creation_input_tokens // 0)
       }
     }' >> "$LEDGER"
+  commit_ledger "dm-pr-review ledger: $1 ${3##*github.com/} ($5)"
 }
 
 # ---------------------------------------------------------------------------------------------------
@@ -226,8 +256,8 @@ run_review() {
   wt=$(prepare_checkout "$owner" "$repo" "$num" "$sha" "$base") || return 2
 
   log "reviewing $url at ${sha:0:7} for $uid (budget \$$budget)"
-  claude_call "$wt" "$(cfg models.review)" "$budget" "$SCHEMA" \
-    "$(render_prompt "$PROMPT" "ME=$(cfg self_github_login)" "PR_URL=$url" "PR_NUMBER=$num" "BASE=$base" "SHA=$sha" "LEVEL=$(cfg review.level)")" \
+  claude_call "$wt" "$(cfg review_model)" "$budget" "$SCHEMA" \
+    "$(render_prompt "$PROMPT" "ME=$(cfg self_github_login)" "PR_URL=$url" "PR_NUMBER=$num" "BASE=$base" "SHA=$sha" "LEVEL=$(cfg review_level)")" \
     --allowedTools "${REVIEW_ALLOWED_TOOLS[@]}" --disallowedTools "${REVIEW_DENIED_TOOLS[@]}" > "$out"
   cleanup_checkout "$owner" "$repo" "$wt"
 
@@ -257,7 +287,7 @@ review_budget() {
   local remaining; remaining=$(remaining_budget)
   if ! float_ge "$remaining" "$MIN_REVIEW_BUDGET_USD"; then
     log "budget exhausted (\$$remaining left)"; return 1; fi
-  float_min "$remaining" "$(cfg review.per_review_budget_usd)"
+  float_min "$remaining" "$(cfg per_review_budget_usd)"
 }
 
 # publish_review <requester> <url> <sha> <review-json> <claude-out-file> — posts the GitHub review,
@@ -293,7 +323,7 @@ file_review_note() {
   [[ -x "$tool" ]] || { log "ainotes review-note tool not installed ($tool); no review note"; return 1; }
   jq -n --argjson info "$info" --argjson review "$review" --slurpfile out "$out" \
     --arg url "$url" --arg gh_review "$(my_latest_review_url "$url")" \
-    --arg model "$(cfg models.review)" --arg level "$(cfg review.level)" '
+    --arg model "$(cfg review_model)" --arg level "$(cfg review_level)" '
     ($out[0] // {}) as $o
     | ([$info.statusCheckRollup[]? | (.conclusion // .state // "" | ascii_upcase)]) as $checks
     | {
@@ -321,7 +351,7 @@ file_review_note() {
 cmd_spend() {
   ensure_state
   local month=${1:-$(date +%Y-%m)}
-  jq -s -r --arg m "$month" --arg cap "$(cfg budget.monthly_usd)" '
+  jq -s -r --arg m "$month" --arg cap "$(cfg monthly_budget_usd)" '
     [.[] | select(.month == $m)] as $r
     | "Spend for \($m): $\(([$r[].cost_usd] | add // 0) * 100 | round / 100) of $\($cap)",
       ($r | group_by(.kind)[] | "  \(.[0].kind): \(length) call(s), $\(([.[].cost_usd] | add) * 100 | round / 100)"),
@@ -344,7 +374,7 @@ cmd_review() {
   sha=$(jq -r .headRefOid <<<"$info"); title=$(jq -r .title <<<"$info")
   read -r owner repo num <<<"$(pr_parts "$url")"
   if ! $dry && reason=$(skip_reason "$url" "$info"); then echo "skip   $url ($reason at ${sha:0:7})"; return 0; fi
-  budget=$(review_budget) || { echo "stop   monthly budget of \$$(cfg budget.monthly_usd) exhausted"; return 3; }
+  budget=$(review_budget) || { echo "stop   monthly budget of \$$(cfg monthly_budget_usd) exhausted"; return 3; }
 
   out="$RUN_DIR/review-$repo-$num.json"
   review=$(run_review cli "$url" "$info" "$budget" "$out") || die "review of $url failed (see $LOG)"
@@ -362,8 +392,8 @@ cmd_review() {
 
 cmd_status() {
   ensure_state
-  echo "reviewer: $(cfg models.review), /code-review $(cfg review.level), up to \$$(cfg review.per_review_budget_usd) per review"
-  echo "this month: \$$(month_spend) of \$$(cfg budget.monthly_usd) (remaining \$$(remaining_budget))"
+  echo "reviewer: $(cfg review_model), /code-review $(cfg review_level), up to \$$(cfg per_review_budget_usd) per review"
+  echo "this month: \$$(month_spend) of \$$(cfg monthly_budget_usd) (remaining \$$(remaining_budget))"
   echo "reviewed PRs on record: $(jq '.reviews | length' "$STATE")"
 }
 

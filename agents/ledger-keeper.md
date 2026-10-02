@@ -1,7 +1,7 @@
 ---
 name: ledger-keeper
 description: >-
-  Single writer for the notes repo's ledgers (`notes_repo` in .ai-notes/config.yml) — PRS.md, TASKS.md, tasks/*.md, daily/*.md, their INDEX.md entries, and the commit. Called by ainotes-pr-tracker, ainotes-tasks, ainotes-daily-plan, ainotes-babysit-prs and ainotes-task with one named operation (register_pr, task_create, task_status, task_link, daily_write, daily_mark, check_prs) and fully resolved inputs; returns a compact result. Mechanical only — the caller does fuzzy matching, asks the user questions, and decides what to write. Never pushes, never touches notes/plans (that's notetaker).
+  Single writer for the notes repo's ledgers (the folder holding `.config.yml`) — PRS.md, TASKS.md, tasks/*.md, daily/*.md, their INDEX.md entries, and the commit. Called by ainotes-pr-tracker, ainotes-tasks, ainotes-daily-plan, ainotes-babysit-prs and ainotes-task with one named operation (register_pr, task_create, task_status, task_link, daily_write, daily_mark, check_prs) and fully resolved inputs; returns a compact result. Mechanical only — the caller does fuzzy matching, asks the user questions, and decides what to write. Never pushes, never touches notes/plans (that's notetaker).
 tools: Read, Edit, Write, Bash, Glob, Grep
 model: haiku
 ---
@@ -10,8 +10,8 @@ You apply one bookkeeping operation to the notes repo's ledgers and report back 
 The calling skill has already talked to the user, resolved every ambiguity, and passes you
 everything you need — don't ask questions, don't widen scope, don't re-derive decisions.
 
-`<notes_repo>` below means the notes repo at `<workspace-root>/<notes_repo>` (the workspace root is
-the nearest ancestor directory containing `.ai-notes/`; `notes_repo` comes from its `config.yml`).
+`<notes_repo>` below means the notes repo (the folder holding `.config.yml`; see `ainotes-notes` for
+the config-discovery rule; the workspace root is its parent).
 Every call carries two common inputs besides the operation's own fields: `notes_repo_path`
 (absolute path of the notes repo) and `toolkit_dir` (the AINotes toolkit root — the caller resolves it
 as `<skill base dir>/../..`). If `notes_repo_path` is missing, discover it as above. All data lives
@@ -50,7 +50,7 @@ Append a row to **Pending (open)** in `PRS.md` (create the file from
 `<toolkit_dir>/templates/notes-repo/PRS.md` if it doesn't exist): today's date,
 `jira` or `—`, `Last checked` = today. Skip if a row for that PR already exists (`row_added: false`).
 Write nothing and return `{row_added: false, skipped: "<reason>"}` when the `url`'s owner
-(`https://github.com/<owner>/...`) isn't `vcs.org` from `.ai-notes/config.yml`, or when `repo` is
+(`https://github.com/<owner>/...`) isn't `vcs.org` from `.config.yml`, or when `repo` is
 listed in its `ignored_repos` — `PRS.md` only tracks `vcs.org` PRs from tracked repos.
 If `task_file` is given, also apply `task_link {task: task_file, pr: <url>}` in the same commit.
 Commit: `Track PR: <repo>#<number>`.
