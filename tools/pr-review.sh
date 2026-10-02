@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
-# dm-pr-review.sh — headless Claude code review of a GitHub PR, posted as you (the
-# ainotes-dm-pr-review skill).
+# pr-review.sh — headless Claude code review of a GitHub PR, posted as you (the
+# ainotes-pr-review skill).
 #
 # Checks the PR out in a private clone cache, runs Claude Code's built-in `/code-review` skill on it
 # headlessly (`claude -p`, read-only tools, no MCP), and publishes the structured result as you:
@@ -15,18 +15,18 @@
 # Usually driven by `check-pending-pr-reviews --review`, which only calls this when PRs are pending, so
 # an empty queue costs $0.
 #
-# Usage: dm-pr-review.sh <command>
+# Usage: pr-review.sh <command>
 #   review <pr-url> [--dry-run]  review one PR and post the result to GitHub (--dry-run posts nothing)
 #   dry-run <pr-url>             same as review --dry-run (cost still counts)
 #   spend [YYYY-MM]              spend summary for a month (default: current)
 #   status                       config summary and this month's spend
 #
-# Settings are the `dm_pr_review:` section of the ainotes config (<notes repo>/.config.yml, found
+# Settings are the `pr_review:` section of the ainotes config (<notes repo>/.config.yml, found
 # by walking up from the current directory, else this script's directory; see ainotes-config.sh):
 # self_github_login (default: `gh api user`), review_model (opus), review_level (high),
 # per_review_budget_usd (8) and monthly_budget_usd (100). The spend ledger is
 # <notes repo>/pr-reviews-ledger.jsonl, tracked and committed after every recorded call. Local state
-# lives in the gitignored <notes repo>/.state/dm-pr-review/: state.json, review.log, repos/ (clone
+# lives in the gitignored <notes repo>/.state/pr-review/: state.json, review.log, repos/ (clone
 # cache) and run/. Needs `claude` (Claude Code), `gh` (authenticated), `git` and `jq` on PATH. It is
 # bash 3.2-safe.
 #
@@ -43,17 +43,16 @@ CONFIG="$(find_ainotes_config "$PWD" || find_ainotes_config "$SCRIPT_DIR" || tru
 WORKSPACE="$(workspace_root_of "$CONFIG")"
 NOTES_DIR="$(notes_dir_of "$CONFIG")"
 [[ -n "$NOTES_DIR" && -d "$NOTES_DIR" ]] || { echo "Notes repo not found for $CONFIG." >&2; exit 1; }
-STATE_DIR="$NOTES_DIR/.state/dm-pr-review"
-LEDGER_REL="pr-reviews-ledger.jsonl"          # relative to the notes repo (tracked), for git
-OLD_LEDGER_REL=".dm-pr-review/ledger.jsonl"   # where it used to be tracked
+STATE_DIR="$NOTES_DIR/.state/pr-review"
+LEDGER_REL="pr-reviews-ledger.jsonl"   # relative to the notes repo (tracked), for git
 STATE="$STATE_DIR/state.json"
 LEDGER="$NOTES_DIR/$LEDGER_REL"
 LOG="$STATE_DIR/review.log"
 RUN_DIR="$STATE_DIR/run"
 REPO_CACHE="$STATE_DIR/repos"
 LOCK_DIR="$STATE_DIR/.lock"
-PROMPT="$SCRIPT_DIR/dm-pr-review.prompt.md"
-SCHEMA="$SCRIPT_DIR/dm-pr-review.schema.json"
+PROMPT="$SCRIPT_DIR/pr-review.prompt.md"
+SCHEMA="$SCRIPT_DIR/pr-review.schema.json"
 
 MIN_REVIEW_BUDGET_USD=1   # don't start a review with less than this left in the month
 
@@ -72,9 +71,9 @@ REVIEW_DENIED_TOOLS=(Edit Write NotebookEdit WebFetch WebSearch
 
 log() { printf '%s %s\n' "$(date '+%F %T')" "$*" >> "$LOG"; }
 die() { echo "error: $*" >&2; log "error: $*"; exit 1; }
-# cfg KEY — a setting from the config's `dm_pr_review:` section, or its default
+# cfg KEY — a setting from the config's `pr_review:` section, or its default
 cfg() {
-  local v; v="$(config_value "$CONFIG" dm_pr_review "$1")"
+  local v; v="$(config_value "$CONFIG" pr_review "$1")"
   if [[ -n "$v" ]]; then echo "$v"; return; fi
   case "$1" in
     self_github_login) [[ -n "${GH_LOGIN_CACHE:-}" ]] || GH_LOGIN_CACHE="$(gh api user -q .login 2>/dev/null || true)"
@@ -108,15 +107,9 @@ ensure_gitignore() {
 # commit_ledger MESSAGE — commit just the ledger to the notes repo (no-op outside git or if unchanged)
 commit_ledger() {
   git -C "$NOTES_DIR" rev-parse --git-dir >/dev/null 2>&1 || return 0
-  local paths=("$LEDGER_REL")
-  # First commit after the ledger moved: record the old tracked path's removal in the same commit.
-  if [[ ! -e "$NOTES_DIR/$OLD_LEDGER_REL" ]] \
-     && git -C "$NOTES_DIR" ls-files --error-unmatch -- "$OLD_LEDGER_REL" >/dev/null 2>&1; then
-    git -C "$NOTES_DIR" rm -q --cached -- "$OLD_LEDGER_REL" >>"$LOG" 2>&1 && paths+=("$OLD_LEDGER_REL")
-  fi
   git -C "$NOTES_DIR" add -- "$LEDGER_REL" >>"$LOG" 2>&1 || return 0
-  git -C "$NOTES_DIR" diff --cached --quiet -- "${paths[@]}" && return 0
-  git -C "$NOTES_DIR" commit -q -m "$1" -- "${paths[@]}" >>"$LOG" 2>&1 \
+  git -C "$NOTES_DIR" diff --cached --quiet -- "$LEDGER_REL" && return 0
+  git -C "$NOTES_DIR" commit -q -m "$1" -- "$LEDGER_REL" >>"$LOG" 2>&1 \
     || log "ledger commit failed (left uncommitted)"
 }
 
@@ -162,7 +155,7 @@ record_spend() {
         cache_creation: ($o.usage.cache_creation_input_tokens // 0)
       }
     }' >> "$LEDGER"
-  commit_ledger "dm-pr-review ledger: $1 ${3##*github.com/} ($5)"
+  commit_ledger "pr-review ledger: $1 ${3##*github.com/} ($5)"
 }
 
 # ---------------------------------------------------------------------------------------------------

@@ -1,9 +1,9 @@
 ---
-name: ainotes-dm-pr-review
-description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, $0 when nothing is pending) and runs `tools/dm-pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ainotes-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
+name: ainotes-pr-review
+description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, $0 when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ainotes-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
 ---
 
-# PR auto-review (ainotes-dm-pr-review)
+# PR auto-review (ainotes-pr-review)
 
 Turns "what's waiting on my review" into reviews that are actually done, without a model running on
 a schedule. The queue check is plain `gh` (no LLM, $0). Claude only starts when a listed PR needs a
@@ -16,7 +16,7 @@ never reviews or posts anything.
 tools/check-pending-pr-reviews --review       # gh only: PRs requesting your review directly, minus
   │                                     # dependabot[bot], stale (5+ days) and already approved;
   │                                     # least recently updated first. Empty list → Claude never starts.
-  └─ per PR: tools/dm-pr-review.sh review <url>
+  └─ per PR: tools/pr-review.sh review <url>
        ├─ skip if closed/merged, approved by you at head, or already reviewed by us at head
        ├─ stop (exit 3) if < $1 is left in the monthly budget
        ├─ private clone cache → detached worktree at the PR head (never your own checkouts)
@@ -29,12 +29,12 @@ tools/check-pending-pr-reviews --review       # gh only: PRs requesting your rev
        └─ review JSON piped to tools/review-note.sh (ainotes-review-notes) → <notes_repo>/reviews/
 ```
 
-- **Settings:** the `dm_pr_review:` section of the ainotes config (`<notes repo>/.config.yml`):
+- **Settings:** the `pr_review:` section of the ainotes config (`<notes repo>/.config.yml`):
   `self_github_login` (default: `gh api user`), `review_model` (opus), `review_level` (high),
   `per_review_budget_usd` (8) and `monthly_budget_usd` (100). Every key is optional.
 - **Ledger:** `<notes repo>/pr-reviews-ledger.jsonl`, git-tracked. The reviewer commits it after
   every recorded call, and only it.
-- **Local state:** `<notes repo>/.state/dm-pr-review/` (gitignored, created by install). It holds
+- **Local state:** `<notes repo>/.state/pr-review/` (gitignored, created by install). It holds
   `state.json`, `review.log`, and `repos/` and `run/` (clone cache and temporary worktrees).
 - **Budget:** every model call counts, dry runs included. Each review's `--max-budget-usd` is
   min(`per_review_budget_usd`, what's left this month), so the cap can't be overrun.
@@ -50,11 +50,11 @@ Run from anywhere in the workspace. `T=<workspace>/.claude/tools` (or the plugin
 |---|---|
 | "what's pending my review" (list only) | `$T/check-pending-pr-reviews`; add `--json` for raw data |
 | "review my pending PRs" | Show the `$T/check-pending-pr-reviews` listing first and confirm which PRs will be reviewed and posted to. Then run `$T/check-pending-pr-reviews --review`, or `--review-dry-run` to post nothing. |
-| "review <PR>" | `$T/dm-pr-review.sh review <url>` |
-| "dry-run review <PR>" | `$T/dm-pr-review.sh dry-run <url>`: real review, nothing posted, cost counts |
-| "review spend [month]" | `$T/dm-pr-review.sh spend [YYYY-MM]` |
-| "review status" | `$T/dm-pr-review.sh status` |
-| change the cap / model / level | edit the `dm_pr_review:` section of `<notes repo>/.config.yml` |
+| "review <PR>" | `$T/pr-review.sh review <url>` |
+| "dry-run review <PR>" | `$T/pr-review.sh dry-run <url>`: real review, nothing posted, cost counts |
+| "review spend [month]" | `$T/pr-review.sh spend [YYYY-MM]` |
+| "review status" | `$T/pr-review.sh status` |
+| change the cap / model / level | edit the `pr_review:` section of `<notes repo>/.config.yml` |
 
 Scheduling is optional and safe: run `check-pending-pr-reviews --review` from cron or launchd. With
 nothing pending it costs $0.
