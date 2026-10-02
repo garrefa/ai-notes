@@ -24,7 +24,7 @@ comes with a local viewer to browse it all.
 ```bash
 npx ainotes-viewer@latest install ~/projects/my-workspace   # install into a workspace
 cd ~/projects/my-workspace && claude                         # then say: setup ainotes
-./run-viewer.sh                                              # open the viewer, any time
+bin/run-viewer                                               # open the viewer, any time
 ```
 
 Say **yes** when the installer offers to schedule the agents snapshot (it fills the viewer's Agents
@@ -104,7 +104,7 @@ git clone https://github.com/garrefa/ai-notes.git
 
 The installer copies the skills, agents, hooks, tools and templates into `<workspace>/.claude/`,
 adds its hooks to `<workspace>/.claude/settings.json` (keeping everything else there), and puts
-`run-viewer.sh` at the workspace root — a one-liner that runs `npx ainotes-viewer@latest`, passing
+`bin/run-viewer` in the workspace (replacing an older `run-viewer.sh` at the root that it installed) — a one-liner that runs `npx ainotes-viewer@latest`, passing
 along any arguments (`--port`, `--no-open`).
 
 | Flag | Effect |
@@ -112,7 +112,7 @@ along any arguments (`--port`, `--no-open`).
 | `--dry-run` | Show what would change, change nothing |
 | `--force` | Overwrite existing toolkit files (this is how you update; local edits to them are lost) |
 | `--no-schedule` | Don't ask about scheduling the agents snapshot (for scripts and CI) |
-| `--uninstall` | Remove everything it installed, including a schedule it set up (a `run-viewer.sh` you wrote yourself is left alone) |
+| `--uninstall` | Remove everything it installed, including a schedule it set up (a `bin/run-viewer` or `run-viewer.sh` you wrote yourself is left alone) |
 
 **Scheduling**: in an interactive terminal, the installer offers to run `tools/snapshot-agents.sh`
 every 60 seconds — a launchd job on macOS, a crontab line elsewhere. Re-running replaces its own
