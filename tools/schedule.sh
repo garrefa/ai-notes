@@ -27,8 +27,9 @@
 #                     directory, then this script's own, until <notes repo>/.config.yml turns up)
 #   --dry-run         print what would change; write nothing
 #
-# Jobs run the installed tools in <workspace>/.claude/tools/, from the workspace root, with the
-# PATH in effect when they were applied (launchd and cron start with a minimal one). Output goes to
+# Jobs run the installed tools in <workspace>/.claude/tools/, from the workspace root, through the
+# user's login shell ($SHELL -l), so tokens and PATH from shell profiles (e.g. GH_TOKEN in
+# ~/.zshenv) reach them; the PATH in effect when they were applied is passed too. Output goes to
 # <notes repo>/.state/schedules/<job>.log, and the last run's time and exit status to <job>.last.
 # Re-applying replaces this workspace's own jobs and never touches anyone else's.
 
@@ -218,6 +219,11 @@ cron_marker() { echo "# ainotes-schedule:$WS_ID:$1 ($WORKSPACE)"; }
 legacy_cron_marker() { echo "# ainotes-snapshot-agents:$WS_ID"; }
 job_log() { echo "$STATE/$1.log"; }
 
+# Jobs start through the user's login shell, so they see what a terminal sees: tokens and PATH
+# set in shell profiles (e.g. GH_TOKEN exported from ~/.zshenv), which launchd and cron don't pass.
+job_shell() { if [[ -n "${SHELL:-}" && -x "$SHELL" ]]; then echo "$SHELL"; else echo /bin/sh; fi; }
+JOB_SHELL_SCRIPT='exec "$0" "$@"'
+
 xml_escape() { sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' <<<"$1"; }
 
 render_plist() {
@@ -230,6 +236,10 @@ render_plist() {
   <key>Label</key><string>$(launchd_label "$job")</string>
   <key>ProgramArguments</key>
   <array>
+    <string>$(xml_escape "$(job_shell)")</string>
+    <string>-l</string>
+    <string>-c</string>
+    <string>$(xml_escape "$JOB_SHELL_SCRIPT")</string>
     <string>$(xml_escape "$TOOLS_DIR/schedule.sh")</string>
     <string>--workspace</string>
     <string>$(xml_escape "$WORKSPACE")</string>
@@ -301,7 +311,7 @@ cron_install() {
   local job="$1" seconds="$2" timing line
   command -v crontab >/dev/null 2>&1 || { echo "ainotes: no crontab command — schedule $job yourself" >&2; return 0; }
   timing="$(cron_timing "$seconds")" || { echo "ainotes: cron can't repeat every $seconds s evenly — pick an interval that divides an hour or a day" >&2; return 0; }
-  line="$timing cd '$WORKSPACE' && PATH='$PATH' '$TOOLS_DIR/schedule.sh' --workspace '$WORKSPACE' run $job >> '$(job_log "$job")' 2>&1 $(cron_marker "$job")"
+  line="$timing cd '$WORKSPACE' && PATH='$PATH' '$(job_shell)' -l -c '$JOB_SHELL_SCRIPT' '$TOOLS_DIR/schedule.sh' --workspace '$WORKSPACE' run $job >> '$(job_log "$job")' 2>&1 $(cron_marker "$job")"
   crontab -l 2>/dev/null | grep -qxF -- "$line" && return 0
   if ((DRY_RUN)); then echo "would: add a crontab line for $job ($timing)"; return 0; fi
   mkdir -p "$STATE"

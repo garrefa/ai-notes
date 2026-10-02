@@ -69,8 +69,9 @@ save schedules before it exists.
 
 ## Notes
 
-- Jobs run `<workspace>/.claude/tools/…` from the workspace root, with the `PATH` captured when they
-  were applied (launchd and cron start with a minimal one). If a tool such as `gh`, `jq` or
+- Jobs run `<workspace>/.claude/tools/…` from the workspace root through the user's login shell
+  (`$SHELL -l -c`), so tokens and `PATH` set in shell profiles (e.g. `GH_TOKEN` in `~/.zshenv`)
+  reach them, as in a terminal. The `PATH` captured when they were applied is passed as well. If a tool such as `gh`, `jq` or
   `claude` moves, run `$S apply` again from a shell where it's on `PATH`.
 - Logs: `<notes repo>/.state/schedules/<job>.log` (trimmed automatically) and `<job>.last`.
 - Labels are `com.ainotes.<job>.<workspace id>` (launchd) or crontab lines tagged
