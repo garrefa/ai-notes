@@ -18,10 +18,10 @@ schedules:
 
 | Job | Runs | Suggested | Cost |
 |---|---|---|---|
-| `snapshot-agents` | `snapshot-agents.sh` — writes `AGENTS.json` for the viewer's Agents view | `every 1m` | $0 |
-| `check-prs` | `check-prs.sh` — reconciles `PRS.md` with GitHub and commits it | `every 30m` | $0 |
-| `pr-review` | `check-pending-pr-reviews --review` — headless review of each PR requesting you (ainotes-pr-review) | `every 30m 09:00-18:00 weekdays` | $0 when nothing is pending; reviews cost money, capped by `pr_review:` budgets |
-| `clean-worktrees` | `clean-merged-worktrees.sh --delete` — removes worktrees whose branch is merged and tree is clean | `every 24h` | $0 |
+| `snapshot-agents` | `snapshot-agents.sh` — writes `AGENTS.json` for the viewer's Agents view | `every 1m` | free |
+| `check-prs` | `check-prs.sh` — reconciles `PRS.md` with GitHub and commits it | `every 30m` | free |
+| `pr-review` | `check-pending-pr-reviews --review` — headless review of each PR requesting you (ainotes-pr-review) | `every 30m 09:00-18:00 weekdays` | free when nothing is pending; reviews cost money, capped by `pr_review:` budgets |
+| `clean-worktrees` | `clean-merged-worktrees.sh --delete` — removes worktrees whose branch is merged and tree is clean | `every 24h` | free |
 
 A spec is `off`, or `every <N>m` / `every <N>h` (1m to 24h), optionally followed by an hours window
 `HH:MM-HH:MM` (same day, start before end) and `weekdays` (Monday to Friday). The interval is

@@ -1,12 +1,12 @@
 ---
 name: ainotes-pr-review
-description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, $0 when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ainotes-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
+description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, free when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ainotes-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
 ---
 
 # PR auto-review (ainotes-pr-review)
 
 Turns "what's waiting on my review" into reviews that are actually done, without a model running on
-a schedule. The queue check is plain `gh` (no LLM, $0). Claude only starts when a listed PR needs a
+a schedule. The queue check is plain `gh` (no LLM, free). Claude only starts when a listed PR needs a
 review. Distinct from `ainotes-review-inbox`, which summarizes and prioritizes the same queue but
 never reviews or posts anything.
 
@@ -18,7 +18,7 @@ tools/check-pending-pr-reviews --review       # gh only: PRs requesting your rev
   │                                     # least recently updated first. Empty list → Claude never starts.
   └─ per PR: tools/pr-review.sh review <url>
        ├─ skip if closed/merged, approved by you at head, or already reviewed by us at head
-       ├─ stop (exit 3) if < $1 is left in the monthly budget
+       ├─ stop (exit 3) if less than 1 USD is left in the monthly budget
        ├─ private clone cache → detached worktree at the PR head (never your own checkouts)
        ├─ claude -p --model <review_model> --max-budget-usd min(per-review cap, remaining)
        │    → /code-review <review.level>; read-only tools, no MCP; structured output
@@ -57,7 +57,7 @@ Run from anywhere in the workspace. `T=<workspace>/.claude/tools` (or the plugin
 | change the cap / model / level | edit the `pr_review:` section of `<notes repo>/.config.yml` |
 
 Scheduling is optional and safe: it's the `pr-review` job of `ainotes-schedules` (for example
-`pr-review: every 30m 09:00-18:00 weekdays` under `schedules:`). With nothing pending a run costs $0.
+`pr-review: every 30m 09:00-18:00 weekdays` under `schedules:`). With nothing pending a run costs nothing.
 
 ## What this skill will never do
 
