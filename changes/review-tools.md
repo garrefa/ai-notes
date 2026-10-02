@@ -30,3 +30,6 @@
   - it adds the `.state/` and `.dm-pr-review/` ignore rules.
 
   A legacy `.ai-notes/config.yml` is still read until it has been migrated.
+- The viewer launcher moves from `<workspace>/run-viewer.sh` to `<workspace>/bin/run-viewer`, with
+  no extension. Install removes the old copy it installed, and leaves a `run-viewer.sh` of your
+  own alone. Uninstall removes either one, and `bin/` if that leaves it empty.

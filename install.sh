@@ -13,7 +13,8 @@
 #   hooks/scripts/*.sh      -> <ws>/.claude/hooks/
 #   tools/*                 -> <ws>/.claude/tools/
 #   templates/notes-repo    -> <ws>/.claude/templates/notes-repo/
-#   templates/workspace/run-viewer.sh -> <ws>/run-viewer.sh (opens the viewer via npx)
+#   templates/workspace/run-viewer -> <ws>/bin/run-viewer (opens the viewer via npx; replaces an
+#                           older <ws>/run-viewer.sh that this script installed)
 #   hook wiring             -> merged into <ws>/.claude/settings.json (existing settings are kept)
 #   notes repo's db/ layout -> migrated up a level in place, if an older repo still has one
 #   tools/snapshot-agents.sh -> offered on a schedule (launchd on macOS, cron elsewhere) — see below
@@ -349,19 +350,27 @@ maybe_schedule_snapshot_agents() {
   esac
 }
 
-RUN_VIEWER="$WS/run-viewer.sh"
-# A line only the shipped run-viewer.sh carries, so uninstall removes the file it installed — from
-# any version — and never a script of the user's own that happens to have the same name.
+RUN_VIEWER="$WS/bin/run-viewer"
+# Where versions up to 0.3 put it; install removes that copy now that it lives in bin/.
+LEGACY_RUN_VIEWER="$WS/run-viewer.sh"
+# A line only the shipped viewer launcher carries, so install/uninstall remove the file it installed
+# — from any version — and never a script of the user's own that happens to have the same name.
 RUN_VIEWER_MARKER="ainotes: installed by install.sh"
 
+# remove_run_viewer [PATH] — remove the launcher at PATH (default: both locations) if it's ours
 remove_run_viewer() {
-  [ -f "$RUN_VIEWER" ] || return 0
-  if grep -qF "$RUN_VIEWER_MARKER" "$RUN_VIEWER"; then
-    run rm -f "$RUN_VIEWER"
-    [ "$DRY_RUN" = 1 ] || log "removed $RUN_VIEWER"
-  else
-    log "left $RUN_VIEWER in place (not the one this script installs)"
-  fi
+  local path
+  [ $# -gt 0 ] || set -- "$RUN_VIEWER" "$LEGACY_RUN_VIEWER"
+  for path in "$@"; do
+    [ -f "$path" ] || continue
+    if grep -qF "$RUN_VIEWER_MARKER" "$path"; then
+      run rm -f "$path"
+      [ "$DRY_RUN" = 1 ] || log "removed $path"
+    else
+      log "left $path in place (not the one this script installs)"
+    fi
+  done
+  if [ -d "$WS/bin" ] && [ -z "$(ls -A "$WS/bin")" ]; then run rmdir "$WS/bin"; fi
 }
 
 is_maintainer_tool() {
@@ -495,7 +504,8 @@ copy_dir "$SRC/templates/notes-repo" "$DEST/templates/notes-repo"
 if [ -f "$DEST/templates/notes-repo/gitignore" ] && [ ! -e "$DEST/templates/notes-repo/.gitignore" ]; then
   run mv "$DEST/templates/notes-repo/gitignore" "$DEST/templates/notes-repo/.gitignore"
 fi
-copy_file "$SRC/templates/workspace/run-viewer.sh" "$RUN_VIEWER"
+copy_file "$SRC/templates/workspace/run-viewer" "$RUN_VIEWER"
+remove_run_viewer "$LEGACY_RUN_VIEWER"
 edit_settings add
 maybe_schedule_snapshot_agents
 
@@ -504,5 +514,5 @@ cat <<EOF
 Done. Next steps:
   1. cd "$WS" && claude
   2. Say "setup ainotes" — it creates your notes repo and its .config.yml (skip if you already have one).
-  3. Open the viewer any time with ./run-viewer.sh from the workspace root.
+  3. Open the viewer any time with bin/run-viewer from the workspace root.
 EOF
