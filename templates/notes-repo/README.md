@@ -5,7 +5,7 @@ Second brain for this workspace. Lives inside the workspace (as the `notes_repo`
 lives at the repo root, alongside this README, `CLAUDE.md`, and `.gitignore`:
 
 ```
-notes/  plans/  tasks/  daily/
+notes/  plans/  tasks/  daily/  reviews/
 INDEX.md
 PRS.md
 TASKS.md
@@ -25,6 +25,9 @@ Other ledgers kept here:
 - [`TASKS.md`](TASKS.md) — open vs. completed tasks with a per-task status (configurable via `task_statuses` in `.ai-notes/config.yml`), one detail file per task under `tasks/`
   (maintained by `ainotes-tasks`).
 - `daily/YYYY-MM-DD.md` — manually-checked daily plans (maintained by `ainotes-daily-plan`).
+- `reviews/YYYY-MM-DD-<repo>-<n>.md` — one note per reviewed PR: verdict, findings, risk and private
+  follow-ups, with a section per re-review (written by `tools/review-note.sh` via
+  `ainotes-review-notes`).
 
 This repo is git-tracked for history, but it's a simple one: no worktrees, no per-note branches, no
 ticket of its own — that process is for the actual code repos in the workspace. Commits land
