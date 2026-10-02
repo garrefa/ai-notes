@@ -210,7 +210,6 @@ render_section() {
 # Assemble: new note, or extend the PR's existing note
 # ---------------------------------------------------------------------------
 
-mkdir -p "$NOTES_DIR/reviews" 2>/dev/null || true
 EXISTING="$(ls "$NOTES_DIR"/reviews/*-"$REPO"-"$NUMBER".md 2>/dev/null | head -1 || true)"
 COST="$(jq '.cost_usd // 0' <<<"$CTX")"
 
@@ -241,6 +240,7 @@ if [[ $DRY_RUN -eq 1 ]]; then
   exit 0
 fi
 
+mkdir -p "$NOTES_DIR/reviews"
 printf '%s\n' "$NOTE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE" || { rm -f "$FILE.tmp"; echo "Could not write $FILE" >&2; exit 1; }
 
 # ---------------------------------------------------------------------------
