@@ -19,6 +19,7 @@ notes/YYYY-MM-DD-slug.md
 plans/YYYY-MM-DD-slug.md
 tasks/YYYY-MM-DD-slug.md
 daily/YYYY-MM-DD.md
+reviews/YYYY-MM-DD-<repo>-<n>.md   # one note per reviewed PR (ainotes-review-notes)
 INDEX.md    # tag -> files map
 PRS.md      # PR ledger (ainotes-pr-tracker)
 TASKS.md    # task ledger (ainotes-tasks)
