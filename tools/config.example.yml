@@ -88,7 +88,7 @@ ignored_repos: []
 # (suggesting tags based on name/stack similarity to domains you've already used).
 domain_taxonomy: {}
 
-# Optional: the ainotes-dm-pr-review auto-reviewer (tools/pending-reviews.sh --review and
+# Optional: the ainotes-dm-pr-review auto-reviewer (tools/check-pending-pr-reviews --review and
 # tools/dm-pr-review.sh). Every key has a default, so the whole section can be omitted. Its state
 # spend ledger is <notes repo>/pr-reviews-ledger.jsonl (tracked); local state (clone cache, logs) is
 # in <notes repo>/.state/dm-pr-review/.

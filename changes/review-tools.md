@@ -5,8 +5,8 @@
   `INDEX.md` under `pr-review`, the repo, its domains and Jira keys, and only the note and
   `INDEX.md` are committed. AI-free and JSON-in, so session reviews and headless review scripts
   share one writer.
-- New `ainotes-dm-pr-review` skill, `tools/pending-reviews.sh` and `tools/dm-pr-review.sh`:
-  - `pending-reviews.sh` lists the PRs requesting your review directly, leaving out dependabot,
+- New `ainotes-dm-pr-review` skill, `tools/check-pending-pr-reviews` and `tools/dm-pr-review.sh`:
+  - `check-pending-pr-reviews` lists the PRs requesting your review directly, leaving out dependabot,
     stale and already-approved ones, least recently updated first. It uses only `gh`.
   - With `--review`, it runs a headless `/code-review` (default `high` on Opus) on each one in a
     private checkout, then approves on zero findings or leaves inline comments. PRs already
