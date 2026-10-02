@@ -10,7 +10,7 @@ INDEX.md
 PRS.md
 TASKS.md
 .config.yml      # toolkit config (kind: ainotes-config)
-.state/          # untracked local runtime files (gitignored), incl. the PR auto-reviewer's dm-pr-review/
+.state/          # untracked local runtime files (gitignored), incl. the PR auto-reviewer's pr-review/
 pr-reviews-ledger.jsonl   # PR auto-reviewer spend ledger (tracked)
 ```
 

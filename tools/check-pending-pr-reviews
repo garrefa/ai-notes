@@ -17,9 +17,9 @@
 #   --no-bots           hide PRs opened by any bot (renovate, bitsobot-ii, cursor[bot], ...)
 #   --json              JSON instead of tables (each PR gets "direct": true|false)
 #   --review            after listing, run a headless Claude review on each listed PR via
-#                       dm-pr-review.sh review (ainotes-dm-pr-review): approve on zero findings, else inline comments. PRs
+#                       pr-review.sh review (ainotes-pr-review): approve on zero findings, else inline comments. PRs
 #                       already reviewed at their current commit are skipped; stops when the monthly
-#                       budget (dm_pr_review: in <notes repo>/.config.yml) is spent. Claude is only started if the
+#                       budget (pr_review: in <notes repo>/.config.yml) is spent. Claude is only started if the
 #                       list is non-empty, so a scheduled run with nothing pending costs $0.
 #   --review-dry-run    same, but nothing is posted (cost still counts)
 #
@@ -34,7 +34,7 @@ CONFIG="$(find_ainotes_config "$PWD" || find_ainotes_config "$SCRIPT_DIR" || tru
 [[ -n "$CONFIG" ]] || { echo "No ainotes config (<notes repo>/.config.yml) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
 
 ORG="" JSON=false REVIEW=""
-REVIEWER="$SCRIPT_DIR/dm-pr-review.sh"
+REVIEWER="$SCRIPT_DIR/pr-review.sh"
 HIDE_TEAMS=true HIDE_DEPENDABOT=true HIDE_STALE=true HIDE_APPROVED=true HIDE_DRAFTS=false HIDE_BOTS=false
 for arg in "$@"; do
   case "$arg" in
@@ -112,7 +112,7 @@ $HIDE_BOTS && hidden+=("bot PRs")
 echo
 echo "$(jq length <<<"$prs") of $(jq length <<<"$all") pending in $ORG shown.${hidden[0]+ Hidden: $(IFS=';'; echo "${hidden[*]}" | sed 's/;/, /g') — a PR can match more than one.}"
 
-# review_listed — hand each listed PR to the dm-pr-review reviewer, least recently updated first. Exit 3 from it
+# review_listed — hand each listed PR to the pr-review reviewer, least recently updated first. Exit 3 from it
 # means the monthly budget is spent: stop instead of failing every remaining PR.
 review_listed() {
   local urls url rc reviewed=0 failed=0 args=()

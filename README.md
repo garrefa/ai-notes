@@ -72,7 +72,7 @@ the notes repo's `.config.yml`, so one toolkit serves them all.
 | The toolkit | Claude Code, `git`, the [GitHub CLI](https://cli.github.com/) (`gh`, authenticated), `jq`, `python3` |
 | The viewer and `npx` | Node.js 20.19+ or 22.12+, and a Chromium-based browser (Chrome, Edge, Arc, Brave) |
 | Optional | A Jira MCP connector (ticket creation) and a Slack MCP connector (review requests) |
-| PR auto-review (`ainotes-dm-pr-review`) | The `claude` CLI on PATH (it runs headless `claude -p` reviews) |
+| PR auto-review (`ainotes-pr-review`) | The `claude` CLI on PATH (it runs headless `claude -p` reviews) |
 
 GitHub is the only supported VCS today.
 
@@ -129,7 +129,7 @@ Older notes repos that keep their data under a `db/` folder are flattened automa
 ~/projects/my-workspace/          <- workspace root: the parent of the notes repo
 ├── notes/                        <- the notes repo (any folder name); its own git repo
 │   ├── .config.yml               <- per-workspace settings (see tools/config.example.yml)
-│   ├── .state/                   <- untracked local runtime files (gitignored), incl. dm-pr-review/
+│   ├── .state/                   <- untracked local runtime files (gitignored), incl. pr-review/
 │   ├── pr-reviews-ledger.jsonl   <- PR auto-reviewer spend ledger (tracked)
 │   ├── notes/  plans/  tasks/  daily/
 │   ├── INDEX.md                  <- tag -> files
@@ -157,7 +157,7 @@ always go through worktrees and your normal review.
 | `ainotes-pr-tracker` | "check prs" | Reconciles `PRS.md` with GitHub |
 | `ainotes-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment; never merges |
 | `ainotes-review-inbox` | "review inbox", "what needs my review" | Org-wide: summarizes, flags stale, and prioritizes every PR pending your review |
-| `ainotes-dm-pr-review` | "review my pending PRs", "review `<PR>`", "review spend" | Headless `/code-review` of the PRs requesting your review directly; approves on zero findings, else inline comments; monthly USD cap; files each review via `ainotes-review-notes` |
+| `ainotes-pr-review` | "review my pending PRs", "review `<PR>`", "review spend" | Headless `/code-review` of the PRs requesting your review directly; approves on zero findings, else inline comments; monthly USD cap; files each review via `ainotes-review-notes` |
 | `ainotes-review-notes` | "note this review", "save a review note for `<PR>`" | Files a finished PR review as `reviews/<date>-<repo>-<n>.md` (one note per PR; re-reviews append); indexes and commits it |
 | `ainotes-pr-review-request` | "ask for review on `<PR>`" | Posts a review request to Slack (optional) |
 | `ainotes-report` | "weekly report", "work review" | Compiles a report for a date window |
@@ -195,8 +195,8 @@ Plain scripts, no LLM needed. The installer puts them in `<workspace>/.claude/to
 |---|---|
 | `snapshot-agents.sh` | Writes `AGENTS.json` (the Claude Code sessions and jobs in the workspace) for the viewer's Agents view. Needs `jq`; meant to run every 60 seconds (the installer can schedule it). |
 | `check-prs.sh` | The mechanical part of "check prs": reconciles `PRS.md` with GitHub and commits. Needs `gh` and `jq`; safe to schedule. |
-| `check-pending-pr-reviews` | Lists open PRs requesting your review directly (no dependabot, stale or already-approved PRs by default), least recently updated first. `--review` runs `dm-pr-review.sh` on each; Claude only starts if something is pending. Needs `gh` and `jq`. |
-| `dm-pr-review.sh` | Reviews one PR headlessly (`claude -p` + `/code-review`, read-only) and posts the approval or inline comments as you; skips already-reviewed commits; enforces the monthly cap in the `dm_pr_review:` section of the notes repo's `.config.yml`; logs cost/tokens. Needs `claude`, `gh`, `git`, `jq`. |
+| `check-pending-pr-reviews` | Lists open PRs requesting your review directly (no dependabot, stale or already-approved PRs by default), least recently updated first. `--review` runs `pr-review.sh` on each; Claude only starts if something is pending. Needs `gh` and `jq`. |
+| `pr-review.sh` | Reviews one PR headlessly (`claude -p` + `/code-review`, read-only) and posts the approval or inline comments as you; skips already-reviewed commits; enforces the monthly cap in the `pr_review:` section of the notes repo's `.config.yml`; logs cost/tokens. Needs `claude`, `gh`, `git`, `jq`. |
 | `review-note.sh` | Writes or extends a PR's review note in `reviews/` from a review JSON on stdin (or `--input`), indexes a new note in `INDEX.md`, and commits only those files. Needs `jq`; no LLM, so headless reviewers can call it too. |
 | `clean-merged-worktrees.sh` | Lists worktrees whose branches were merged (squash and rebase merges too); deletes them only with `--delete`. |
 | `config.example.yml` | Every config key, with comments. |

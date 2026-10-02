@@ -16,7 +16,7 @@ There is no build/lint/test tooling here — it's plain Markdown content, not co
 ```
 README.md  CLAUDE.md  .gitignore   # repo docs stay at the root
 .config.yml                        # toolkit config (kind: ainotes-config), git-tracked
-.state/                            # untracked local runtime files (gitignored), incl. dm-pr-review/
+.state/                            # untracked local runtime files (gitignored), incl. pr-review/
 pr-reviews-ledger.jsonl            # PR auto-reviewer spend ledger (git-tracked)
 notes/YYYY-MM-DD-slug.md
 plans/YYYY-MM-DD-slug.md

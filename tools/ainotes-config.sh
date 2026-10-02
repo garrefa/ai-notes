@@ -64,19 +64,11 @@ notes_gitignore_rules() {
   printf '%s\n' '.state/'
 }
 
-# notes_gitignore_updated FILE — print FILE's content with older runtime-state rules (the
-# pre-.state/ .dm-pr-review/ ones) dropped and the current notes_gitignore_rules appended where
-# missing (FILE itself is not modified).
+# notes_gitignore_updated FILE — print FILE's content with the current notes_gitignore_rules
+# appended where missing (FILE itself is not modified).
 notes_gitignore_updated() {
   local file="$1" line
-  if [[ -f "$file" ]]; then
-    while IFS= read -r line || [[ -n "$line" ]]; do
-      case "$line" in
-        '.dm-pr-review/*'|'!.dm-pr-review/ledger.jsonl'|'.state/*'|'!.state/dm-pr-review/'|'.state/dm-pr-review/*'|'!.state/dm-pr-review/ledger.jsonl') continue ;;
-      esac
-      printf '%s\n' "$line"
-    done < "$file"
-  fi
+  [[ -f "$file" ]] && cat "$file"
   while IFS= read -r line; do
     grep -qxF -- "$line" "$file" 2>/dev/null || printf '%s\n' "$line"
   done < <(notes_gitignore_rules)

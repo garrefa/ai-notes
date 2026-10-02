@@ -27,12 +27,9 @@
 #     `kind: ainotes-config` marker, losing the notes_repo key); .ai-notes/ runtime files
 #     (default-branches.txt, .last-notes-repo, snapshot-agents.log) move to <notes repo>/.state/;
 #     the emptied .ai-notes/ is removed;
-#   - an older <ws>/.dm-pr-review/ (or <notes repo>/.dm-pr-review/) moves into the notes repo: its
-#     ledger.jsonl becomes <notes repo>/pr-reviews-ledger.jsonl, the rest <notes repo>/.state/dm-pr-review/,
-#     and its config.yml is folded into the config's dm_pr_review: section;
 #   - a notes repo still using the db/ layout (db/notes, db/PRS.md, ...) is flattened to its root.
-# It also makes sure <notes repo>/.state/dm-pr-review/ exists and that the notes repo's .gitignore
-# ignores .state/ (dropping older .dm-pr-review/ rules). Safe to re-run: each step is
+# It also makes sure <notes repo>/.state/pr-review/ exists and that the notes repo's .gitignore
+# ignores .state/. Safe to re-run: each step is
 # a no-op once done.
 #
 # Scheduling snapshot-agents.sh: when run interactively (a real terminal, not CI/a script feeding
@@ -144,78 +141,16 @@ migrate_config() {
   fi
 }
 
-# Move an older <ws>/.dm-pr-review/ (PR auto-reviewer state) into the notes repo, folding its
-# config.yml into the ainotes config's dm_pr_review: section.
-migrate_dm_pr_review() {
-  local old="$WS/.dm-pr-review" config notes_dir oldcfg
-  [ -d "$old" ] || return 0
-  if ! config="$(workspace_config)" || config_is_legacy "$config"; then
-    [ "$DRY_RUN" = 1 ] && echo "would: move $old into the notes repo once the config has been migrated"
-    return 0
-  fi
-  notes_dir="$(notes_dir_of "$config")"
-  oldcfg="$old/config.yml"
-  if [ -f "$oldcfg" ] && ! grep -qE '^dm_pr_review:' "$config"; then
-    if [ "$DRY_RUN" = 1 ]; then
-      echo "would: append a dm_pr_review: section to $config from $oldcfg"
-    else
-      { printf '\n# PR auto-reviewer (ainotes-dm-pr-review); merged from .dm-pr-review/config.yml by install.sh.\n'
-        printf 'dm_pr_review:\n'
-        dm_setting self_github_login "$oldcfg" self_github_login
-        dm_setting review_model "$oldcfg" models review
-        dm_setting review_level "$oldcfg" review level
-        dm_setting per_review_budget_usd "$oldcfg" review per_review_budget_usd
-        dm_setting monthly_budget_usd "$oldcfg" budget monthly_usd
-      } >> "$config"
-      log "merged $oldcfg into the dm_pr_review: section of $config"
-    fi
-  fi
-  [ -f "$oldcfg" ] && run rm -f "$oldcfg"
-  relocate_dm_pr_review "$old" "$notes_dir"
-}
-
-# relocate_dm_pr_review OLD_DIR NOTES_DIR — split an older dm-pr-review state folder: its ledger.jsonl
-# becomes the tracked <notes repo>/pr-reviews-ledger.jsonl, everything else goes to the local
-# <notes repo>/.state/dm-pr-review/. Never overwrites; leaves what it can't move and says so.
-relocate_dm_pr_review() {
-  local old="$1" notes_dir="$2" ledger="$2/pr-reviews-ledger.jsonl" dest="$2/.state/dm-pr-review"
-  if [ -f "$old/ledger.jsonl" ]; then
-    if [ -e "$ledger" ]; then
-      echo "ainotes: both $old/ledger.jsonl and $ledger exist — leaving both; merge them by hand" >&2
-    else
-      run mv "$old/ledger.jsonl" "$ledger"
-      log "moved $old/ledger.jsonl -> $ledger"
-    fi
-  fi
-  if [ -e "$dest" ]; then
-    echo "ainotes: both $old and $dest exist — leaving $old; merge it by hand" >&2
-    return 0
-  fi
-  run mkdir -p "$notes_dir/.state"
-  run mv "$old" "$dest"
-  log "moved $old -> $dest"
-}
-
-# dm_setting NEW_KEY FILE OLD_KEY... — print "  NEW_KEY: value" when FILE has OLD_KEY (config_value args)
-dm_setting() {
-  local key="$1" file="$2" value
-  shift 2
-  value="$(config_value "$file" "$@")"
-  if [ -n "$value" ]; then printf '  %s: %s\n' "$key" "$value"; fi
-}
-
 # Every run: make sure the notes repo has the PR auto-reviewer's local state folder
-# (.state/dm-pr-review/; an older <notes repo>/.dm-pr-review/ is split into it and the root-level
-# pr-reviews-ledger.jsonl) and that its .gitignore has the current runtime-state rules.
+# (.state/pr-review/) and that its .gitignore has the current runtime-state rules.
 prepare_notes_repo() {
   local config notes_dir gi updated
   config="$(workspace_config)" || return 0
   config_is_legacy "$config" && return 0
   notes_dir="$(notes_dir_of "$config")"
-  [ -d "$notes_dir/.dm-pr-review" ] && relocate_dm_pr_review "$notes_dir/.dm-pr-review" "$notes_dir"
-  if [ ! -d "$notes_dir/.state/dm-pr-review" ]; then
-    run mkdir -p "$notes_dir/.state/dm-pr-review"
-    [ "$DRY_RUN" = 1 ] || log "created $notes_dir/.state/dm-pr-review"
+  if [ ! -d "$notes_dir/.state/pr-review" ]; then
+    run mkdir -p "$notes_dir/.state/pr-review"
+    [ "$DRY_RUN" = 1 ] || log "created $notes_dir/.state/pr-review"
   fi
   gi="$notes_dir/.gitignore"
   updated="$(notes_gitignore_updated "$gi")"
@@ -511,7 +446,6 @@ if [ "$UNINSTALL" = 1 ]; then
 fi
 
 migrate_config
-migrate_dm_pr_review
 migrate_notes_repo
 prepare_notes_repo
 

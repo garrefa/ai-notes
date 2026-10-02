@@ -33,7 +33,7 @@ trusting stale copies of those values in prose anywhere, including in this file.
 optional — when it's absent, leave `jira: null` on every plan and never ask about tickets.
 
 Untracked local runtime files live in `<notes_repo>/.state/` (gitignored), including the PR
-auto-reviewer's `.state/dm-pr-review/`. Its spend ledger is tracked at `<notes_repo>/pr-reviews-ledger.jsonl`.
+auto-reviewer's `.state/pr-review/`. Its spend ledger is tracked at `<notes_repo>/pr-reviews-ledger.jsonl`.
 
 ## Who writes the file
 
@@ -63,7 +63,7 @@ yourself (or tell the user) before moving on. If it returns an `error`, report i
 <notes_repo>/
   README.md  CLAUDE.md  .gitignore   # repo docs
   .config.yml                      # toolkit config (kind: ainotes-config)
-  .state/                          # untracked local runtime files (gitignored), incl. dm-pr-review/
+  .state/                          # untracked local runtime files (gitignored), incl. pr-review/
   pr-reviews-ledger.jsonl          # PR auto-reviewer spend ledger (tracked)
   notes/YYYY-MM-DD-slug.md
   plans/YYYY-MM-DD-slug.md
