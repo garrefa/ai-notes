@@ -1,14 +1,17 @@
 # notes
 
-Second brain for this workspace. Lives inside the workspace (as the `notes_repo` directory named in
-`.ai-notes/config.yml`) and is where every note and plan for any of its repos gets stored. All data
+Second brain for this workspace. Lives inside the workspace (it is the folder holding
+`.config.yml`) and is where every note and plan for any of its repos gets stored. All data
 lives at the repo root, alongside this README, `CLAUDE.md`, and `.gitignore`:
 
 ```
-notes/  plans/  tasks/  daily/
+notes/  plans/  tasks/  daily/  reviews/
 INDEX.md
 PRS.md
 TASKS.md
+.config.yml      # toolkit config (kind: ainotes-config)
+.state/          # untracked local runtime files (gitignored), incl. the PR auto-reviewer's pr-review/
+pr-reviews-ledger.jsonl   # PR auto-reviewer spend ledger (tracked)
 ```
 
 - `Add a note ...` / `note: ...` → `notes/YYYY-MM-DD-slug.md`
@@ -22,9 +25,12 @@ Other ledgers kept here:
 
 - [`PRS.md`](PRS.md) — every PR opened across the workspace's repos and its merge/close status
   (maintained by `ainotes-pr-tracker`).
-- [`TASKS.md`](TASKS.md) — open vs. completed tasks with a per-task status (configurable via `task_statuses` in `.ai-notes/config.yml`), one detail file per task under `tasks/`
+- [`TASKS.md`](TASKS.md) — open vs. completed tasks with a per-task status (configurable via `task_statuses` in `.config.yml`), one detail file per task under `tasks/`
   (maintained by `ainotes-tasks`).
 - `daily/YYYY-MM-DD.md` — manually-checked daily plans (maintained by `ainotes-daily-plan`).
+- `reviews/YYYY-MM-DD-<repo>-<n>.md` — one note per reviewed PR: verdict, findings, risk and private
+  follow-ups, with a section per re-review (written by `tools/review-note.sh` via
+  `ainotes-review-notes`).
 
 This repo is git-tracked for history, but it's a simple one: no worktrees, no per-note branches, no
 ticket of its own — that process is for the actual code repos in the workspace. Commits land
@@ -36,7 +42,7 @@ directly on `main`. Links inside the ledgers and `INDEX.md` are relative to this
 The toolkit ships `tools/check-prs.sh`, which does the mechanical part of the `ainotes-pr-tracker`
 skill's "check prs" — reconcile, deep-status refresh, commit — as a standalone script (`gh` + `jq`,
 no LLM). It lives with the toolkit (not in this repo); by default it finds this repo's `PRS.md` via
-`.ai-notes/config.yml`:
+`.config.yml`:
 
 ```
 check-prs.sh                 # refresh PRS.md in place, commit if anything changed
@@ -45,5 +51,6 @@ check-prs.sh --verbose        # log progress + print the diff
 check-prs.sh path/to/PRS.md   # point it at a different file
 ```
 
-Schedule it yourself (cron, launchd, CI) at whatever cadence you want — it's idempotent and a
-true no-op run touches nothing.
+Schedule it as the `check-prs` job ("configure schedules", see `ainotes-schedules`), or yourself
+(cron, launchd, CI) at whatever cadence you want — it's idempotent and a true no-op run touches
+nothing.

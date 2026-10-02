@@ -1,7 +1,8 @@
-// Reads the notes repo's notes/plans/daily/tasks frontmatter in the browser,
+// Reads the notes repo's notes/plans/daily/tasks/reviews frontmatter in the browser,
 // using the same conventions the ainotes-* skills write.
 
-export type NoteSource = "notes" | "plans" | "daily" | "tasks"
+// reviews/ holds one note per reviewed PR, written by ainotes-review-notes (tools/review-note.sh).
+export type NoteSource = "notes" | "plans" | "daily" | "tasks" | "reviews"
 
 export interface Note {
   path: string
@@ -107,11 +108,16 @@ export function extractTitle(body: string): string | null {
   return m ? m[1].trim() : null
 }
 
-export function extractExcerpt(body: string): string {
+// Lines that never make a readable excerpt: headings, checklist items, table rows, HTML comments.
+const NON_EXCERPT_PREFIXES = ["#", "- [", "|", "<!--"]
+
+// The first line of prose under the title. `skipQuotes` also passes over "> ..." lines, for a
+// review, whose verdict quote already shows as its status.
+export function extractExcerpt(body: string, { skipQuotes = false }: { skipQuotes?: boolean } = {}): string {
   const withoutHeading = body.replace(/^#\s+.+$/m, "")
   const lines = withoutHeading.split(/\r?\n/).map((l) => l.trim())
   for (const line of lines) {
-    if (!line || line.startsWith("#") || line.startsWith("- [")) continue
+    if (!line || NON_EXCERPT_PREFIXES.some((p) => line.startsWith(p)) || (skipQuotes && line.startsWith(">"))) continue
     return line.length > 200 ? line.slice(0, 200) + "…" : line
   }
   return ""
@@ -131,17 +137,23 @@ function asStringArray(v: unknown): string[] {
 
 export function toNote(relPath: string, source: NoteSource, raw: string, mtime: number): Note {
   const { frontmatter, body, rawFrontmatter } = parseFrontmatter(raw)
-  // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading.
-  const frontmatterTitle = asStringOrNull(frontmatter.title)
+  const isReview = source === "reviews"
+  // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading. A review's
+  // `title:` is the PR's; its "# Review: repo#123 · ..." heading names the note itself.
+  const frontmatterTitle = isReview ? null : asStringOrNull(frontmatter.title)
   const headingTitle = frontmatterTitle ? null : extractTitle(body)
   return {
     path: relPath,
     source,
     title: frontmatterTitle || headingTitle || relPath,
     titleFromHeading: headingTitle !== null,
-    excerpt: extractExcerpt(body),
-    // Tasks use `created` instead of `date`.
-    date: asStringOrNull(frontmatter.date) ?? asStringOrNull(frontmatter.created),
+    excerpt: extractExcerpt(body, { skipQuotes: isReview }),
+    // Tasks use `created` instead of `date`. A review is dated by its latest review, so a re-review
+    // brings the PR's note back up the list (`date:` stays the first review, as in its file name).
+    date:
+      (isReview ? asStringOrNull(frontmatter.last_reviewed) : null) ??
+      asStringOrNull(frontmatter.date) ??
+      asStringOrNull(frontmatter.created),
     type: asStringOrNull(frontmatter.type),
     repo: asStringOrNull(frontmatter.repo),
     domain: asStringArray(frontmatter.domain),
@@ -149,7 +161,8 @@ export function toNote(relPath: string, source: NoteSource, raw: string, mtime: 
     jira: asStringOrNull(frontmatter.jira),
     tags: asStringArray(frontmatter.tags),
     prs: asStringArray(frontmatter.prs).map(unquote).filter(Boolean),
-    status: asStringOrNull(frontmatter.status),
+    // A review's `status:` is always n/a; its verdict is what the list should say.
+    status: asStringOrNull(isReview ? frontmatter.verdict : frontmatter.status),
     deadline: asStringOrNull(frontmatter.deadline),
     mtime,
     body,
@@ -260,6 +273,10 @@ const STATUS_LABELS: Record<string, string> = {
   open: "Open",
   done: "Closed",
   dropped: "Dropped",
+  // A review's verdict (ainotes-review-notes), shown as its status.
+  approved: "Approved",
+  commented: "Commented",
+  changes_requested: "Changes requested",
 }
 
 export function displayStatus(status: string | null): string | null {

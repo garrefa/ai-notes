@@ -1,16 +1,16 @@
 ---
 name: ainotes-task
-description: Plan-then-execute workflow for a task in one of the git repos checked out under this workspace (the directory holding `.ai-notes/config.yml`). Creates a fresh worktree off the up-to-date default branch, plans with a Plan subagent, gets user approval, then executes with one or more subagents. Use when the user says "work on X in <repo>", "let's do a task in <repo>", or invokes /ainotes-task.
+description: Plan-then-execute workflow for a task in one of the git repos checked out under this workspace (the parent of the notes repo holding `.config.yml`). Creates a fresh worktree off the up-to-date default branch, plans with a Plan subagent, gets user approval, then executes with one or more subagents. Use when the user says "work on X in <repo>", "let's do a task in <repo>", or invokes /ainotes-task.
 ---
 
 # Task Workflow
 
 Orchestrates a single task end-to-end in one repo of this workspace (the workspace root is the
-directory containing `.ai-notes/` — see the `ainotes-notes` skill for the discovery rule).
+parent of the notes repo (the folder holding `.config.yml`) — see the `ainotes-notes` skill for the discovery rule).
 You (the orchestrator) do the git/worktree setup and plan-approval yourself; subagents do the planning
 analysis and the execution.
 
-`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml`.
+`<notes_repo>` below means the folder holding the workspace's `.config.yml`.
 
 ## Arguments: $ARGUMENTS
 
@@ -18,7 +18,7 @@ Parse the user's message (after `/ainotes-task`, or their natural-language reque
 - **repo**: which of the workspace's repos this targets. If ambiguous or missing, ask.
 - **task**: what they want done.
 
-If the repo isn't a top-level git repo under the workspace root (the configured `notes_repo` and
+If the repo isn't a top-level git repo under the workspace root (the notes repo and
 anything in `ignored_repos` don't count), ask for clarification rather than guessing.
 
 ## Steps
@@ -29,12 +29,12 @@ The default branch name itself essentially never changes, so cache it per repo i
 every time. The freshness that actually matters — the branch's *content* — is handled by the mandatory
 fetch below, which always runs regardless of cache hit or miss.
 
-Cache file: `<workspace-root>/.ai-notes/default-branches.txt`, one line per repo: `<repo> <branch>`
+Cache file: `<notes_repo>/.state/default-branches.txt`, one line per repo: `<repo> <branch>`
 (format reference: `default-branches.txt` in this skill's own directory — never write to that one).
 
 1. Check the cache:
    ```bash
-   grep "^<repo> " <workspace-root>/.ai-notes/default-branches.txt 2>/dev/null
+   grep "^<repo> " <notes_repo>/.state/default-branches.txt 2>/dev/null
    ```
 2. **Cache hit**: use that branch name, skip detection, go to step 3.
 3. **Cache miss**: detect it, then append `<repo> <branch>` to the cache file (create it if it doesn't
@@ -114,7 +114,7 @@ instructions). Keep the `path` it returns for steps 6 and 10 — don't re-read t
 
 ### 6. Get a Jira ticket (only if Jira is configured)
 
-Read the workspace's `.ai-notes/config.yml`. **If it has no `jira` block, skip the ticket part of this step entirely** —
+Read the workspace's `.config.yml`. **If it has no `jira` block, skip the ticket part of this step entirely** —
 don't ask about a ticket, don't create one, and leave the plan's `jira` field `null`. Just hand
 `notetaker` a frontmatter-only update of the plan (`{path, status: in-progress}`) and move on to step 7.
 

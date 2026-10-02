@@ -5,6 +5,9 @@ Tag → files map, maintained by the `ainotes-notes` skill. Paths are relative t
 ## incident
 - notes/2026-03-18-checkout-latency-spike-investigation.md
 
+## pr-review
+- reviews/2026-03-17-payments-api-486.md
+
 ## idempotency
 - notes/2026-03-17-payments-api-idempotency-keys-shipped.md
 - plans/2026-03-16-payments-api-idempotency-keys.md

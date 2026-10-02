@@ -21,6 +21,7 @@ const NOTE_KIND_LABEL: Record<Note["source"], string> = {
   plans: "plan",
   daily: "daily plan",
   tasks: "task",
+  reviews: "PR review",
 }
 
 function prRef(pr: LedgerPr): string {

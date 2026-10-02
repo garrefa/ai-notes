@@ -1,6 +1,6 @@
 ---
 name: ainotes-review-inbox
-description: Finds every open PR across the configured GitHub org (`vcs.org` in .ai-notes/config.yml) where your review is requested — not just PRs in repos checked out in this workspace — summarizes each one, flags which are stale, and assigns a priority (high/medium/low). Triage is cheap: a Haiku agent does the judgment calls, not the main thread. Trigger with "check my pr review queue", "what needs my review", "review inbox", or "pending my review". Plays well with `/loop` for a self-paced recurring check.
+description: Finds every open PR across the configured GitHub org (`vcs.org` in .config.yml) where your review is requested — not just PRs in repos checked out in this workspace — summarizes each one, flags which are stale, and assigns a priority (high/medium/low). Triage is cheap: a Haiku agent does the judgment calls, not the main thread. Trigger with "check my pr review queue", "what needs my review", "review inbox", or "pending my review". Plays well with `/loop` for a self-paced recurring check.
 ---
 
 # Review Inbox
@@ -12,14 +12,14 @@ opened; this is about PRs *someone else* opened that are waiting on you.
 
 ## Scope: which PRs
 
-Org-wide, via `vcs.org` in `.ai-notes/config.yml` (see `ainotes-notes` for the config-discovery
+Org-wide, via `vcs.org` in `.config.yml` (see `ainotes-notes` for the config-discovery
 rule) — every open PR with your review requested, regardless of repo. If the user names a
 specific repo ("what's pending my review in react-web"), scope to just that repo instead.
 
 ## One pass
 
 1. **Gather — no LLM.** Run `tools/review-inbox.sh` from this plugin's root (works from any
-   directory once `.ai-notes/config.yml` is discoverable, or pass `--org`). It does one `gh search
+   directory once `.config.yml` is discoverable, or pass `--org`). It does one `gh search
    prs --review-requested=@me` call plus a handful of batched GraphQL lookups (not one REST call
    per PR — see the script's header comment), and computes every objective fact itself: age in
    days, days since last update, a `stale` flag (default threshold 5 days since last update,
