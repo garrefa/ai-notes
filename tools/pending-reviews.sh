@@ -8,7 +8,7 @@
 # Usage: pending-reviews.sh [ORG] [--include-teams] [--include-stale] [--include-approved] [--include-dependabot]
 #                           [--no-drafts] [--no-bots]
 #                           [--json | --review | --review-dry-run]
-#   ORG                 GitHub org (default: vcs.org from .ai-notes/config.yml)
+#   ORG                 GitHub org (default: vcs.org from <notes repo>/.config.yml)
 #   --include-teams     also list PRs requested via one of your teams (in a separate table)
 #   --include-stale     keep stale PRs
 #   --include-approved  keep PRs whose review decision is already APPROVED
@@ -19,7 +19,7 @@
 #   --review            after listing, run a headless Claude review on each listed PR via
 #                       dm-pr-review.sh review (ainotes-dm-pr-review): approve on zero findings, else inline comments. PRs
 #                       already reviewed at their current commit are skipped; stops when the monthly
-#                       budget in .dm-pr-review/config.yml is spent. Claude is only started if the
+#                       budget (dm_pr_review: in <notes repo>/.config.yml) is spent. Claude is only started if the
 #                       list is non-empty, so a scheduled run with nothing pending costs $0.
 #   --review-dry-run    same, but nothing is posted (cost still counts)
 #
@@ -30,8 +30,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=ainotes-config.sh
 source "$SCRIPT_DIR/ainotes-config.sh"
-WORKSPACE="$(find_workspace_root "$PWD" || find_workspace_root "$SCRIPT_DIR" || true)"
-[[ -n "$WORKSPACE" ]] || { echo "No ainotes workspace (.ai-notes/) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
+CONFIG="$(find_ainotes_config "$PWD" || find_ainotes_config "$SCRIPT_DIR" || true)"
+[[ -n "$CONFIG" ]] || { echo "No ainotes config (<notes repo>/.config.yml) found above $PWD or $SCRIPT_DIR." >&2; exit 1; }
 
 ORG="" JSON=false REVIEW=""
 REVIEWER="$SCRIPT_DIR/dm-pr-review.sh"
@@ -53,8 +53,8 @@ for arg in "$@"; do
   esac
 done
 if $JSON && [[ -n "$REVIEW" ]]; then echo "--json can't be combined with --review/--review-dry-run" >&2; exit 1; fi
-[[ -n "$ORG" ]] || ORG=$(config_value "$WORKSPACE/.ai-notes/config.yml" vcs org)
-[[ -n "$ORG" ]] || { echo "No GitHub org: pass one or set vcs.org in .ai-notes/config.yml." >&2; exit 1; }
+[[ -n "$ORG" ]] || ORG=$(config_value "$CONFIG" vcs org)
+[[ -n "$ORG" ]] || { echo "No GitHub org: pass one or set vcs.org in $CONFIG." >&2; exit 1; }
 
 all=$("$SCRIPT_DIR/review-inbox.sh" --org "$ORG")
 direct_urls=$(gh search prs --owner "$ORG" --state open --limit 200 --json url -- "user-review-requested:@me" | jq '[.[].url]')

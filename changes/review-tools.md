@@ -14,5 +14,19 @@
     pending.
   - A monthly USD cap is enforced through `--max-budget-usd`, there is a per-review cost and token
     ledger, and every review is filed via `review-note.sh`.
-  - State and config live in `<workspace>/.dm-pr-review/`.
+  - Settings are a `dm_pr_review:` section of the ainotes config, and every key has a default.
+    State lives in `<notes repo>/.dm-pr-review/`, where git tracks only `ledger.jsonl`.
 - Notes-repo template documents the new `reviews/` folder.
+- The ainotes config moves from `<workspace>/.ai-notes/config.yml` to `<notes repo>/.config.yml`,
+  marked by `kind: ainotes-config`. Tools find it by walking up and checking each directory and its
+  immediate subfolders. The folder holding it is the notes repo, so the `notes_repo` key is gone
+  and renaming the notes folder needs no config edit. The rename detector's tracker moves to
+  `<notes repo>/.state/last-notes-repo`. Runtime files that used to sit in `.ai-notes/`
+  (`default-branches.txt`, the snapshot log) move to `<notes repo>/.state/`, which is gitignored.
+  `install.sh` migrates existing workspaces on install or update:
+  - it moves the config and the runtime files, and folds an old `.dm-pr-review/config.yml` into
+    `dm_pr_review:`;
+  - it moves `<workspace>/.dm-pr-review/` into the notes repo and removes the empty `.ai-notes/`;
+  - it adds the `.state/` and `.dm-pr-review/` ignore rules.
+
+  A legacy `.ai-notes/config.yml` is still read until it has been migrated.

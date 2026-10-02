@@ -21,10 +21,10 @@
 #   --verbose   log each step (and print the diff) to stderr/stdout
 #   --org ORG   GitHub org/user to query (default: `vcs.org` from config)
 #
-# Configuration comes from the ainotes workspace's .ai-notes/config.yml,
+# Configuration comes from the ainotes config, `.config.yml` inside the notes repo,
 # found by walking up (from the PRS.md path if given, else the current
 # directory, else this script's own directory) until a directory containing
-# .ai-notes/ turns up. The default PRS.md is <workspace>/<notes_repo>/PRS.md.
+# the config turns up (see ainotes-config.sh). The default PRS.md is <notes repo>/PRS.md.
 # The commit is made at the notes repo's git root.
 # If the config has a `jira.project_key`, the first matching ticket key in a
 # newly discovered PR's title fills its Jira column; otherwise it's "—".
@@ -68,34 +68,34 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 TODAY="$(date -u +%Y-%m-%d)"
 
 # ---------------------------------------------------------------------------
-# Workspace config (.ai-notes/config.yml) — read without needing yq
+# Workspace config (<notes repo>/.config.yml) — read without needing yq
 # ---------------------------------------------------------------------------
 
 # shellcheck source=ainotes-config.sh
 source "$SCRIPT_DIR/ainotes-config.sh"
 
 if [[ -n "$PRS_FILE" && -d "$(dirname "$PRS_FILE")" ]]; then
-  WORKSPACE_ROOT="$(find_workspace_root "$(cd "$(dirname "$PRS_FILE")" && pwd)")" || WORKSPACE_ROOT=""
+  CONFIG="$(find_ainotes_config "$(cd "$(dirname "$PRS_FILE")" && pwd)")" || CONFIG=""
 else
-  WORKSPACE_ROOT="$(find_workspace_root "$PWD")" \
-    || WORKSPACE_ROOT="$(find_workspace_root "$SCRIPT_DIR")" \
-    || WORKSPACE_ROOT=""
+  CONFIG="$(find_ainotes_config "$PWD")" \
+    || CONFIG="$(find_ainotes_config "$SCRIPT_DIR")" \
+    || CONFIG=""
 fi
-CONFIG=""
-[[ -n "$WORKSPACE_ROOT" && -f "$WORKSPACE_ROOT/.ai-notes/config.yml" ]] && CONFIG="$WORKSPACE_ROOT/.ai-notes/config.yml"
+WORKSPACE_ROOT=""
+[[ -n "$CONFIG" ]] && WORKSPACE_ROOT="$(workspace_root_of "$CONFIG")"
 
 JIRA_KEY=""
 if [[ -n "$CONFIG" ]]; then
   [[ -z "$ORG" ]] && ORG="$(config_value "$CONFIG" vcs org)"
   JIRA_KEY="$(config_value "$CONFIG" jira project_key)"
   if [[ -z "$PRS_FILE" ]]; then
-    NOTES_REPO="$(config_value "$CONFIG" notes_repo)"
-    PRS_FILE="$WORKSPACE_ROOT/${NOTES_REPO:-notes}/PRS.md"
+    CONFIG_NOTES_DIR="$(notes_dir_of "$CONFIG")"
+    PRS_FILE="${CONFIG_NOTES_DIR:-$WORKSPACE_ROOT/notes}/PRS.md"
   fi
 fi
 
-[[ -n "$PRS_FILE" ]] || { echo "No PRS.md path given and no .ai-notes/config.yml found above $PWD — pass the PRS.md path." >&2; exit 1; }
-[[ -n "$ORG" ]] || { echo "No GitHub org: set vcs.org in .ai-notes/config.yml or pass --org ORG." >&2; exit 1; }
+[[ -n "$PRS_FILE" ]] || { echo "No PRS.md path given and no the ainotes config (<notes repo>/.config.yml) found above $PWD — pass the PRS.md path." >&2; exit 1; }
+[[ -n "$ORG" ]] || { echo "No GitHub org: set vcs.org in the ainotes config (<notes repo>/.config.yml) or pass --org ORG." >&2; exit 1; }
 
 log() { [[ $VERBOSE -eq 1 ]] && echo "[check-prs] $*" >&2 || true; }
 warn() { echo "[check-prs] WARNING: $*" >&2; }

@@ -1,28 +1,35 @@
 ---
 name: ainotes-setup
-description: Creates or updates a workspace's .ai-notes/config.yml — the shared config every ainotes-* skill reads. Full setup mode creates .ai-notes/ if missing and interactively asks about each setting (org name, notes repo, VCS org, optional Jira, Slack, CI deploy comment, task statuses), creating the notes repo from the bundled template if needed and explaining what each is used for. Repo-registration mode scans the workspace root for cloned git repos and, for any repo that's neither tagged in domain_taxonomy nor listed in ignored_repos, asks the user to tag it (suggesting domains based on name/stack similarity to existing ones) or ignore it. Also invoked automatically by two hooks — at SessionStart when the current repo is unregistered, and right after a `git clone` lands a new top-level repo in the workspace. Trigger on "setup ainotes", "init ainotes config", "configure ainotes", "register new repos", "check for unregistered repos", or a hook nudge naming an unregistered repo.
+description: Creates or updates a workspace's .config.yml (inside its notes repo) — the shared config every ainotes-* skill reads. Full setup mode first picks or creates the notes repo, then interactively asks about each setting (org name, VCS org, optional Jira, Slack, CI deploy comment, task statuses), creating the notes repo from the bundled template if needed and explaining what each is used for. Repo-registration mode scans the workspace root for cloned git repos and, for any repo that's neither tagged in domain_taxonomy nor listed in ignored_repos, asks the user to tag it (suggesting domains based on name/stack similarity to existing ones) or ignore it. Also invoked automatically by two hooks — at SessionStart when the current repo is unregistered, and right after a `git clone` lands a new top-level repo in the workspace. Trigger on "setup ainotes", "init ainotes config", "configure ainotes", "register new repos", "check for unregistered repos", or a hook nudge naming an unregistered repo.
 ---
 
 # ainotes-setup
 
-Owns `.ai-notes/config.yml` at the workspace root — the one file every `ainotes-*` skill
-reads instead of hardcoding organization details (see `ainotes-notes` for the discovery rule: walk up
-from the current directory until a `.ai-notes/` directory turns up; its parent is the workspace root).
+Owns `.config.yml` inside the notes repo (`<workspace>/<notes folder>/.config.yml`) — the one file
+every `ainotes-*` skill reads instead of hardcoding organization details. It starts with
+`kind: ainotes-config`, the marker that distinguishes it from any other `.config.yml`. See
+`ainotes-notes` for the config-discovery rule; the notes repo's parent is the workspace root.
 This skill is how that file gets created in the first place, and how it stays current as repos get
 added to the workspace.
 
-It has two modes. Use **Full setup** when `.ai-notes/config.yml` doesn't exist yet (or the
+It has two modes. Use **Full setup** when no `.config.yml` with `kind: ainotes-config` exists yet (or the
 user explicitly asks to redo it from scratch). Use **Repo registration** for everything else,
 including every hook-triggered invocation.
 
 ## Full setup
 
-Run when no `.ai-notes/config.yml` is found by walking up from the current directory.
+Run when no config is found by the discovery rule (walking up from the current directory).
 
 1. **Confirm the workspace root.** Default to the current directory, but ask if it's not obviously a
    folder containing multiple sibling repos (e.g. it looks like you're already inside one specific
-   repo). This directory is where `.ai-notes/` will be created.
-2. **Create `.ai-notes/`** at that root if it doesn't already exist.
+   repo). The notes repo will live directly under this directory.
+2. **Pick or create the notes repo first** (a folder directly under the workspace root, default
+   suggestion `notes`). It is its own separate git repo where `ainotes-notes`, `ainotes-task`,
+   `ainotes-report`, `ainotes-pr-tracker`, `ainotes-daily-plan`, and `ainotes-tasks` all store their
+   notes, plans, PR ledger, task ledger, and daily plans, and it is where the config will live. Ask
+   whether it already exists (point at it) or should be created fresh from the bundled template; if
+   fresh, see **Creating the notes repo** below. There is no `notes_repo` setting: the config's
+   location identifies the notes repo.
 3. **Ask each setting conversationally**, one at a time or in small logical groups, explaining what
    it's used for before asking (don't just present a bare form). Accept "skip"/"none" for anything
    optional — an empty or missing setting should never block finishing setup.
@@ -30,11 +37,6 @@ Run when no `.ai-notes/config.yml` is found by walking up from the current direc
    - **Org name** (`org_name`, optional): a human-readable name used in generated prose where it
      reads naturally — the `ainotes-report` title and the intro line of an
      `ainotes-pr-review-request` Slack message. Purely cosmetic.
-   - **Notes repo** (`notes_repo`, required, default suggestion `notes`): the directory name — and
-     its own separate git repo, nested inside the workspace — where `ainotes-notes`, `ainotes-task`,
-     `ainotes-report`, `ainotes-pr-tracker`, `ainotes-daily-plan`, and `ainotes-tasks` all store their
-     notes, plans, PR ledger, task ledger, and daily plans. Ask whether it already exists (point at
-     it) or should be created fresh. If it should be created, see **Creating the notes repo** below.
    - **VCS org** (`vcs.org`, required if any GitHub-dependent skill will be used): the GitHub org or
      user the workspace's repos live under. Used by any skill that shells out to `gh`/`gh api`
      (`ainotes-pr-tracker`, `ainotes-babysit-prs`, `ainotes-pr-review-request`).
@@ -65,16 +67,18 @@ Run when no `.ai-notes/config.yml` is found by walking up from the current direc
      over time as real epics are confirmed — don't seed it with guesses.
 
 4. **Run the repo scan** (below) to populate `ignored_repos` and `domain_taxonomy`.
-5. **Write the file** using the canonical schema below, show the user the final result, and confirm
+5. **Write the file** to `<notes repo>/.config.yml` using the canonical schema below, show the user the final result, and confirm
    it looks right.
 
 ### Canonical config schema
 
-Write keys in this order, with these names — every `ainotes-*` skill and hook reads exactly these:
+Write keys in this order, with these names — every `ainotes-*` skill and hook reads exactly these.
+The file is git-tracked with the notes repo (workspace settings, no secrets) and always starts with
+the `kind` marker:
 
 ```yaml
+kind: ainotes-config             # marker: distinguishes this from any other .config.yml
 org_name: "Acme"                 # used in generated prose only
-notes_repo: notes                # dir (its own git repo) at the workspace root holding notes/plans/ledgers
 vcs:
   org: acme                      # GitHub org/user for `gh`; GitHub is the only supported VCS
 jira:                            # OPTIONAL. Omit the whole block to disable all Jira steps.
@@ -104,7 +108,8 @@ A commented copy lives at `<skill base dir>/../../tools/config.example.yml`.
 
 ### Creating the notes repo
 
-When the user wants `notes_repo` created fresh (it doesn't exist yet at `<workspace-root>/<notes_repo>`):
+When the user wants the notes repo created fresh (the folder doesn't exist yet at
+`<workspace-root>/<notes_repo>`, where `<notes_repo>` is the folder name they chose):
 
 1. Create the directory and `git init -b main` it (fall back to `git init` + `git checkout -b main`
    on older git).
@@ -113,7 +118,8 @@ When the user wants `notes_repo` created fresh (it doesn't exist yet at `<worksp
    ```bash
    cp -R "<skill base dir>/../../templates/notes-repo/." "<workspace-root>/<notes_repo>/"
    ```
-   That gives it `README.md`, `CLAUDE.md`, and `.gitignore` at the root, plus the data files
+   That gives it `README.md`, `CLAUDE.md`, and `.gitignore` at the root (the config is written there
+   afterwards, by the main flow), plus the data files
    (the canonical layout defined in `ainotes-notes`): `INDEX.md`, `PRS.md`, `TASKS.md`
    (headers and empty tables only) and empty `notes/`, `plans/`, `tasks/`, `daily/`
    (each holding a `.gitkeep` so git tracks it). If the template directory can't be found, stop and tell the user
@@ -124,35 +130,45 @@ When the user wants `notes_repo` created fresh (it doesn't exist yet at `<worksp
 If the directory already exists but isn't a git repo, ask before running `git init` in it, and never
 overwrite existing files with template copies.
 
-### Changing `notes_repo`
+### Renaming the notes folder
 
-Whenever this skill changes `notes_repo` in an existing config (the notes repo was renamed or
-moved, or the user points it somewhere else), scheduled jobs may still point at the old folder
-and quietly stop working. A launchd `WorkingDirectory` inside it, or `check-prs.sh` given an
-explicit `PRS.md` path, are typical. So after writing the new value:
+The config lives inside the notes repo, so renaming the folder needs no config edit: rename it and
+the config moves with it. But scheduled jobs may still point at the old folder and quietly stop
+working. A launchd `WorkingDirectory` inside it, or `check-prs.sh` given an explicit `PRS.md` path,
+are typical. After the rename:
 
-1. Look for jobs that still reference `<workspace-root>/<old notes_repo>`: every
+1. Look for jobs that still reference `<workspace-root>/<old notes folder>`: every
    `~/Library/LaunchAgents/*.plist` on macOS, and the user's `crontab -l`.
 2. Alert the user, listing each one found, or say none were found.
 3. For each job, offer to change it so it no longer hardcodes the notes repo: run the tool from the
-   workspace root with no notes-repo path. `check-prs.sh` and `snapshot-agents.sh` read `notes_repo`
-   from this config on every run. Reload a changed launchd job with `launchctl unload` then
-   `launchctl load -w`. Change a job only with the user's agreement.
-4. Write the new value to `.ai-notes/.last-notes-repo`. That is the
-   `detect-notes-repo-change.sh` hook's memory of the last value it saw. The hook does the same check
-   at session start when `notes_repo` was changed by hand, and keeps alerting each session until no
+   workspace root with no notes-repo path. `check-prs.sh` and `snapshot-agents.sh` find the notes
+   repo through the config-discovery rule on every run. Reload a changed launchd job with
+   `launchctl unload` then `launchctl load -w`. Change a job only with the user's agreement.
+4. Write the new folder name to `<notes repo>/.state/last-notes-repo`. That is the
+   `detect-notes-repo-change.sh` hook's memory of the last name it saw. The hook does the same check
+   at session start when the folder was renamed by hand, and keeps alerting each session until no
    job references the old folder.
+
+### Migrating from `.ai-notes/config.yml`
+
+Older workspaces kept the config at `<workspace>/.ai-notes/config.yml` (with a `notes_repo` key).
+That location is still read as a fallback, and `install.sh` (install or update) migrates it
+automatically: it moves the config to `<notes>/.config.yml` (adding the `kind: ainotes-config`
+marker and dropping `notes_repo`), merges `<workspace>/.dm-pr-review/config.yml` into a
+`dm_pr_review:` section, moves `<workspace>/.dm-pr-review/` to `<notes>/.dm-pr-review/`, moves the
+`.ai-notes/` runtime files into `<notes>/.state/`, and removes the empty `.ai-notes/`. If a user
+hits the legacy layout while this skill runs, point them at `install.sh` rather than migrating by hand.
 
 ### Migrating a legacy notes repo
 
 Older notes repos (from before the layout was flattened) kept their data (`notes/`, `plans/`,
 `tasks/`, `daily/`, `INDEX.md`, `PRS.md`, `TASKS.md`) nested one level under a `db/` folder. Whenever
-this skill runs (full setup or repo registration) and finds `<workspace-root>/<notes_repo>/db/`
+this skill runs (full setup or repo registration) and finds `<notes_repo>/db/`
 holding any of those entries, tell the user and offer to migrate — never move anything without an
 explicit yes. On request, do it as a single commit at the notes repo root:
 
 ```bash
-cd "<workspace-root>/<notes_repo>"
+cd "<notes_repo>"
 for p in db/* db/.[!.]*; do
   [ -e "$p" ] || continue
   git mv "$p" "$(basename "$p")" 2>/dev/null || mv "$p" "$(basename "$p")"
@@ -169,7 +185,7 @@ layout is complete. Don't push — that's the user's call.
 
 ## Repo registration
 
-This is the mode hooks invoke, and also what running this skill does once `.ai-notes/config.yml`
+This is the mode hooks invoke, and also what running this skill does once the config
 already exists.
 
 ### Scope
@@ -185,8 +201,8 @@ already exists.
 
 1. List top-level directories directly under the workspace root.
 2. Keep only real git repos (contain a `.git`).
-3. Drop: hidden directories (leading `.`, e.g. `.ai-notes`, `.claude`, `.git`), and the configured
-   `notes_repo` — it's never a tagging candidate.
+3. Drop: hidden directories (leading `.`, e.g. `.claude`, `.git`), and the notes repo (the folder
+   holding `.config.yml`) — it's never a tagging candidate.
 4. Of what's left, a repo is **unregistered** if its name appears neither inside `ignored_repos` nor
    inside any `domain_taxonomy` list. (Either may be written as flow lists (`[a, b]`) or block lists (`- a`) — it's a simple membership check.)
 5. For hook-invoked runs, narrow this to just the named repo. For user-invoked runs, keep the full
@@ -235,11 +251,11 @@ Keep this cheap — a repo's tagging question is a small aside, not a research t
 
 ## Notes
 
-- Never invent a value for a required setting (`notes_repo`, `vcs.org` if GitHub skills are in play)
+- Never invent a value for a required setting (`vcs.org` if GitHub skills are in play)
   — always ask, same discipline the rest of this toolkit follows for Jira tickets and epics.
 - `ignored_repos` and "not yet tagged" are different states, and this skill treats them differently:
   an ignored repo is never asked about again; an untagged repo keeps getting surfaced (by the hooks or
   by a manual "check for unregistered repos") until someone makes a call on it.
 - This skill only ever adds to `domain_taxonomy`/`ignored_repos` — it doesn't remove or re-tag an
   already-registered repo. Re-tagging an existing repo is a direct edit to
-  `.ai-notes/config.yml`, not something this skill's scan flow does on its own initiative.
+  `.config.yml`, not something this skill's scan flow does on its own initiative.

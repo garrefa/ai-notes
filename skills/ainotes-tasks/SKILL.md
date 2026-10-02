@@ -1,7 +1,7 @@
 ---
 name: ainotes-tasks
 description: >-
-  Track open work as tasks in the notes repo (`notes_repo` in .ai-notes/config.yml) — a master ledger (<notes_repo>/TASKS.md, open vs. completed, same "see it like open PRs" pattern as ainotes-pr-tracker) plus one detail file per task (<notes_repo>/tasks/YYYY-MM-DD-slug.md) with an optional deadline and a workflow status taken from the configurable `task_statuses` list (default backlog / in-progress / done / dropped). A SessionStart hook nudges Claude to ask, near the top of a session, whether to track that session's purpose as a task; when a task is active for a session and a Jira ticket or PR gets created, this skill updates the task with it. Trigger on "new task: ...", "add a task ...", "track this as a task", "what are my open tasks", "show tasks", "start task <x>", "move task <x> to <status>", "drop task <x>", "mark task <x> done", "complete task <x>", or a bare "<x> is done" when <x> isn't on today's daily plan (ainotes-daily-plan takes it if it is; ask if ambiguous).
+  Track open work as tasks in the notes repo (the folder holding `.config.yml`) — a master ledger (<notes_repo>/TASKS.md, open vs. completed, same "see it like open PRs" pattern as ainotes-pr-tracker) plus one detail file per task (<notes_repo>/tasks/YYYY-MM-DD-slug.md) with an optional deadline and a workflow status taken from the configurable `task_statuses` list (default backlog / in-progress / done / dropped). A SessionStart hook nudges Claude to ask, near the top of a session, whether to track that session's purpose as a task; when a task is active for a session and a Jira ticket or PR gets created, this skill updates the task with it. Trigger on "new task: ...", "add a task ...", "track this as a task", "what are my open tasks", "show tasks", "start task <x>", "move task <x> to <status>", "drop task <x>", "mark task <x> done", "complete task <x>", or a bare "<x> is done" when <x> isn't on today's daily plan (ainotes-daily-plan takes it if it is; ask if ambiguous).
 ---
 
 # Task Tracker (ainotes-tasks)
@@ -25,14 +25,14 @@ everything conversational: listing tasks ("show tasks" is read inline), fuzzy-ma
 row, resolving the target status, and asking the user when anything is ambiguous — the agent only
 ever receives resolved values, and you don't re-read the files it wrote.
 
-(`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml` — see
+(`<notes_repo>` below means the folder holding the workspace's `.config.yml` — see
 `ainotes-notes` for the config-discovery rule and the canonical layout, including what to do
 with a legacy repo that still has its data under `db/`. Jira links are built from `jira.base_url`; if the config
 has no `jira` block, the `Jira` column and `jira:` field simply stay `—`/`[]` and Jira linking is skipped.)
 
 ## Statuses
 
-Statuses come from `task_statuses` in `.ai-notes/config.yml` — an ordered list of
+Statuses come from `task_statuses` in `.config.yml` — an ordered list of
 `{ key, label, closed? }`. If the key is absent, use exactly these defaults:
 
 ```yaml
@@ -141,7 +141,7 @@ the SessionStart nudge (below).
 
 The toolkit provides a `SessionStart` hook (`hooks/scripts/session-start-task-prompt.sh`, wired via
 `hooks/hooks.json` when installed as a plugin, or via the workspace's `.claude/settings.json` when
-installed with `install.sh`). It discovers the workspace root by walking up for `.ai-notes/` and, when
+installed with `install.sh`). It discovers the workspace root by walking up for the notes repo's `.config.yml` and, when
 found, injects a reminder at the start of every session in this workspace: near the top of the
 conversation, ask the user whether they want to track that session's purpose as a task. Skip the ask
 when the session is obviously a trivial one-off question, or when another task-tracking skill already

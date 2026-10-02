@@ -18,7 +18,7 @@
 #   --limit N          Max PRs to fetch (default 200; gh search paginates)
 #   --stale-days N     Days since last update before a PR counts as stale (default 5)
 #
-# Configuration comes from the ainotes workspace's .ai-notes/config.yml (see
+# Configuration comes from the ainotes config, <notes repo>/.config.yml (see
 # tools/ainotes-config.sh), found by walking up from the current directory.
 # Needs `gh` (authenticated) and `jq` on PATH.
 #
@@ -60,12 +60,12 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ainotes-config.sh"
 
 if [[ -z "$ORG" ]]; then
-  WORKSPACE_ROOT="$(find_workspace_root "$PWD")" || WORKSPACE_ROOT="$(find_workspace_root "$SCRIPT_DIR")" || WORKSPACE_ROOT=""
-  if [[ -n "$WORKSPACE_ROOT" && -f "$WORKSPACE_ROOT/.ai-notes/config.yml" ]]; then
-    ORG="$(config_value "$WORKSPACE_ROOT/.ai-notes/config.yml" vcs org)"
+  CONFIG="$(find_ainotes_config "$PWD")" || CONFIG="$(find_ainotes_config "$SCRIPT_DIR")" || CONFIG=""
+  if [[ -n "$CONFIG" ]]; then
+    ORG="$(config_value "$CONFIG" vcs org)"
   fi
 fi
-[[ -n "$ORG" ]] || { echo "No GitHub org: set vcs.org in .ai-notes/config.yml or pass --org ORG." >&2; exit 1; }
+[[ -n "$ORG" ]] || { echo "No GitHub org: set vcs.org in the ainotes config (<notes repo>/.config.yml) or pass --org ORG." >&2; exit 1; }
 
 command -v gh >/dev/null 2>&1 || { echo "gh CLI not found on PATH" >&2; exit 1; }
 command -v jq >/dev/null 2>&1 || { echo "jq not found on PATH" >&2; exit 1; }
