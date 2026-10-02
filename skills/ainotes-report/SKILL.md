@@ -5,8 +5,8 @@ description: Compile a work-review / weekly / monthly / quarterly report from th
 
 # Work Report
 
-Turns the raw material already accumulated in the notes repo (`<notes_repo>` — the `notes_repo`
-value from the workspace's `.ai-notes/config.yml`; see the `ainotes-notes` skill for the
+Turns the raw material already accumulated in the notes repo (`<notes_repo>` — the folder
+holding the workspace's `.config.yml`; see the `ainotes-notes` skill for the
 config-discovery rule and the canonical layout) into a reviewable report for a requested window. This skill only compiles — it never invents work that
 isn't backed by a note, plan, PRS.md row, or TASKS.md row.
 
@@ -54,7 +54,7 @@ What the agent covers (all sourced from `<notes_repo>/`, never from re-deriving 
    **Pending** / **Closed** section for current status, since a note may predate a later merge.
 4. `TASKS.md` (and the linked `tasks/*.md` files) — tasks created in the window, and tasks that
    entered a closed status in the window (their `Completed` date). What counts as closed comes from
-   `task_statuses` in `.ai-notes/config.yml` (entries with `closed: true`; defaults `done` and
+   `task_statuses` in `.config.yml` (entries with `closed: true`; defaults `done` and
    `dropped` when the key is absent). Only a task in the **done status** — the `done` key if it's
    configured, otherwise the first closed status — counts as finished work; `dropped` (and any other
    closed status) means abandoned, not accomplished.
@@ -101,7 +101,7 @@ rather than omitting it silently.
 
 ## Step 4 — Jira links (non-negotiable when Jira is configured)
 
-If the workspace's `.ai-notes/config.yml` has no `jira` block, skip this step: there are no Jira keys
+If the workspace's `.config.yml` has no `jira` block, skip this step: there are no Jira keys
 to link, so don't invent any and don't mention Jira in the report.
 
 Otherwise, every Jira key that appears anywhere in the report — headline bullets, epic section, the shipped-work
@@ -111,7 +111,7 @@ table, metrics, open items — must be a markdown link, never a bare key:
 [PROJ-123](https://acme.atlassian.net/browse/PROJ-123)
 ```
 
-Base URL is `jira.base_url` from the workspace's `.ai-notes/config.yml` (see `ainotes-notes`
+Base URL is `jira.base_url` from the workspace's `.config.yml` (see `ainotes-notes`
 for the discovery rule), e.g. `https://acme.atlassian.net/browse/`.
 This applies to every ticket key format used in this workspace (`<jira.project_key>-XXXX`, e.g.
 `PROJ-123`, and any epic keys like `PROJ-100` that resolve to real Jira issues — link those the same

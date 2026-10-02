@@ -1,3 +1,4 @@
+import type { Nodes, Root } from "mdast"
 import Markdown, { type Components, type Options } from "react-markdown"
 import rehypeHighlight from "rehype-highlight"
 import remarkEmoji from "remark-emoji"
@@ -9,9 +10,25 @@ import { remarkWikiLinks } from "@/lib/note-links"
 
 import "@/markdown.css"
 
+function isHtmlComment(node: Nodes): boolean {
+  return node.type === "html" && node.value.trimStart().startsWith("<!--")
+}
+
+function dropHtmlComments(node: Nodes): void {
+  if (!("children" in node)) return
+  node.children = node.children.filter((child) => !isHtmlComment(child)) as typeof node.children
+  node.children.forEach(dropHtmlComments)
+}
+
+// Raw HTML shows as text (it isn't rendered), but an <!-- comment --> is a marker meant for tools,
+// such as a review note's "<!-- review-history:end -->", so it's left out entirely.
+function remarkDropHtmlComments() {
+  return (tree: Root) => dropHtmlComments(tree)
+}
+
 // GitHub-flavored markdown as the notes are written: tables, task lists and strikethrough (gfm),
 // :shortcode: emoji, > [!NOTE]-style alerts, [[wiki]] links and syntax-highlighted fenced code.
-const REMARK_PLUGINS: Options["remarkPlugins"] = [remarkGfm, remarkEmoji, remarkAlert, remarkWikiLinks]
+const REMARK_PLUGINS: Options["remarkPlugins"] = [remarkGfm, remarkDropHtmlComments, remarkEmoji, remarkAlert, remarkWikiLinks]
 
 // highlight.js's common languages (swift, kotlin, bash, ts, ...). Only fences tagged with a language
 // are highlighted; an unknown language renders as plain code.

@@ -3,9 +3,9 @@
 
 import { useCallback, useState } from "react"
 
-export type LibraryView = "all" | "notes" | "plans" | "daily" | "tasks" | "favorites" | "prs" | "agents"
+export type LibraryView = "all" | "notes" | "plans" | "daily" | "tasks" | "reviews" | "favorites" | "prs" | "agents"
 
-export const DEFAULT_LIBRARY_ORDER: LibraryView[] = ["agents", "prs", "favorites", "all", "notes", "plans", "daily", "tasks"]
+export const DEFAULT_LIBRARY_ORDER: LibraryView[] = ["agents", "prs", "reviews", "favorites", "all", "notes", "plans", "daily", "tasks"]
 
 // Items that list notes and so disappear from the Library while they have nothing to list.
 // Agents and Pull requests always show: their empty state explains how to fill them.
@@ -15,13 +15,20 @@ export function isHideableWhenEmpty(view: LibraryView): boolean {
 
 export const LIBRARY_ORDER_KEY = "ainotes-library-order"
 
-// Keeps the stored order's known items, then appends any item added since it was saved.
+// Keeps the stored order's known items, and slots in any item added since it was saved right after
+// the item it follows in the default order (first, when nothing before it is kept), so a new item
+// lands where it was meant to go rather than at the bottom of a customized Library.
 export function normalizeLibraryOrder(stored: unknown): LibraryView[] {
   const known = new Set<string>(DEFAULT_LIBRARY_ORDER)
-  const kept = Array.isArray(stored)
+  const order = Array.isArray(stored)
     ? stored.filter((v, i, all): v is LibraryView => typeof v === "string" && known.has(v) && all.indexOf(v) === i)
     : []
-  return [...kept, ...DEFAULT_LIBRARY_ORDER.filter((v) => !kept.includes(v))]
+  DEFAULT_LIBRARY_ORDER.forEach((view, i) => {
+    if (order.includes(view)) return
+    const predecessor = DEFAULT_LIBRARY_ORDER.slice(0, i).findLast((v) => order.includes(v))
+    order.splice(predecessor ? order.indexOf(predecessor) + 1 : 0, 0, view)
+  })
+  return order
 }
 
 function loadLibraryOrder(): LibraryView[] {

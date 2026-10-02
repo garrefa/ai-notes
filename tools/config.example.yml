@@ -1,30 +1,30 @@
-# config.yml — organization-specific settings for the ainotes-* skill toolkit, for ONE workspace.
+# .config.yml — organization-specific settings for the ainotes-* skill toolkit, for ONE workspace.
 #
-# Copy this file to <workspace-root>/.ai-notes/config.yml and fill in your own values (or run the
-# ainotes-setup skill, which creates and updates it interactively).
+# Copy this file to <notes repo>/.config.yml (the notes folder inside your workspace root) and fill
+# in your own values, or run the ainotes-setup skill, which creates and updates it interactively.
 # Every ainotes-* skill reads settings from here instead of hardcoding an organization's details, so
 # the toolkit itself (skills, agents, hooks) never needs to change to adopt it for a new company/workspace.
 #
-# The workspace root itself is never stored here or hardcoded into any skill. Skills find this file by
-# walking up from the current directory until a `.ai-notes/` directory turns up — the same discovery
-# pattern `.git` uses — and treat its parent as the workspace root. That's what lets one global
-# ainotes-* installation serve multiple independent workspaces at once, each with its own
-# `.ai-notes/config.yml` and its own settings below.
+# Neither the workspace root nor the notes folder is stored here or hardcoded into any skill. Skills
+# find this file by walking up from the current directory, checking each directory and its immediate
+# subfolders for a `.config.yml` whose `kind` is `ainotes-config` (the line below — keep it first).
+# The folder holding it IS the notes repo and that folder's parent is the workspace root, so renaming
+# the notes folder needs no edit here. That's what lets one global ainotes-* installation serve
+# multiple independent workspaces at once, each with its own notes repo and settings. A legacy
+# <workspace>/.ai-notes/config.yml is still read until install.sh migrates it here.
+#
+# This file is tracked with the notes repo; keep secrets out of it. Untracked runtime files (caches,
+# logs, the rename tracker) live in <notes repo>/.state/.
 #
 # Optional keys can be left null/empty or removed entirely; every skill degrades gracefully when one
 # is missing (it skips the step that needs it and tells you how to enable it).
+
+kind: ainotes-config
 
 # Human-readable org name, used only in skill-generated prose where it reads naturally — e.g. the
 # ainotes-report title ("Acme work report — 2026-Q3") and the intro line of an
 # ainotes-pr-review-request Slack message. Optional; purely cosmetic.
 org_name: "Acme"
-
-# Directory name — and its own separate git repo, sitting directly in the workspace root — holding
-# every note/plan/ledger the ainotes-* skills produce. All data lives directly at its root
-# (notes/, plans/, daily/, tasks/, INDEX.md, PRS.md, TASKS.md); README.md,
-# CLAUDE.md and .gitignore also live there. Every skill reads this once and uses the current value throughout; change this
-# one setting if you rename or move it and nothing else needs to change.
-notes_repo: notes
 
 vcs:
   # GitHub org or user the workspace's repos live under — what `gh` calls use as the owner (e.g.
@@ -87,3 +87,25 @@ ignored_repos: []
 # and, for any repo that's neither here nor in ignored_repos above, asks you to tag it or ignore it
 # (suggesting tags based on name/stack similarity to domains you've already used).
 domain_taxonomy: {}
+
+# Optional: the ainotes-pr-review auto-reviewer (tools/check-pending-pr-reviews --review and
+# tools/pr-review.sh). Every key has a default, so the whole section can be omitted. Its
+# spend ledger is <notes repo>/pr-reviews-ledger.jsonl (tracked); local state (clone cache, logs) is
+# in <notes repo>/.state/pr-review/.
+pr_review:
+  self_github_login: null      # your GitHub login (default: `gh api user`)
+  review_model: opus           # model for the headless /code-review run
+  review_level: high           # /code-review effort level (low | medium | high | xhigh | max)
+  per_review_budget_usd: 8     # hard cap per review (claude --max-budget-usd)
+  monthly_budget_usd: 100      # hard cap per calendar month across all reviews (dry runs included)
+
+# Optional: which tools run on a schedule (tools/schedule.sh; launchd on macOS, cron elsewhere).
+# One line per job: `off`, or `every <N>m|<N>h` (1m to 24h) optionally followed by an hours window
+# `HH:MM-HH:MM` and `weekdays` (Mon-Fri). Written by install.sh, "configure schedules"
+# (ainotes-schedules) and `schedule.sh set`; after editing by hand, run `schedule.sh apply`.
+# Logs: <notes repo>/.state/schedules/<job>.log.
+schedules:
+  snapshot-agents: every 1m                       # AGENTS.json for the viewer's Agents view
+  check-prs: every 30m                            # reconcile PRS.md with GitHub
+  pr-review: every 30m 09:00-18:00 weekdays       # check-pending-pr-reviews --review (costs per review)
+  clean-worktrees: off                            # clean-merged-worktrees.sh --delete

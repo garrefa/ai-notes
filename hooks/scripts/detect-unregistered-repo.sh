@@ -1,7 +1,7 @@
 #!/bin/sh
 # SessionStart hook: nudge the ainotes-setup skill when the session's current repo is neither
-# tagged in domain_taxonomy nor listed in ignored_repos in the workspace's
-# .ai-notes/config.yml. Does nothing if no .ai-notes/config.yml is found at all (not a managed
+# tagged in domain_taxonomy nor listed in ignored_repos in the workspace's ainotes config
+# (<notes repo>/.config.yml). Does nothing if no ainotes config is found at all (not a managed
 # workspace, or ainotes-setup hasn't been run here yet) — this hook never suggests creating one
 # unprompted.
 #
@@ -25,17 +25,33 @@ print(v if isinstance(v, str) else "")' "$1" 2>/dev/null
   fi
 }
 
-# Walk up from $1 looking for .ai-notes/config.yml; print the workspace root, or fail.
-find_workspace_root() {
+# ainotes config discovery — keep in sync with tools/ainotes-config.sh. The config is
+# <notes repo>/.config.yml (marked `kind: ainotes-config`); the folder holding it is the notes repo
+# and its parent is the workspace root. A legacy <workspace>/.ai-notes/config.yml is still honored.
+is_ainotes_config() {
+  [ -f "$1" ] && grep -qE '^kind:[[:space:]]*["'"'"']?ainotes-config' "$1"
+}
+
+# Walk up from $1 (checking each directory and its immediate subfolders); print the config path.
+find_ainotes_config() {
   dir="$1"
   while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-    if [ -f "$dir/.ai-notes/config.yml" ]; then
-      printf '%s\n' "$dir"
-      return 0
-    fi
+    if is_ainotes_config "$dir/.config.yml"; then printf '%s\n' "$dir/.config.yml"; return 0; fi
+    for candidate in "$dir"/*/.config.yml; do
+      if is_ainotes_config "$candidate"; then printf '%s\n' "$candidate"; return 0; fi
+    done
+    if [ -f "$dir/.ai-notes/config.yml" ]; then printf '%s\n' "$dir/.ai-notes/config.yml"; return 0; fi
     dir="$(dirname "$dir")"
   done
   return 1
+}
+
+# The notes folder's name for a config (legacy layout: its notes_repo key, default "notes").
+notes_repo_name() {
+  case "$1" in
+    */.ai-notes/config.yml) name="$(read_config_scalar "$1" notes_repo)"; printf '%s\n' "${name:-notes}" ;;
+    *) basename "$(dirname "$1")" ;;
+  esac
 }
 
 # Print a top-level scalar key ($2) from a simple YAML file ($1) without needing yq: strips a
@@ -78,9 +94,9 @@ json_escape() {
 cwd="$(read_input_field cwd)"
 cwd="${cwd:-${CLAUDE_PROJECT_DIR:-$PWD}}"
 
-root="$(find_workspace_root "$cwd")" || exit 0
-config="$root/.ai-notes/config.yml"
-notes_repo="$(read_config_scalar "$config" notes_repo)"
+config="$(find_ainotes_config "$cwd")" || exit 0
+root="$(dirname "$(dirname "$config")")"
+notes_repo="$(notes_repo_name "$config")"
 
 # First path segment under the workspace root is the repo name, whether cwd is a repo's root
 # checkout or already inside <repo>/.worktrees/<name> or <repo>/.claude/worktrees/<name>.
@@ -103,11 +119,12 @@ if registered_repos "$config" | grep -qxF "$repo"; then
 fi
 
 repo_json="$(json_escape "$repo")"
+config_json="$(json_escape "$config")"
 cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "This session started in '$repo_json', which isn't yet registered in this workspace's .ai-notes/config.yml (not tagged in domain_taxonomy, not in ignored_repos). Near the top of the conversation, invoke the ainotes-setup skill's repo-registration flow scoped to just this one repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the config accordingly. Don't scan or ask about any other unregistered repos in the same breath — just this one."
+    "additionalContext": "This session started in '$repo_json', which isn't yet registered in this workspace's ainotes config ($config_json) (not tagged in domain_taxonomy, not in ignored_repos). Near the top of the conversation, invoke the ainotes-setup skill's repo-registration flow scoped to just this one repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the config accordingly. Don't scan or ask about any other unregistered repos in the same breath — just this one."
   }
 }
 EOF

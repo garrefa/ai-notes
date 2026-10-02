@@ -27,9 +27,9 @@
 #   --verbose   log each step to stderr
 #
 # The workspace is found by walking up (from the output path if given, else
-# the current directory, else this script's own directory) until a directory
-# containing .ai-notes/ turns up. The default output is the notes repo's root:
-# <workspace>/<notes_repo>/AGENTS.json, or <notes_repo>/db/AGENTS.json for an
+# the current directory, else this script's own directory) until the ainotes
+# config, <notes repo>/.config.yml, turns up (see ainotes-config.sh). The default
+# output is the notes repo's root: <notes repo>/AGENTS.json, or <notes repo>/db/AGENTS.json for an
 # older (pre-flattening) repo that still keeps its data under a db/ folder
 # (the same rule the viewer uses).
 #
@@ -61,20 +61,22 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/ainotes-config.sh"
 
 if [[ -n "$OUT_FILE" && -d "$(dirname "$OUT_FILE")" ]]; then
-  WORKSPACE_ROOT="$(find_workspace_root "$(cd "$(dirname "$OUT_FILE")" && pwd)")" || WORKSPACE_ROOT=""
+  CONFIG="$(find_ainotes_config "$(cd "$(dirname "$OUT_FILE")" && pwd)")" || CONFIG=""
 else
-  WORKSPACE_ROOT="$(find_workspace_root "$PWD")" \
-    || WORKSPACE_ROOT="$(find_workspace_root "$SCRIPT_DIR")" \
-    || WORKSPACE_ROOT=""
+  CONFIG="$(find_ainotes_config "$PWD")" \
+    || CONFIG="$(find_ainotes_config "$SCRIPT_DIR")" \
+    || CONFIG=""
 fi
+WORKSPACE_ROOT=""
+[[ -n "$CONFIG" ]] && WORKSPACE_ROOT="$(workspace_root_of "$CONFIG")"
 
 if [[ -z "$OUT_FILE" && -n "$WORKSPACE_ROOT" ]]; then
-  NOTES_REPO="$(config_value "$WORKSPACE_ROOT/.ai-notes/config.yml" notes_repo 2>/dev/null || true)"
-  NOTES_DIR="$WORKSPACE_ROOT/${NOTES_REPO:-notes}"
+  NOTES_DIR="$(notes_dir_of "$CONFIG")"
+  NOTES_DIR="${NOTES_DIR:-$WORKSPACE_ROOT/notes}"
   if [[ -d "$NOTES_DIR/db" ]]; then OUT_FILE="$NOTES_DIR/db/AGENTS.json"; else OUT_FILE="$NOTES_DIR/AGENTS.json"; fi
 fi
 
-[[ -n "$OUT_FILE" ]] || { echo "No AGENTS.json path given and no .ai-notes/config.yml found above $PWD — pass the output path." >&2; exit 1; }
+[[ -n "$OUT_FILE" ]] || { echo "No AGENTS.json path given and no the ainotes config (<notes repo>/.config.yml) found above $PWD — pass the output path." >&2; exit 1; }
 [[ -d "$(dirname "$OUT_FILE")" ]] || { echo "Output folder $(dirname "$OUT_FILE") does not exist." >&2; exit 1; }
 [[ $ALL_AGENTS -eq 1 || -n "$WORKSPACE_ROOT" ]] || { echo "No ainotes workspace found above $OUT_FILE — pass --all to keep every agent." >&2; exit 1; }
 

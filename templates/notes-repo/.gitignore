@@ -2,3 +2,7 @@
 # Rewritten every minute by tools/snapshot-agents.sh
 AGENTS.json
 AGENTS.json.*
+
+# Untracked runtime state (caches, logs, rename tracker, the PR auto-reviewer's clone cache);
+# its tracked spend ledger is pr-reviews-ledger.jsonl at the root
+.state/

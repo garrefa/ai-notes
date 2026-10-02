@@ -22,8 +22,8 @@
 #
 #   --root PATH   workspace directory whose immediate subdirectories are the
 #                 repos to scan (default: the ainotes workspace root, found by
-#                 walking up from the current directory until a directory
-#                 containing .ai-notes/ turns up)
+#                 walking up from the current directory until the ainotes
+#                 config, <notes repo>/.config.yml, turns up)
 #   --delete      actually remove merged worktrees + their local branch, and
 #                 prune stale worktree registrations (default: dry run only)
 #   --no-fetch    skip "git fetch origin" per repo; compare against local refs
@@ -67,22 +67,12 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-# Walk up from $1 until a directory containing .ai-notes/ turns up; print it, or fail.
-find_workspace_root() {
-  local dir="$1"
-  while [ -n "$dir" ] && [ "$dir" != "/" ]; do
-    if [ -d "$dir/.ai-notes" ]; then
-      echo "$dir"
-      return 0
-    fi
-    dir="$(dirname "$dir")"
-  done
-  return 1
-}
+# shellcheck source=ainotes-config.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ainotes-config.sh"
 
 if [ -z "$WORKSPACE_ROOT" ]; then
   WORKSPACE_ROOT="$(find_workspace_root "$PWD")" || {
-    echo "No .ai-notes/ found above $PWD — run from inside an ainotes workspace or pass --root PATH." >&2
+    echo "No ainotes config (<notes repo>/.config.yml) found above $PWD — run from inside an ainotes workspace or pass --root PATH." >&2
     exit 1
   }
 fi

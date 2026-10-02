@@ -8,7 +8,7 @@ viewer. You can track several notes repos at once and switch between them in one
 
 There is no server component: the app runs entirely in the browser and reads the notes repo straight
 from disk through the [File System Access API](https://developer.mozilla.org/docs/Web/API/File_System_API).
-It only reads the notes repo you pick; it never reads your workspace's `.ai-notes/config.yml`.
+It only reads the notes repo you pick; it never reads your workspace's `.config.yml`.
 
 ## Requirements
 
@@ -32,8 +32,8 @@ It builds nothing at runtime (the published package ships a prebuilt `dist/`), s
 
 The same package also bundles the whole Claude Code toolkit, so it doubles as its installer:
 `npx ainotes-viewer install <workspace-dir>` does what `install.sh` does from a clone (skills,
-agents, hooks, tools and templates into `<workspace-dir>/.claude/`, a `run-viewer.sh` at the
-workspace root that opens this viewer, and the offer to schedule `snapshot-agents.sh`, which feeds
+agents, hooks, tools and templates into `<workspace-dir>/.claude/`, a `bin/run-viewer` in the
+workspace that opens this viewer, and the offer to schedule `snapshot-agents.sh`, which feeds
 the Agents view). The two workspace-aware tools also run directly:
 `npx ainotes-viewer snapshot-agents [args...]` / `npx ainotes-viewer check-prs [args...]`, from inside
 the workspace. See the root README's [Quick start](../README.md#quick-start) and
@@ -99,8 +99,8 @@ new ones relative to that date, and avoid weekday or month names, which the date
 ## Connect your notes repos
 
 1. Open the app and click **Connect folder** in the sidebar.
-2. In the folder picker, choose your **notes repo**: the folder named by `notes_repo` in your
-   workspace config (it has `notes/`, `plans/` and the rest of the layout directly inside it).
+2. In the folder picker, choose your **notes repo**: the folder holding your
+   workspace's `.config.yml` (it has `notes/`, `plans/` and the rest of the layout directly inside it).
 3. Grant read/write access when the browser asks. Write access is only used when you create, edit
    or delete something from the viewer (see [Creating, editing and deleting](#creating-editing-and-deleting)).
 
@@ -141,6 +141,7 @@ Notes repos keep all their data directly at the repo root (see `templates/notes-
   plans/     dated plans
   daily/     daily plans (YYYY-MM-DD.md)
   tasks/     one file per task
+  reviews/   one note per reviewed PR (YYYY-MM-DD-<repo>-<number>.md, ainotes-review-notes)
   INDEX.md   tag index (maintained by ainotes-notes)
   PRS.md     PR ledger: the "Pending (open)", "Merged" and "Closed (not merged)"
              tables, plus the optional "Pending — Detail" table that
@@ -162,16 +163,23 @@ flat folder and every note just shows. Editing and saving works the same as any 
 
 ## The Library
 
-The sidebar's **Library** lists **Agents**, **Pull requests**, **Favorites**, **All notes**, **Notes**,
-**Plans**, **Daily** and **Tasks**, in that order by default. Drag an item (or focus it and press
-`Alt+↑`/`Alt+↓`) to reorder; the order is remembered in this browser. Once a folder is open, an item
+The sidebar's **Library** lists **Agents**, **Pull requests**, **PR Reviews**, **Favorites**, **All
+notes**, **Notes**, **Plans**, **Daily** and **Tasks**, in that order by default. Drag an item (or
+focus it and press `Alt+↑`/`Alt+↓`) to reorder; the order is remembered in this browser, and an item
+added in a later version slots in after the one it follows by default. Once a folder is open, an item
 with nothing to list is hidden (a folder with no plans shows no **Plans**, and **Favorites** only
 appears once something is favorited); **Agents** and **Pull requests** always show, since their
 empty state explains how to fill them. If the item you're on empties (you unfavorite the last
 favorite, say), the viewer moves to **All notes**.
 
-The **Date range** filter applies to **All notes**, **Notes**, **Plans** and **Daily** only. Tasks,
-favorites, PRs and agents always list everything, whatever their date.
+The **Date range** filter applies to **All notes**, **Notes**, **Plans**, **Daily** and **PR Reviews**
+only. Tasks, favorites, PRs and agents always list everything, whatever their date.
+
+**PR Reviews** lists `reviews/`, the notes `ainotes-review-notes` files for each PR you review. A
+review is titled by its `# Review: repo#123 · …` heading, shows its latest verdict (Approved,
+Commented or Changes requested) as its status, and is dated by its latest review (`last_reviewed:`),
+so a re-reviewed PR comes back up the list. The `<!-- review-history:end -->` marker in its body
+isn't shown: HTML comments are left out of every rendered note.
 
 The open note follows the filters like every other note. When it stops matching (you change the
 view, tag, date range or task-status filter, or edit its own tags or status), it's deselected and

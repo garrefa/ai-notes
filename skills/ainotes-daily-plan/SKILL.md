@@ -1,7 +1,7 @@
 ---
 name: ainotes-daily-plan
 description: >-
-  Track a running, manually-checked daily task list in the notes repo (`notes_repo` in .ai-notes/config.yml). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
+  Track a running, manually-checked daily task list in the notes repo (the folder holding `.config.yml`). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
 ---
 
 # Daily Plan (ainotes-daily-plan)
@@ -16,7 +16,7 @@ For actually doing the engineering work behind a task, use `ainotes-task`. For t
 mechanics this skill builds on, see `ainotes-notes` — this is a thin, specialized layer over the
 same store, with its own file convention (below) rather than the `notes/`/`plans/` split.
 
-(`<notes_repo>` below means the `notes_repo` value from the workspace's `.ai-notes/config.yml` —
+(`<notes_repo>` below means the folder holding the workspace's `.config.yml` —
 see `ainotes-notes` for the config-discovery rule and the canonical layout, including what to
 do with a legacy repo that still has its data under `db/`.)
 
