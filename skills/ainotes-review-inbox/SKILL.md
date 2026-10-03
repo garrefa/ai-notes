@@ -1,6 +1,6 @@
 ---
 name: ainotes-review-inbox
-description: Finds every open PR across the configured GitHub org (`vcs.org` in .config.yml) where your review is requested — not just PRs in repos checked out in this workspace — summarizes each one, flags which are stale, and assigns a priority (high/medium/low). Triage is cheap: a Haiku agent does the judgment calls, not the main thread. Trigger with "check my pr review queue", "what needs my review", "review inbox", or "pending my review". Plays well with `/loop` for a self-paced recurring check.
+description: "Finds every open PR across the configured GitHub org (`vcs.org` in .config.yml) where your review is requested — not just PRs in repos checked out in this workspace — summarizes each one, flags which are stale, and assigns a priority (high/medium/low). Triage is cheap: a Haiku agent does the judgment calls, not the main thread. Trigger with \"check my pr review queue\", \"what needs my review\", \"review inbox\", or \"pending my review\". Plays well with `/loop` for a self-paced recurring check."
 ---
 
 # Review Inbox
