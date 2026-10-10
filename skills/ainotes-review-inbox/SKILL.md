@@ -30,7 +30,7 @@ specific repo ("what's pending my review in react-web"), scope to just that repo
 2. **Triage in parallel batches — this is the only part that costs an LLM call.** Split the array
    into batches of ~25 PRs. Spawn one `review-inbox-poller` agent per batch (named
    `ainotes:review-inbox-poller` when AINotes is installed as a plugin; if neither name is
-   available, spawn a general-purpose agent with `model: haiku` and give it the contents of
+   available, spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
    `<skill base dir>/../../agents/review-inbox-poller.md` as its instructions) — all batches in
    **one message** so they run concurrently, not sequentially. Each agent call is pure
    text-in/text-out (no tool calls, no gh access) over the batch you hand it, and returns one YAML

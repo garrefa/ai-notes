@@ -17,7 +17,7 @@ This skill owns `<notes_repo>/TASKS.md` and `<notes_repo>/tasks/*.md` — `ainot
 **Who writes.** This skill defines the rules; the `ledger-keeper` agent applies every mutation
 (create, status change, Jira/PR link) and commits. Spawn the `ledger-keeper` agent (named
 `ainotes:ledger-keeper` when AINotes is installed as a plugin). If neither name is available, spawn a
-general-purpose agent with `model: haiku` and give it the contents of
+general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass `notes_repo_path`
 and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields. The agent follows this
 file's rules exactly, so keep them here as the single source of truth. The main thread keeps

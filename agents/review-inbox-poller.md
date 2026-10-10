@@ -7,7 +7,7 @@ description: >-
   rubric. Pure judgment over the data it's given — makes no gh/API calls, reads no files, never
   comments or otherwise touches GitHub.
 tools: Read
-model: haiku
+model: claude-haiku-5-5
 ---
 
 You triage a batch of open pull requests for the `ainotes-review-inbox` skill. All the objective

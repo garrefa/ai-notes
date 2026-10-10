@@ -34,7 +34,7 @@ it were complete — don't silently pad it out.
 
 Gathering is a read-only sweep, so it runs on a Haiku agent and the main thread compiles from its
 output. Spawn the `notes-extractor` agent (named `ainotes:notes-extractor` when AINotes is installed
-as a plugin). If neither name is available, spawn a general-purpose agent with `model: haiku` and give
+as a plugin). If neither name is available, spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give
 it the contents of `<skill base dir>/../../agents/notes-extractor.md` as its instructions. Pass
 `{window_start, window_end, scope, notes_repo_path, jira_base_url?}`; it returns JSON
 `{items: [{file, date, type, repo, domain, epic, prs: [{url, ledger_status}], jira, tasks: [{file, status}],
@@ -135,7 +135,7 @@ report — 2026-Q3"); otherwise just "Work report — <period>".
    including career-ladder alignment, verbatim, not a trimmed-down pointer to the dashboard. Follow the
    frontmatter schema from `ainotes-notes`. Hand the write to the `notetaker` agent (named
    `ainotes:notetaker` when AINotes is installed as a plugin; if neither name is available, spawn a
-   general-purpose agent with `model: haiku` and give it the contents of
+   general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
    `<skill base dir>/../../agents/notetaker.md` as its instructions) with
    `{type: note, slug, frontmatter fields, body, commit_message: "Add report: <period>"}`; it writes,
    indexes and commits on `main`, returning `{path, index_sections, sha, flags}`.

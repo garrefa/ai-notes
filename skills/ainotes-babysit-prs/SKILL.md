@@ -27,7 +27,7 @@ what actually needs judgment.
 
 1. **Poll every pending PR at once.** Spawn the `pr-poller` agent (named `ainotes:pr-poller` when
    AINotes is installed as a plugin). If neither name is available, spawn a general-purpose agent with
-   `model: haiku` and give it the contents of `<skill base dir>/../../agents/pr-poller.md` as its
+   `model: haiku` (Haiku 5.5) and give it the contents of `<skill base dir>/../../agents/pr-poller.md` as its
    instructions. Pass it the pending rows as `[{repo, number, url, rerun_already?}]` (`repo` as
    `<vcs.org>/<repo>`; set `rerun_already: true` for any PR whose failure you've already judged a real
    blocker, so it isn't blindly rerun again). It returns one YAML record per PR:

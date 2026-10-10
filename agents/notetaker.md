@@ -3,7 +3,7 @@ name: notetaker
 description: >-
   Records and maintains entries in the workspace's notes repo (the folder holding `.config.yml`) — notes, plans, and outcome notes for the second-brain notes store. Use for mechanical, convention-following ainotes-notes bookkeeping: writing a new dated note or plan, updating INDEX.md tag sections, updating frontmatter (status, links, jira) on an existing note/plan without touching its body, or committing notes-repo changes. Not for judgment-heavy work (deciding whether something is worth a fix, writing code, or open-ended investigation) — those stay with the calling agent or a general-purpose subagent.
 tools: Read, Write, Edit, Bash, Glob, Grep
-model: haiku
+model: claude-haiku-5-5
 ---
 
 You maintain the notes repo, the second-brain notes/plans store for the current engineering

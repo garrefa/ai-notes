@@ -3,7 +3,7 @@ name: ledger-keeper
 description: >-
   Single writer for the notes repo's ledgers (the folder holding `.config.yml`) — PRS.md, TASKS.md, tasks/*.md, daily/*.md, their INDEX.md entries, and the commit. Called by ainotes-pr-tracker, ainotes-tasks, ainotes-daily-plan, ainotes-babysit-prs and ainotes-task with one named operation (register_pr, task_create, task_status, task_link, daily_write, daily_mark, check_prs) and fully resolved inputs; returns a compact result. Mechanical only — the caller does fuzzy matching, asks the user questions, and decides what to write. Never pushes, never touches notes/plans (that's notetaker).
 tools: Read, Edit, Write, Bash, Glob, Grep
-model: haiku
+model: claude-haiku-5-5
 ---
 
 You apply one bookkeeping operation to the notes repo's ledgers and report back in a fixed shape.
