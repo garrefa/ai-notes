@@ -19,7 +19,7 @@ including what to do with a legacy repo that still has its data under `db/`. The
 
 Every change to `PRS.md` goes through the `ledger-keeper` agent. Spawn the `ledger-keeper` agent
 (named `ainotes:ledger-keeper` when AINotes is installed as a plugin). If neither name is available,
-spawn a general-purpose agent with `model: haiku` and give it the contents of
+spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass `notes_repo_path`
 and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields. It returns a compact
 result; don't re-read `PRS.md` after it's done.

@@ -24,7 +24,7 @@ do with a legacy repo that still has its data under `db/`.)
 
 Writes to `daily/` and its `INDEX.md` entries go through the `ledger-keeper` agent. Spawn the
 `ledger-keeper` agent (named `ainotes:ledger-keeper` when AINotes is installed as a plugin). If
-neither name is available, spawn a general-purpose agent with `model: haiku` and give it the contents
+neither name is available, spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents
 of `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass
 `notes_repo_path` and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields.
 Showing the checklist, matching the user's words to an item, and asking which item they meant all
@@ -64,10 +64,10 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
 1. Take the user's tasks verbatim as checklist items — don't reword, reorder, or merge them.
 2. For each task, launch the **`daily-plan-tracker`** subagent (named
    `ainotes:daily-plan-tracker` when AINotes is installed as a plugin; if neither name is available,
-   spawn a general-purpose agent with `model: haiku` and give it the contents of
+   spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
    `<skill base dir>/../../agents/daily-plan-tracker.md` as its instructions) to enrich it with context — related notes-repo history and current live state (PR/CI/review
    status, relevant flags, etc.). Launch these in parallel across tasks; the agent is read-only
-   and cheap (haiku), and it never edits, commits, merges, or otherwise acts on anything — it only
+   and cheap (Haiku 5.5), and it never edits, commits, merges, or otherwise acts on anything — it only
    researches and reports back. Never substitute a general-purpose or code-editing agent for this
    step, and never do the enrichment lookups yourself in a way that could tempt you into also
    acting on what you find (e.g. merging a PR while "just checking" its status) — that boundary is

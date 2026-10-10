@@ -40,7 +40,7 @@ auto-reviewer's `.state/pr-review/`. Its spend ledger is tracked at `<notes_repo
 Every note/plan write, frontmatter update, `INDEX.md` append and commit goes through the `notetaker`
 agent — this is mandatory, not an optimization you can skip. Spawn the `notetaker` agent (named
 `ainotes:notetaker` when AINotes is installed as a plugin). If neither name is available, spawn a
-general-purpose agent with `model: haiku` and give it the contents of
+general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/notetaker.md` as its instructions.
 
 The main thread keeps what needs the conversation: it asks the epic question, picks domain/tags,

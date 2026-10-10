@@ -109,7 +109,7 @@ taxonomy, and the notes repo's git history — this step just triggers it with: 
 worktree path, and the approved plan text. You ask the epic question and assemble the fields here;
 the write itself goes to the `notetaker` agent as that skill describes (named `ainotes:notetaker` when
 AINotes is installed as a plugin; if neither name is available, spawn a general-purpose agent with
-`model: haiku` and give it the contents of `<skill base dir>/../../agents/notetaker.md` as its
+`model: haiku` (Haiku 5.5) and give it the contents of `<skill base dir>/../../agents/notetaker.md` as its
 instructions). Keep the `path` it returns for steps 6 and 10 — don't re-read the file.
 
 ### 6. Get a Jira ticket (only if Jira is configured)
@@ -202,6 +202,6 @@ Only on their yes, commit the finished work on the branch with a proper title + 
   every write goes through the `notetaker` or `ledger-keeper` agent, to keep one writer and one source
   of truth for each format.
 - Subagents are always spawned with an explicit `model`: `inherit` for the Plan, execution and review
-  agents (they do the real engineering), `haiku` for notes-repo bookkeeping. If your Agent tool
+  agents (they do the real engineering), `haiku` (Haiku 5.5) for notes-repo bookkeeping. If your Agent tool
   rejects the literal `inherit`, omit `model` for those three instead — an omitted model inherits the
   main thread's.
