@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# review-inbox.sh — standalone, AI-free data gather for the ainotes-review-inbox skill.
+# review-inbox.sh — standalone, AI-free data gather for the ax-review-inbox skill.
 #
 # Finds every open PR across the configured GitHub org where the current gh
 # user's review is requested, and enriches each with size/CI/review/label
@@ -8,7 +8,7 @@
 # REST call per PR). Computes only objective facts — age, days since last
 # update, a staleness flag, bot authorship — no judgment, no LLM. Prints one
 # JSON array to stdout; nothing is written anywhere. The caller (the
-# ainotes-review-inbox skill) hands this to a cheap LLM agent for the two
+# ax-review-inbox skill) hands this to a cheap LLM agent for the two
 # genuinely fuzzy calls: summarizing each PR and picking a priority.
 #
 # Usage:

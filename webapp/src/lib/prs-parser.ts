@@ -1,4 +1,4 @@
-// Parses the notes repo's PRS.md (maintained by the ainotes-pr-tracker skill
+// Parses the notes repo's PRS.md (maintained by the ax-pr-tracker skill
 // and tools/check-prs.sh) into structured PR entries. Deliberately narrow — it only
 // understands the exact table shapes those write, not markdown tables
 // in general.

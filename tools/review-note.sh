@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# review-note.sh — standalone, AI-free writer for PR review notes (the ainotes-review-notes skill).
+# review-note.sh — standalone, AI-free writer for PR review notes (the ax-review-notes skill).
 #
 # Takes one finished PR review as JSON and records it in the notes repo as
 # <notes repo>/reviews/<first-review-date>-<repo>-<number>.md — one note per PR. The first review

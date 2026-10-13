@@ -1,15 +1,15 @@
-# .config.yml — organization-specific settings for the ainotes-* skill toolkit, for ONE workspace.
+# .config.yml — organization-specific settings for the ax-* skill toolkit, for ONE workspace.
 #
 # Copy this file to <notes repo>/.config.yml (the notes folder inside your workspace root) and fill
-# in your own values, or run the ainotes-setup skill, which creates and updates it interactively.
-# Every ainotes-* skill reads settings from here instead of hardcoding an organization's details, so
+# in your own values, or run the ax-setup skill, which creates and updates it interactively.
+# Every ax-* skill reads settings from here instead of hardcoding an organization's details, so
 # the toolkit itself (skills, agents, hooks) never needs to change to adopt it for a new company/workspace.
 #
 # Neither the workspace root nor the notes folder is stored here or hardcoded into any skill. Skills
 # find this file by walking up from the current directory, checking each directory and its immediate
 # subfolders for a `.config.yml` whose `kind` is `ainotes-config` (the line below — keep it first).
 # The folder holding it IS the notes repo and that folder's parent is the workspace root, so renaming
-# the notes folder needs no edit here. That's what lets one global ainotes-* installation serve
+# the notes folder needs no edit here. That's what lets one global ainotes installation serve
 # multiple independent workspaces at once, each with its own notes repo and settings. A legacy
 # <workspace>/.ai-notes/config.yml is still read until install.sh migrates it here.
 #
@@ -22,8 +22,8 @@
 kind: ainotes-config
 
 # Human-readable org name, used only in skill-generated prose where it reads naturally — e.g. the
-# ainotes-report title ("Acme work report — 2026-Q3") and the intro line of an
-# ainotes-pr-review-request Slack message. Optional; purely cosmetic.
+# ax-report title ("Acme work report — 2026-Q3") and the intro line of an
+# ax-pr-review-request Slack message. Optional; purely cosmetic.
 org_name: "Acme"
 
 vcs:
@@ -46,16 +46,16 @@ vcs:
 preferred_epics: []
 
 slack:
-  # Channel ainotes-pr-review-request posts review requests to, e.g. "#pr-review".
+  # Channel ax-pr-review-request posts review requests to, e.g. "#pr-review".
   # null/absent disables that skill (it will say so and explain how to enable it).
   pr_review_channel: null
 
 ci:
-  # The PR-comment string ainotes-babysit-prs posts to trigger a deploy, e.g. "/deploy".
-  # null disables that step entirely: ainotes-babysit-prs reports readiness and stops there.
+  # The PR-comment string ax-babysit-prs posts to trigger a deploy, e.g. "/deploy".
+  # null disables that step entirely: ax-babysit-prs reports readiness and stops there.
   deploy_trigger_comment: null
 
-# Workflow statuses a task (ainotes-tasks) can be in. Each entry:
+# Workflow statuses a task (ax-tasks) can be in. Each entry:
 #   key    — what gets written in a task file's `status:` frontmatter and in TASKS.md's Status
 #            column. Keep it short, lowercase, no spaces (e.g. in-progress). Renaming a key later
 #            doesn't rewrite existing tasks, so pick keys you're happy to keep.
@@ -75,20 +75,20 @@ task_statuses:
   - { key: done,        label: Done,        closed: true }
   - { key: dropped,     label: Dropped,     closed: true }
 
-# Repos at the workspace root that ainotes-* skills should never manage/report on/nudge about
+# Repos at the workspace root that ax-* skills should never manage/report on/nudge about
 # (archived, unrelated, someone else's scratch clone, etc.) — as opposed to a repo that's simply not
-# tagged yet, which the ainotes-setup skill will ask about instead of silently ignoring.
+# tagged yet, which the ax-setup skill will ask about instead of silently ignoring.
 ignored_repos: []
 
-# domain -> repos it typically maps to, for ainotes-notes frontmatter tagging, e.g.
+# domain -> repos it typically maps to, for ax-notes frontmatter tagging, e.g.
 #   backend: [api-gateway, billing-service]
 #   frontend: [web-app, mobile-app]
-# Populate this by running the ainotes-setup skill, which scans the workspace root for cloned repos
+# Populate this by running the ax-setup skill, which scans the workspace root for cloned repos
 # and, for any repo that's neither here nor in ignored_repos above, asks you to tag it or ignore it
 # (suggesting tags based on name/stack similarity to domains you've already used).
 domain_taxonomy: {}
 
-# Optional: the ainotes-pr-review auto-reviewer (tools/check-pending-pr-reviews --review and
+# Optional: the ax-pr-review auto-reviewer (tools/check-pending-pr-reviews --review and
 # tools/pr-review.sh). Every key has a default, so the whole section can be omitted. Its
 # spend ledger is <notes repo>/pr-reviews-ledger.jsonl (tracked); local state (clone cache, logs) is
 # in <notes repo>/.state/pr-review/.
@@ -102,7 +102,7 @@ pr_review:
 # Optional: which tools run on a schedule (tools/schedule.sh; launchd on macOS, cron elsewhere).
 # One line per job: `off`, or `every <N>m|<N>h` (1m to 24h) optionally followed by an hours window
 # `HH:MM-HH:MM` and `weekdays` (Mon-Fri). Written by install.sh, "configure schedules"
-# (ainotes-schedules) and `schedule.sh set`; after editing by hand, run `schedule.sh apply`.
+# (ax-schedules) and `schedule.sh set`; after editing by hand, run `schedule.sh apply`.
 # Logs: <notes repo>/.state/schedules/<job>.log.
 schedules:
   snapshot-agents: every 1m                       # AGENTS.json for the viewer's Agents view

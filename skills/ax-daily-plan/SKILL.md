@@ -1,10 +1,10 @@
 ---
-name: ainotes-daily-plan
+name: ax-daily-plan
 description: >-
-  Track a running, manually-checked daily task list in the notes repo (the folder holding `.config.yml`). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ainotes-tasks), "what's left today/on my plan", "check my daily plan".
+  Track a running, manually-checked daily task list in the notes repo (the folder holding `.config.yml`). Given a list of tasks (e.g. "Friday plan: ..." or "daily plan: ..."), enriches each one with relevant context via the read-only daily-plan-tracker subagent (past notes-repo history + current live state — never touches code or PRs), then writes <notes_repo>/daily/YYYY-MM-DD.md as a checklist. Throughout the day, when the user says a task is done, marks it done in place — purely reactive, no automated completion detection. On request, reports what's open vs done. Trigger on "<Weekday> plan:", "daily plan:", "today's plan:", "plan for today", "mark <task> done", "<task> is done" (when the item is on today's plan — explicit "mark task <x> done" / "complete task <x>" belong to ax-tasks), "what's left today/on my plan", "check my daily plan".
 ---
 
-# Daily Plan (ainotes-daily-plan)
+# Daily Plan (ax-daily-plan)
 
 A lightweight, manual, git-backed checklist for one calendar day's tasks in the
 current workspace. This skill never executes the tasks themselves,
@@ -12,12 +12,12 @@ never decides on its own that something is done, and never runs on a timer or ho
 (1) writes down what the user says to track, enriched with context, and (2) marks an item
 done when the user says so — nothing more automated than that.
 
-For actually doing the engineering work behind a task, use `ainotes-task`. For the notes-repo
-mechanics this skill builds on, see `ainotes-notes` — this is a thin, specialized layer over the
+For actually doing the engineering work behind a task, use `ax-task`. For the notes-repo
+mechanics this skill builds on, see `ax-notes` — this is a thin, specialized layer over the
 same store, with its own file convention (below) rather than the `notes/`/`plans/` split.
 
 (`<notes_repo>` below means the folder holding the workspace's `.config.yml` —
-see `ainotes-notes` for the config-discovery rule and the canonical layout, including what to
+see `ax-notes` for the config-discovery rule and the canonical layout, including what to
 do with a legacy repo that still has its data under `db/`.)
 
 ## Who writes the file
@@ -51,7 +51,7 @@ stay in the main thread; don't re-read the file the agent wrote.
 ---
 date: YYYY-MM-DD
 type: daily-plan
-domain: []      # union of domains touched by the day's tasks, from the ainotes-notes taxonomy
+domain: []      # union of domains touched by the day's tasks, from the ax-notes taxonomy
 epic: null
 tags: [daily-plan]
 status: open    # open -> done once every item is checked, or the user says stop tracking for the day
@@ -80,7 +80,7 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
    If the tracker found nothing relevant, write `Context: no related history or notable live
    state found` — say so plainly rather than omitting the line or inventing filler.
 4. Hand the items to `ledger-keeper` as `daily_write {date, items: [{text, context}], domain?, links?}`
-   (`domain` = the day's domains, reusing the `ainotes-notes` taxonomy). It writes
+   (`domain` = the day's domains, reusing the `ax-notes` taxonomy). It writes
    `<notes_repo>/daily/YYYY-MM-DD.md` with the frontmatter above (creating `daily/` if needed),
    appends `daily/YYYY-MM-DD.md` under `## daily-plan` (and those domain tags) in `INDEX.md`, and
    commits on `main` (`"Add daily plan: YYYY-MM-DD"`), returning `{path, sha}`.
@@ -103,12 +103,12 @@ links: []       # notes/plans/PRs discovered while enriching tasks (note/plan pa
   `git -C <notes_repo> add -A && git -C <notes_repo> commit -m "Update daily plan: YYYY-MM-DD (mark '<task>' done)"`.
   Marking several items at once goes to `ledger-keeper` in one call: one
   `daily_mark {date, item, done, detail?}` per item, with the exact checklist text you matched as `item`.
-- **Bare `"<x> is done"`** (no "task" keyword) is shared with `ainotes-tasks`: prefer today's daily plan
-  (`<notes_repo>/daily/YYYY-MM-DD.md`) if the item is on it; otherwise hand it to `ainotes-tasks`,
+- **Bare `"<x> is done"`** (no "task" keyword) is shared with `ax-tasks`: prefer today's daily plan
+  (`<notes_repo>/daily/YYYY-MM-DD.md`) if the item is on it; otherwise hand it to `ax-tasks`,
   which moves the matching `TASKS.md` Open row to its done status; if it plausibly matches both, or
   neither clearly, ask the user which one they mean. Explicit `mark task <x> done` / `complete task <x>`
   (and any other task status change — `start task`, `move task … to …`, `drop task`) always go to
-  `ainotes-tasks`. Checking an item off here never changes a task's status.
+  `ax-tasks`. Checking an item off here never changes a task's status.
 - No hooks, no polling, no scheduled re-checks, no `/loop` — this skill never marks something
   done by itself, ever. That's the whole point: it's the user's own tracking.
 

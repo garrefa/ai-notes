@@ -2,12 +2,12 @@
 #
 # check-prs.sh — standalone, AI-free refresh of PRS.md.
 #
-# Does what the ainotes-pr-tracker skill's "check prs" does, minus the
+# Does what the ax-pr-tracker skill's "check prs" does, minus the
 # narrative synthesis: reconciles Pending (open) against live GitHub state,
 # refreshes deep-status detail on what's still open, and ALSO searches across
 # all non-archived repos in the configured GitHub org for open PRs authored by
 # the current gh user that aren't in the ledger yet (catches PRs opened
-# outside Claude / ainotes-task, or in repos not cloned into the workspace).
+# outside Claude / ax-task, or in repos not cloned into the workspace).
 #
 # Output is mechanical: raw check names, review states, requested reviewers,
 # and truncated comment snippets — no synthesized "why this matters" prose.

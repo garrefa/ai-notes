@@ -8,7 +8,8 @@
 #   ./install.sh --uninstall [--dry-run] <workspace-dir>
 #
 # What it does (install):
-#   skills/ainotes-*        -> <ws>/.claude/skills/
+#   skills/ax-*        -> <ws>/.claude/skills/ (also removes the pre-rename ainotes-<name> copies
+#                           of these skills, so only the ax-<name> ones remain)
 #   agents/*.md             -> <ws>/.claude/agents/
 #   hooks/scripts/*.sh      -> <ws>/.claude/hooks/
 #   tools/*                 -> <ws>/.claude/tools/
@@ -21,7 +22,7 @@
 #                           elsewhere) — see below
 #
 # It never creates the config or the notes repo — run "setup ainotes" in Claude Code from the
-# workspace afterwards; the ainotes-setup skill asks the questions and creates both (the config is
+# workspace afterwards; the ax-setup skill asks the questions and creates both (the config is
 # <notes repo>/.config.yml). On every run (not just --force — this is data layout, not a toolkit
 # file to protect), and honoring --dry-run, it migrates older layouts in place:
 #   - a legacy <ws>/.ai-notes/config.yml moves to <notes repo>/.config.yml (gaining the
@@ -41,7 +42,7 @@
 # them (later runs); either way it then re-applies the saved schedules so they run the freshly
 # installed tools. Without a terminal it only re-applies. --no-schedule leaves launchd/cron alone.
 # There's nothing to schedule before the notes repo exists — say "configure schedules" in Claude
-# Code after "setup ainotes" (the ainotes-schedules skill). A snapshot job set up by an older
+# Code after "setup ainotes" (the ax-schedules skill). A snapshot job set up by an older
 # install is adopted as `snapshot-agents: every 1m`. --uninstall removes every job of this
 # workspace, no asking.
 set -euo pipefail
@@ -271,6 +272,25 @@ remove_stale_maintainer_tools() {
   done
 }
 
+# Skills were named ainotes-<name> before they became ax-<name>. Remove the old copy of each shipped
+# skill so a workspace doesn't end up with both. Only an exact ainotes-<name> directory whose
+# SKILL.md declares `name: ainotes-<name>` is removed — i.e. one this toolkit installed; a skill of
+# the user's own that happens to share the name is left in place.
+remove_pre_rename_skills() {
+  local s name old
+  for s in "$SRC"/skills/ax-*; do
+    name="$(basename "$s")"
+    old="$DEST/skills/ainotes-${name#ax-}"
+    [ -d "$old" ] || continue
+    if grep -qx "name: ainotes-${name#ax-}" "$old/SKILL.md" 2>/dev/null; then
+      run rm -rf "$old"
+      [ "$DRY_RUN" = 1 ] || log "removed $old (renamed to $name)"
+    else
+      log "left $old in place (not the skill this toolkit installed)"
+    fi
+  done
+}
+
 # Copy one directory, refusing to clobber an existing one unless --force.
 copy_dir() {
   local from="$1" to="$2"
@@ -350,7 +370,8 @@ PY
 
 if [ "$UNINSTALL" = 1 ]; then
   "$SRC/tools/schedule.sh" --workspace "$WS" $([ "$DRY_RUN" = 1 ] && echo --dry-run) remove-all
-  for s in "$SRC"/skills/ainotes-*; do run rm -rf "$DEST/skills/$(basename "$s")"; done
+  for s in "$SRC"/skills/ax-*; do run rm -rf "$DEST/skills/$(basename "$s")"; done
+  remove_pre_rename_skills
   for a in "$SRC"/agents/*.md; do run rm -f "$DEST/agents/$(basename "$a")"; done
   for h in "${HOOK_SCRIPTS[@]}"; do run rm -f "$DEST/hooks/$h"; done
   for t in "$SRC"/tools/*; do run rm -f "$DEST/tools/$(basename "$t")"; done
@@ -367,7 +388,8 @@ migrate_config
 migrate_notes_repo
 prepare_notes_repo
 
-for s in "$SRC"/skills/ainotes-*; do copy_dir "$s" "$DEST/skills/$(basename "$s")"; done
+for s in "$SRC"/skills/ax-*; do copy_dir "$s" "$DEST/skills/$(basename "$s")"; done
+remove_pre_rename_skills
 for a in "$SRC"/agents/*.md; do copy_file "$a" "$DEST/agents/$(basename "$a")"; done
 for h in "${HOOK_SCRIPTS[@]}"; do copy_file "$SRC/hooks/scripts/$h" "$DEST/hooks/$h"; done
 for t in "$SRC"/tools/*; do

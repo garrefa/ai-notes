@@ -76,7 +76,7 @@ function EmptyState({ state, ledgerFound, filtered }: { state: PrState; ledgerFo
       <p className="text-xs leading-relaxed">
         {ledgerFound ? "" : <>This folder has no <code className="font-mono">PRS.md</code> yet. </>}
         The PR ledger (<code className="font-mono">PRS.md</code>) is maintained by the{" "}
-        <code className="font-mono">check prs</code> command (the ainotes-pr-tracker skill) and{" "}
+        <code className="font-mono">check prs</code> command (the ax-pr-tracker skill) and{" "}
         <code className="font-mono">tools/check-prs.sh</code>.
       </p>
     </div>

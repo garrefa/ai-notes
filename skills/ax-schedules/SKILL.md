@@ -1,9 +1,9 @@
 ---
-name: ainotes-schedules
+name: ax-schedules
 description: Choose which ainotes tools run on a schedule, how often, and in which hours — the agents snapshot for the viewer, the PRS.md refresh, automated PR reviews and merged-worktree cleanup. Settings are the `schedules:` section of `<notes repo>/.config.yml`, one line per job (`off` or `every <N>m|<N>h [HH:MM-HH:MM] [weekdays]`); `tools/schedule.sh` turns them into per-user launchd jobs (macOS) or crontab lines. install.sh asks the same questions on install and update; this skill changes them any time. Trigger on "configure schedules", "what's scheduled", "schedule <job> every …", "only run reviews during working hours", "stop the <job> schedule", "why didn't <job> run".
 ---
 
-# Scheduled jobs (ainotes-schedules)
+# Scheduled jobs (ax-schedules)
 
 Some ainotes tools are meant to run unattended. Which ones run, how often and when is one line per
 job in the `schedules:` section of the ainotes config (`<notes repo>/.config.yml`):
@@ -20,7 +20,7 @@ schedules:
 |---|---|---|---|
 | `snapshot-agents` | `snapshot-agents.sh` — writes `AGENTS.json` for the viewer's Agents view | `every 1m` | free |
 | `check-prs` | `check-prs.sh` — reconciles `PRS.md` with GitHub and commits it | `every 30m` | free |
-| `pr-review` | `check-pending-pr-reviews --review` — headless review of each PR requesting you (ainotes-pr-review) | `every 30m 09:00-18:00 weekdays` | free when nothing is pending; reviews cost money, capped by `pr_review:` budgets |
+| `pr-review` | `check-pending-pr-reviews --review` — headless review of each PR requesting you (ax-pr-review) | `every 30m 09:00-18:00 weekdays` | free when nothing is pending; reviews cost money, capped by `pr_review:` budgets |
 | `clean-worktrees` | `clean-merged-worktrees.sh --delete` — removes worktrees whose branch is merged and tree is clean | `every 24h` | free |
 
 A spec is `off`, or `every <N>m` / `every <N>h` (1m to 24h), optionally followed by an hours window
@@ -64,7 +64,7 @@ needs a TTY, so inside Claude Code use the interview below instead.
    job is locked while a review runs; reviews take minutes).
 5. Apply with `$S set <job> "<spec>"` for each job whose spec changed, then show `$S list`.
 
-If there is no `<notes repo>/.config.yml` yet, run `ainotes-setup` first: there is nowhere to
+If there is no `<notes repo>/.config.yml` yet, run `ax-setup` first: there is nowhere to
 save schedules before it exists.
 
 ## Notes

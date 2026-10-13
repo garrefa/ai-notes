@@ -1,4 +1,4 @@
-// Updates a task's row in the TASKS.md ledger (maintained by the ainotes-tasks skill):
+// Updates a task's row in the TASKS.md ledger (maintained by the ax-tasks skill):
 //   Open:      | Task | Status | Created | Deadline | Jira | PRs | File |
 //   Completed: | Task | Status | Created | Completed | Deadline | Jira | PRs | File |
 // Rows are matched by their File link (tasks/<file>.md). Everything outside the touched
@@ -73,7 +73,7 @@ function remapRow(fromHeaders: string[], cells: string[], toHeaders: string[]): 
   return toHeaders.map((h) => byName.get(h) ?? "")
 }
 
-// What ainotes-tasks creates when TASKS.md doesn't exist yet.
+// What ax-tasks creates when TASKS.md doesn't exist yet.
 export const EMPTY_TASKS_LEDGER = `# Task Tracker
 
 ## Open

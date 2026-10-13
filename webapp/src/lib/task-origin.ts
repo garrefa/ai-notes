@@ -1,6 +1,6 @@
 // Where a task created with "Add task" came from: the note, plan or daily plan it was open on, a
 // PR from the ledger, or an agent from the snapshot. Turned into the task file's references the
-// way ainotes-tasks keeps them: `links:` for related notes/plans (paths relative to the repo root),
+// way ax-tasks keeps them: `links:` for related notes/plans (paths relative to the repo root),
 // `prs:` for PRs ("org/repo#123"), and the context itself under "## Purpose".
 
 import { agentLocation, agentName, type Agent } from "@/lib/agents"

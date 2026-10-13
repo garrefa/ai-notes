@@ -1,13 +1,13 @@
 ---
-name: ainotes-pr-review
-description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, free when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ainotes-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
+name: ax-pr-review
+description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, free when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ax-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
 ---
 
-# PR auto-review (ainotes-pr-review)
+# PR auto-review (ax-pr-review)
 
 Turns "what's waiting on my review" into reviews that are actually done, without a model running on
 a schedule. The queue check is plain `gh` (no LLM, free). Claude only starts when a listed PR needs a
-review. Distinct from `ainotes-review-inbox`, which summarizes and prioritizes the same queue but
+review. Distinct from `ax-review-inbox`, which summarizes and prioritizes the same queue but
 never reviews or posts anything.
 
 ## How it works
@@ -26,7 +26,7 @@ tools/check-pending-pr-reviews --review       # gh only: PRs requesting your rev
        ├─ zero findings → gh pr review --approve (summary as the body)
        │  findings      → inline COMMENT review (falls back to body-only if GitHub rejects a line)
        ├─ pr-reviews-ledger.jsonl gets one line (PR, SHA, result, cost_usd, tokens); state.json records the SHA
-       └─ review JSON piped to tools/review-note.sh (ainotes-review-notes) → <notes_repo>/reviews/
+       └─ review JSON piped to tools/review-note.sh (ax-review-notes) → <notes_repo>/reviews/
 ```
 
 - **Settings:** the `pr_review:` section of the ainotes config (`<notes repo>/.config.yml`):
@@ -56,7 +56,7 @@ Run from anywhere in the workspace. `T=<workspace>/.claude/tools` (or the plugin
 | "review status" | `$T/pr-review.sh status` |
 | change the cap / model / level | edit the `pr_review:` section of `<notes repo>/.config.yml` |
 
-Scheduling is optional and safe: it's the `pr-review` job of `ainotes-schedules` (for example
+Scheduling is optional and safe: it's the `pr-review` job of `ax-schedules` (for example
 `pr-review: every 30m 09:00-18:00 weekdays` under `schedules:`). With nothing pending a run costs nothing.
 
 ## What this skill will never do

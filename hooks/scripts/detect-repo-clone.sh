@@ -1,5 +1,5 @@
 #!/bin/sh
-# PostToolUse hook (matcher: Bash): nudge the ainotes-setup skill right after a `git clone` lands a
+# PostToolUse hook (matcher: Bash): nudge the ax-setup skill right after a `git clone` lands a
 # new top-level repo directly in the workspace root. Best-effort command parsing — covers the common
 # `git clone <url> [<dir>]` forms (including common flags like --branch/-b, --depth, --origin/-o
 # with their value skipped), and stops at the first shell control operator (`&&`, `||`, `;`, `|`,
@@ -184,7 +184,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "PostToolUse",
-    "additionalContext": "You just cloned '$repo_json' into the workspace root. Invoke the ainotes-setup skill's repo-registration flow scoped to just this one new repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the ainotes config ($config_json) accordingly."
+    "additionalContext": "You just cloned '$repo_json' into the workspace root. Invoke the ax-setup skill's repo-registration flow scoped to just this one new repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the ainotes config ($config_json) accordingly."
   }
 }
 EOF

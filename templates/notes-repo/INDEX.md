@@ -1,7 +1,7 @@
 # Index
 
 Tag → files map. Append the relevant tag section whenever a note or plan is added; never regenerate
-this file from scratch. See the `ainotes-notes` skill for the full workflow.
+this file from scratch. See the `ax-notes` skill for the full workflow.
 
 Format (paths are relative to this repo's root):
 
