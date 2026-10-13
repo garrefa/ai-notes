@@ -109,3 +109,65 @@ schedules:
   check-prs: every 30m                            # reconcile PRS.md with GitHub
   pr-review: every 30m 09:00-18:00 weekdays       # check-pending-pr-reviews --review (costs per review)
   clean-worktrees: off                            # clean-merged-worktrees.sh --delete
+
+# Optional: ax-babysit-prs behaviour. Every key below is off/unset by default, and with it unset
+# the skill behaves exactly as before. Per-PR loop state lives in
+# <notes repo>/.state/babysit/<owner>-<repo>-<n>.json (untracked), not in config.
+#
+# review:
+#   # Extra bot reviewers besides any login ending in "[bot]". Their latest review body (nitpicks,
+#   # "outside the diff", "actionable comments") is treated like unresolved comments: fixed if
+#   # sound, and answered on the PR.
+#   bots: [reviewbot]
+#   # Re-request a stale bot review. Posted when a bot's latest review is CHANGES_REQUESTED (or it
+#   # skipped / was rate limited), all its threads are resolved and no newer review exists; then
+#   # repeated every `every_min` until the bot approves or comments. Unset = never. For CodeRabbit
+#   # use "@coderabbitai full review": a plain "review" does not re-review already-reviewed commits.
+#   bot_rerequest: {comment: "@coderabbitai full review", every_min: 30}
+#
+# ci:                 # (add these to the `ci:` block above; don't repeat the key)
+#   # Name of the merge-gate check whose output explains unmet requirements (approvals, CODEOWNERS).
+#   # The report then says "needs 1 more review" instead of "CI failing", and a gate failing only
+#   # on approvals is never rerun or treated as a CI failure.
+#   gate_check: "CI Gate"
+#   # --- deploy comment policy (applies only when deploy_trigger_comment is set) ---
+#   deploy_policy: ask               # ask (default) | auto_after_ready; at most one per head SHA
+#   deploy_excluded_repos: []        # repos where the deploy comment is never posted
+#   deployed_label: "deployed"       # PR already carries it => deploy comment skipped
+#   # A check whose output says no services are affected (a dependency-only PR) => no deploy comment.
+#   no_services_check: {check: "Affected services", pattern: "no services affected"}
+#   # --- environment lock (both unset = off) ---
+#   lock_label: "blocked:env-in-use"     # our PR is waiting for the environment
+#   holder_label: "env-in-use"           # the PR currently holding it
+#   lock_notice_template: "Hi {author}, {holder_pr} holds the deploy environment and {our_pr} is waiting. Could you /rollback or share an ETA?"
+#
+# review:                # (merge into the `review:` block above)
+#   ready_label: "ready-to-be-reviewed"  # a PR is ready only with this label on its current head;
+#                                        # when missing, a ship/PR-readiness skill is run if available
+#
+# merge:
+#   manual_repos: []         # repos the user merges by hand: never queued or suggested for merge
+#   queue_file: null         # path relative to the notes repo; commands a guard blocked (marking a
+#                            # PR ready, merging it) are appended there without the leading `gh`,
+#                            # one per line, e.g. "pr merge 42 --repo acme/api"
+#
+# Review reminders, only inside office hours. Unset = off.
+# reminders:
+#   after_min: 60            # since the review request or the last reminder
+#   tz: America/Argentina/Buenos_Aires
+#   days: [Mon, Tue, Wed, Thu, Fri]
+#   hours: "09:00-19:00"
+#   template: "Gentle reminder: could someone take a look at {pr}? Pending: {owners} Thanks!"
+#
+# Post-merge hooks, run once when a babysat PR is seen merged. Unset = off; each sub-key optional.
+# on_merge:
+#   jira_done_transition: true     # needs the jira block; moves the PR's ticket to Done
+#   check_cmd: "gh api repos/acme/{repo}/dependabot/alerts --jq '[.[]|select(.state==\"open\")]|length'"
+#   slack_thread: {channel: "#alerts", ts: "1760000000.000100", template: "Closed: {pr} ({jira})"}
+
+# Optional: shape of the Slack message ax-pr-review-request posts. Default `full`.
+# `short` is one line, no summary: "Hey team :wave: could you please review <link|repo #n — title>?
+# Pending code owners: <@…> Thanks! 🙏". Slack mentions come first from the optional
+# <notes repo>/github-slack-people.yml (template: templates/github-slack-people.example.yml).
+# review_request:
+#   style: full            # full | short
