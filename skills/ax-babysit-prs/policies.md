@@ -40,6 +40,22 @@ Applies only when `ci.deploy_trigger_comment` is set; otherwise nothing is ever 
   (bot logins, or whoever replied) and report the reply verbatim-ish (a few lines). Never retry the
   comment blindly: a retry needs a new head SHA or a fix for what the reply says, or the user's yes.
 
+## Post-deploy check (`ci.post_deploy_checks`)
+
+Unset by default (off). A map of repo name (without the org) to the name of a skill that observes a
+deploy, for repos where a deploy can break the environment in ways CI doesn't show.
+
+- Once a deploy is **confirmed** for the PR's current head (the deploy bot says it deployed, or
+  `ci.deployed_label` is on the PR), run the repo's skill for that deploy, in a subagent when the
+  environment allows it. Say which skill ran and its verdict in the report.
+- Until the check has run on the current head and found nothing new, the PR is **not ready to merge**:
+  report it as "deployed, post-deploy check pending" or "post-deploy check found <issue>". If it found
+  something, report it verbatim-ish and stop; never re-run it hoping for a different answer.
+- Write `last_post_deploy_check_sha` (the head SHA) to the state file once it ran clean. A new head
+  needs a new deploy and a new check, so the once-per-head rule resets with the head SHA.
+- Skip it (and say why) when the PR was never deployed (for example a dependency-only PR with no
+  services affected), or the head SHA already equals `last_post_deploy_check_sha`.
+
 ## Environment lock (`ci.lock_label`, `ci.holder_label`)
 
 Unset by default (off). Some deploy setups allow one PR per environment at a time and mark that with

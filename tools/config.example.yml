@@ -134,6 +134,7 @@ schedules:
 #   deploy_policy: ask               # ask (default) | auto_after_ready; at most one per head SHA
 #   deploy_excluded_repos: []        # repos where the deploy comment is never posted
 #   deployed_label: "deployed"       # PR already carries it => deploy comment skipped
+#   post_deploy_checks: {}           # repo -> skill that observes its deploy (e.g. my-repo: my-deploy-observability); PR not ready to merge until it ran clean on the head
 #   # A check whose output says no services are affected (a dependency-only PR) => no deploy comment.
 #   no_services_check: {check: "Affected services", pattern: "no services affected"}
 #   # --- environment lock (both unset = off) ---

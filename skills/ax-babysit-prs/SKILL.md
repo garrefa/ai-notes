@@ -29,6 +29,7 @@ reaches git). It is the loop's memory: timers and once-per-head rules live here,
 ```json
 {
   "last_deploy_comment_sha": "<head sha the deploy comment was last posted for>",
+  "last_post_deploy_check_sha": "<head sha the post-deploy check last ran clean for>",
   "review_request": {"channel": "#pr-review", "ts": "1760000000.000100", "at": "2026-10-12T14:03:00Z"},
   "last_reminder_at": "2026-10-12T15:10:00Z",
   "last_bot_rerequest_at": "2026-10-12T14:30:00Z",
@@ -52,10 +53,10 @@ reaches git). It is the loop's memory: timers and once-per-head rules live here,
 ## Optional policies
 
 `<skill base dir>/policies.md` holds the behaviours that only apply when their config key is set:
-readiness label and merge policy, deploy comment policy, environment lock, review reminders with
+readiness label and merge policy, deploy comment policy, post-deploy check, environment lock, review reminders with
 office hours, post-merge hooks, superseded bot PRs, and the stop/cadence rule. **All are off by
 default**; read that file only when one of those keys (`review.ready_label`, `merge.*`,
-`ci.deploy_policy`, `ci.lock_label`, `reminders`, `on_merge`) is configured, or a PR carries
+`ci.deploy_policy`, `ci.post_deploy_checks`, `ci.lock_label`, `reminders`, `on_merge`) is configured, or a PR carries
 `supersedes`.
 
 ## One pass
@@ -125,6 +126,9 @@ what actually needs judgment.
        and only on an explicit yes post it with
        `gh pr comment <number> --repo <vcs.org>/<repo> --body "<deploy comment>"`. Never post it
        speculatively or bundle multiple PRs' deploy questions into one assumed "yes" — ask per PR.
+   - **Deployed PRs** → when `ci.post_deploy_checks` has an entry for the repo and the deploy is
+     confirmed, run the post-deploy check (see `policies.md`); the PR is not ready to merge until it
+     ran clean on the current head.
    - **Lock labels, reminders, merged PRs** → see the matching sections of `policies.md`
      (`ci.lock_label`, `reminders`, `on_merge`); each applies only when its key is configured.
 
