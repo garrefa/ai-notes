@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # pr-review.sh — headless Claude code review of a GitHub PR, posted as you (the
-# ainotes-pr-review skill).
+# ax-pr-review skill).
 #
 # Checks the PR out in a private clone cache, runs Claude Code's built-in `/code-review` skill on it
 # headlessly (`claude -p`, read-only tools, no MCP), and publishes the structured result as you:
@@ -10,7 +10,7 @@
 # you there, is skipped. Every model call's cost and tokens land in a ledger. The monthly cap in
 # config.yml is checked before each review and passed down as --max-budget-usd, so it can't be
 # overrun. Each published review is filed as a note in <notes_repo>/reviews/ via review-note.sh
-# (ainotes-review-notes).
+# (ax-review-notes).
 #
 # Usually driven by `check-pending-pr-reviews --review`, which only calls this when PRs are pending, so
 # an empty queue costs $0.
@@ -305,7 +305,7 @@ publish_review() {
 }
 
 # ---------------------------------------------------------------------------------------------------
-# Review notes — written by the ainotes review-note tool (ainotes-review-notes skill)
+# Review notes — written by the ainotes review-note tool (ax-review-notes skill)
 # ---------------------------------------------------------------------------------------------------
 
 # my_latest_review_url <url> — html_url of my most recent review on the PR (empty if none)

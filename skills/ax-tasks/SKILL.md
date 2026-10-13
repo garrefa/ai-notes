@@ -1,23 +1,23 @@
 ---
-name: ainotes-tasks
+name: ax-tasks
 description: >-
-  Track open work as tasks in the notes repo (the folder holding `.config.yml`) — a master ledger (<notes_repo>/TASKS.md, open vs. completed, same "see it like open PRs" pattern as ainotes-pr-tracker) plus one detail file per task (<notes_repo>/tasks/YYYY-MM-DD-slug.md) with an optional deadline and a workflow status taken from the configurable `task_statuses` list (default backlog / in-progress / done / dropped). A SessionStart hook nudges Claude to ask, near the top of a session, whether to track that session's purpose as a task; when a task is active for a session and a Jira ticket or PR gets created, this skill updates the task with it. Trigger on "new task: ...", "add a task ...", "track this as a task", "what are my open tasks", "show tasks", "start task <x>", "move task <x> to <status>", "drop task <x>", "mark task <x> done", "complete task <x>", or a bare "<x> is done" when <x> isn't on today's daily plan (ainotes-daily-plan takes it if it is; ask if ambiguous).
+  Track open work as tasks in the notes repo (the folder holding `.config.yml`) — a master ledger (<notes_repo>/TASKS.md, open vs. completed, same "see it like open PRs" pattern as ax-pr-tracker) plus one detail file per task (<notes_repo>/tasks/YYYY-MM-DD-slug.md) with an optional deadline and a workflow status taken from the configurable `task_statuses` list (default backlog / in-progress / done / dropped). A SessionStart hook nudges Claude to ask, near the top of a session, whether to track that session's purpose as a task; when a task is active for a session and a Jira ticket or PR gets created, this skill updates the task with it. Trigger on "new task: ...", "add a task ...", "track this as a task", "what are my open tasks", "show tasks", "start task <x>", "move task <x> to <status>", "drop task <x>", "mark task <x> done", "complete task <x>", or a bare "<x> is done" when <x> isn't on today's daily plan (ax-daily-plan takes it if it is; ask if ambiguous).
 ---
 
-# Task Tracker (ainotes-tasks)
+# Task Tracker (ax-tasks)
 
-Companion to `ainotes-pr-tracker` and `ainotes-daily-plan`: one durable ledger of open/completed tasks across
+Companion to `ax-pr-tracker` and `ax-daily-plan`: one durable ledger of open/completed tasks across
 this workspace, so "what am I working on / what did I say I'd do" doesn't require re-deriving it from
-memory or scrollback. Unlike `ainotes-daily-plan` (one calendar day, manually checked off, no cross-linking),
+memory or scrollback. Unlike `ax-daily-plan` (one calendar day, manually checked off, no cross-linking),
 a task here can span multiple sessions and days, moves through a configurable set of statuses, and
 accumulates the Jira ticket(s) and PR(s) it produces as they appear.
 
-This skill owns `<notes_repo>/TASKS.md` and `<notes_repo>/tasks/*.md` — `ainotes-notes` doesn't touch them.
+This skill owns `<notes_repo>/TASKS.md` and `<notes_repo>/tasks/*.md` — `ax-notes` doesn't touch them.
 
 **Who writes.** This skill defines the rules; the `ledger-keeper` agent applies every mutation
 (create, status change, Jira/PR link) and commits. Spawn the `ledger-keeper` agent (named
 `ainotes:ledger-keeper` when AINotes is installed as a plugin). If neither name is available, spawn a
-general-purpose agent with `model: haiku` and give it the contents of
+general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass `notes_repo_path`
 and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields. The agent follows this
 file's rules exactly, so keep them here as the single source of truth. The main thread keeps
@@ -26,7 +26,7 @@ row, resolving the target status, and asking the user when anything is ambiguous
 ever receives resolved values, and you don't re-read the files it wrote.
 
 (`<notes_repo>` below means the folder holding the workspace's `.config.yml` — see
-`ainotes-notes` for the config-discovery rule and the canonical layout, including what to do
+`ax-notes` for the config-discovery rule and the canonical layout, including what to do
 with a legacy repo that still has its data under `db/`. Jira links are built from `jira.base_url`; if the config
 has no `jira` block, the `Jira` column and `jira:` field simply stay `—`/`[]` and Jira linking is skipped.)
 
@@ -49,7 +49,7 @@ task_statuses:
 - A status is **closed** when it has `closed: true` (finished — the task lives in the Completed table);
   every other status is **non-closed** (still in play — the Open table).
 - If the configured list lacks at least one closed and one non-closed status, don't guess: tell the
-  user the config is invalid and suggest fixing it with `ainotes-setup`.
+  user the config is invalid and suggest fixing it with `ax-setup`.
 - **Default status for a new task**: the first status in the list. Exception: if the user is starting
   on the task right now (e.g. it was created via the SessionStart nudge for this session's own work, or
   they say they're starting it) and there's a non-closed status other than the first, use the
@@ -105,7 +105,7 @@ title: <short task title, verbatim or lightly cleaned up>
 created: YYYY-MM-DD
 deadline: YYYY-MM-DD | null
 status: backlog   # one of the task_statuses keys (see Statuses); never repeated in tags
-domain: []        # ainotes-notes taxonomy, best-effort
+domain: []        # ax-notes taxonomy, best-effort
 jira: []          # e.g. ["PROJ-123"]
 prs: []           # e.g. ["acme/api-gateway#12"]
 tags: [task]
@@ -129,7 +129,7 @@ the SessionStart nudge (below).
 2. Pick the initial status per the default rule in **Statuses** (first status; second non-closed status
    when the user is starting on it right now). If the user names a status, use that instead.
 3. Hand off to `ledger-keeper` as `task_create {title, deadline?, status?, purpose, domain?}`
-   (`purpose` in the user's terms; `domain` best-effort from the `ainotes-notes` taxonomy). It:
+   (`purpose` in the user's terms; `domain` best-effort from the `ax-notes` taxonomy). It:
    - creates `<notes_repo>/tasks/YYYY-MM-DD-slug.md` with the frontmatter above and a `## Purpose` section;
    - appends a row to the table matching that status (normally **Open**);
    - appends the path (relative to the repo root, e.g. `tasks/YYYY-MM-DD-slug.md`) under a `## task` tag
@@ -145,7 +145,7 @@ installed with `install.sh`). It discovers the workspace root by walking up for 
 found, injects a reminder at the start of every session in this workspace: near the top of the
 conversation, ask the user whether they want to track that session's purpose as a task. Skip the ask
 when the session is obviously a trivial one-off question, or when another task-tracking skill already
-covers the session's purpose (`ainotes-task` records its own plan note; `ainotes-daily-plan` already has
+covers the session's purpose (`ax-task` records its own plan note; `ax-daily-plan` already has
 the item on today's list). If the user says yes, run the "Creating a task" flow above — the user is
 starting on it now, so it gets the second non-closed status when one exists — and treat that task as
 **active for the rest of this session** (see below).
@@ -155,13 +155,13 @@ starting on it now, so it gets the second non-closed status when one exists — 
 While a task is active for the current session (created via the nudge above, or the user explicitly
 says "this is for task X"):
 
-- The moment a Jira ticket gets created in this session (via `ainotes-task`, a Jira integration, or ad
+- The moment a Jira ticket gets created in this session (via `ax-task`, a Jira integration, or ad
   hoc), add its key to the task file's `jira:` frontmatter list and a line under `## Updates`, and
   refresh the `Jira` cell in the task's `TASKS.md` row — as a link, never a bare key. (Only applies when
   the config has a `jira` block.)
-- The moment a PR gets opened in this session (via `gh pr create`, `ainotes-task`, or ad hoc), add it to the
+- The moment a PR gets opened in this session (via `gh pr create`, `ax-task`, or ad hoc), add it to the
   task file's `prs:` list and `## Updates`, and refresh the `PRs` cell in `TASKS.md`. This is in
-  addition to — not instead of — `ainotes-pr-tracker` registering the PR in `PRS.md`; the two ledgers track
+  addition to — not instead of — `ax-pr-tracker` registering the PR in `PRS.md`; the two ledgers track
   different things (PR lifecycle vs. task ownership) and both get updated.
 - Linking a Jira ticket or PR never changes the task's status by itself.
 - Do this before reporting the created Jira ticket/PR back to the user, not as an afterthought.
@@ -190,14 +190,14 @@ Triggers:
 - `mark task <x> done` / `complete task <x>` / a bare `<task> is done` (see below) → `done` if that key
   exists; otherwise the first closed status.
 
-Purely reactive, same as `ainotes-daily-plan` — never infer a status change from a merged PR, a closed
+Purely reactive, same as `ax-daily-plan` — never infer a status change from a merged PR, a closed
 Jira ticket, or activity in the session on your own initiative; if something suggests a task moved
 on, ask rather than assume.
 
-**Bare `"<x> is done"`** (no "task" keyword) is shared with `ainotes-daily-plan`: prefer today's daily plan
+**Bare `"<x> is done"`** (no "task" keyword) is shared with `ax-daily-plan`: prefer today's daily plan
 (`<notes_repo>/daily/YYYY-MM-DD.md`) if the item is on it; otherwise mark it done in `TASKS.md`'s Open
 table; if it plausibly matches both, or neither clearly, ask the user which one they mean. Explicit
-`mark task <x> done` / `complete task <x>` always go to `TASKS.md` (`ainotes-tasks`).
+`mark task <x> done` / `complete task <x>` always go to `TASKS.md` (`ax-tasks`).
 
 1. Match `<x>` to the closest row in `TASKS.md` (Open first; Completed too when the target status is
    non-closed, i.e. reopening); if ambiguous, ask which one. If it's already in the target status, say

@@ -1,17 +1,17 @@
 ---
-name: ainotes-pr-tracker
+name: ax-pr-tracker
 description: >-
-  Maintain <notes_repo>/PRS.md (the notes repo is the folder holding `.config.yml`), a master ledger of every PR opened across this workspace's repos and its merge/close status. Register a row whenever a PR is opened in any workspace repo (gh pr create, ainotes-task, or ad hoc). Triggered on demand by "check prs" / "check PR status" — reconciles every pending row against GitHub, moves the ones that merged or closed, and reports two lists: updated and still pending.
+  Maintain <notes_repo>/PRS.md (the notes repo is the folder holding `.config.yml`), a master ledger of every PR opened across this workspace's repos and its merge/close status. Register a row whenever a PR is opened in any workspace repo (gh pr create, ax-task, or ad hoc). Triggered on demand by "check prs" / "check PR status" — reconciles every pending row against GitHub, moves the ones that merged or closed, and reports two lists: updated and still pending.
 ---
 
-# PR Tracker (ainotes-pr-tracker)
+# PR Tracker (ax-pr-tracker)
 
-Companion to `ainotes-notes`: keeps one always-current ledger of every PR this workspace has opened, so
+Companion to `ax-notes`: keeps one always-current ledger of every PR this workspace has opened, so
 "did we ever merge that?" doesn't require re-deriving it from memory or re-scrolling GitHub. This
-skill owns `<notes_repo>/PRS.md` — `ainotes-notes` doesn't touch it.
+skill owns `<notes_repo>/PRS.md` — `ax-notes` doesn't touch it.
 
 (`<notes_repo>` below means the folder holding the workspace's `.config.yml`, and
-`<vcs.org>` means its `vcs.org` value — see the `ainotes-notes` skill for the config-discovery rule and the canonical layout,
+`<vcs.org>` means its `vcs.org` value — see the `ax-notes` skill for the config-discovery rule and the canonical layout,
 including what to do with a legacy repo that still has its data under `db/`. The
 `Jira` column holds `—` for every row when the config has no `jira` block.)
 
@@ -19,7 +19,7 @@ including what to do with a legacy repo that still has its data under `db/`. The
 
 Every change to `PRS.md` goes through the `ledger-keeper` agent. Spawn the `ledger-keeper` agent
 (named `ainotes:ledger-keeper` when AINotes is installed as a plugin). If neither name is available,
-spawn a general-purpose agent with `model: haiku` and give it the contents of
+spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/ledger-keeper.md` as its instructions. Always pass `notes_repo_path`
 and `toolkit_dir` (`<skill base dir>/../..`) along with the operation's fields. It returns a compact
 result; don't re-read `PRS.md` after it's done.
@@ -67,7 +67,7 @@ first row is appended. If the template isn't reachable, create it with exactly t
 # PR Tracker
 
 Master ledger of every PR opened across this workspace's repos and its merge/close status. Kept
-in place (not dated) — see the `ainotes-pr-tracker` skill for how this file is maintained and how
+in place (not dated) — see the `ax-pr-tracker` skill for how this file is maintained and how
 "check prs" reconciles it against GitHub. Edit only the affected rows/section; never regenerate the
 whole file.
 
@@ -102,9 +102,9 @@ _Regenerated wholesale on each deep check — not an accumulating log._
 ## Registering a PR (whenever one gets opened)
 
 Immediately after running `gh pr create` (or otherwise opening a PR) in any workspace repo — whether
-from `ainotes-task`, another PR-opening skill, or an ad hoc request — spawn `ledger-keeper` with
+from `ax-task`, another PR-opening skill, or an ad hoc request — spawn `ledger-keeper` with
 `register_pr {repo, number, url, title, jira?, task_file?}` (`jira` = the key if one exists; `task_file`
-= the active task's file when `ainotes-tasks` has one for this session, so the task gets linked in the
+= the active task's file when `ax-tasks` has one for this session, so the task gets linked in the
 same commit). It appends a row to **Pending (open)** with today's date (`—` for Jira when none),
 commits `"Track PR: <repo>#<number>"` on the notes repo's `main`, and returns `{row_added, sha}`.
 
@@ -160,7 +160,7 @@ state (rows that merged or closed move out, newly discovered PRs are added), the
 table is rebuilt from scratch. Any non-table content below that heading is dropped. Unless
 `--dry-run` is given, it then commits `PRS.md` in the notes repo (git runs at the notes repo root). Running it outside
 "check prs" is entirely optional — nothing in this skill runs it on a timer; if you want it on a
-schedule, use the `check-prs` job of `ainotes-schedules` ("configure schedules"), or set up cron, launchd or a CI job yourself. When it has run, treat its changes to `PRS.md` like any other update.
+schedule, use the `check-prs` job of `ax-schedules` ("configure schedules"), or set up cron, launchd or a CI job yourself. When it has run, treat its changes to `PRS.md` like any other update.
 
 ## Relationship to ad hoc tracking notes
 

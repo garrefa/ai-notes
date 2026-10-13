@@ -125,7 +125,7 @@ async function readMarkdownFilesIn(dir: FileSystemDirectoryHandle, source: NoteS
   return notes
 }
 
-// TASKS.md (the ainotes-tasks ledger) is listed alongside the per-task files in the Tasks view.
+// TASKS.md (the ax-tasks ledger) is listed alongside the per-task files in the Tasks view.
 async function loadTasksLedger(dataDir: FileSystemDirectoryHandle): Promise<Note[]> {
   const file = await getFileIn(dataDir, TASKS_LEDGER_FILE)
   if (!file) return []
@@ -291,7 +291,7 @@ export interface NewTaskRow {
 
 // Writes a new note/plan/daily/task file, indexes it under its tags in INDEX.md (created if the
 // repo has none yet) and, for a task, appends its row to TASKS.md's Open table (the ledger is
-// created from the ainotes-tasks template when missing).
+// created from the ax-tasks template when missing).
 export async function createEntry(
   dataDir: FileSystemDirectoryHandle,
   entry: NewEntry,

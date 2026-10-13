@@ -1,5 +1,5 @@
-// Builds the files the viewer's "New" dialog creates, in the same shape the ainotes-* skills write
-// them (see skills/ainotes-notes, ainotes-daily-plan and ainotes-tasks): the frontmatter fields,
+// Builds the files the viewer's "New" dialog creates, in the same shape the ax-* skills write
+// them (see skills/ax-notes, ax-daily-plan and ax-tasks): the frontmatter fields,
 // the file name (YYYY-MM-DD-slug.md, or YYYY-MM-DD.md for a daily plan), and a starter body.
 
 import { yamlScalar, type NoteSource } from "@/lib/notes-frontmatter"

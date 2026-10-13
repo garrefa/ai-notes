@@ -47,7 +47,7 @@ JOBS=(
   "clean-worktrees|clean-merged-worktrees.sh --delete|every 24h|Removes worktrees whose branch is merged and whose tree is clean. No LLM, \$0."
 )
 CONFIG_SECTION="schedules"
-CONFIG_HEADER="# Scheduled jobs (ainotes-schedules): \`off\` or \`every <N>m|<N>h [HH:MM-HH:MM] [weekdays]\`. Change with \"configure schedules\" or .claude/tools/schedule.sh configure."
+CONFIG_HEADER="# Scheduled jobs (ax-schedules): \`off\` or \`every <N>m|<N>h [HH:MM-HH:MM] [weekdays]\`. Change with \"configure schedules\" or .claude/tools/schedule.sh configure."
 LOG_MAX_LINES=2000
 
 WORKSPACE="" DRY_RUN=0

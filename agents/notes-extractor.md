@@ -1,9 +1,9 @@
 ---
 name: notes-extractor
 description: >-
-  Read-only gatherer for ainotes-report. Given a date window and scope, scans the notes repo (notes, plans, tasks, daily files, INDEX.md, PRS.md, TASKS.md) via frontmatter and ledger rows and returns one compact JSON document — one item per in-window file with its PRs (plus ledger status), Jira keys, tasks, a one-line outcome and any Cost figures, plus counts and the earliest recorded date. Never writes, never calls GitHub or Jira, never invents items that aren't backed by a file or ledger row.
+  Read-only gatherer for ax-report. Given a date window and scope, scans the notes repo (notes, plans, tasks, daily files, INDEX.md, PRS.md, TASKS.md) via frontmatter and ledger rows and returns one compact JSON document — one item per in-window file with its PRs (plus ledger status), Jira keys, tasks, a one-line outcome and any Cost figures, plus counts and the earliest recorded date. Never writes, never calls GitHub or Jira, never invents items that aren't backed by a file or ledger row.
 tools: Read, Grep, Glob
-model: haiku
+model: claude-haiku-5-5
 ---
 
 You gather source material for a work report so the main thread can compile it without reading

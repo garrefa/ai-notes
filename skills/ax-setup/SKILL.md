@@ -1,14 +1,14 @@
 ---
-name: ainotes-setup
-description: Creates or updates a workspace's .config.yml (inside its notes repo) — the shared config every ainotes-* skill reads. Full setup mode first picks or creates the notes repo, then interactively asks about each setting (org name, VCS org, optional Jira, Slack, CI deploy comment, task statuses), creating the notes repo from the bundled template if needed and explaining what each is used for. Repo-registration mode scans the workspace root for cloned git repos and, for any repo that's neither tagged in domain_taxonomy nor listed in ignored_repos, asks the user to tag it (suggesting domains based on name/stack similarity to existing ones) or ignore it. Also invoked automatically by two hooks — at SessionStart when the current repo is unregistered, and right after a `git clone` lands a new top-level repo in the workspace. Trigger on "setup ainotes", "init ainotes config", "configure ainotes", "register new repos", "check for unregistered repos", or a hook nudge naming an unregistered repo.
+name: ax-setup
+description: Creates or updates a workspace's .config.yml (inside its notes repo) — the shared config every ax-* skill reads. Full setup mode first picks or creates the notes repo, then interactively asks about each setting (org name, VCS org, optional Jira, Slack, CI deploy comment, task statuses), creating the notes repo from the bundled template if needed and explaining what each is used for. Repo-registration mode scans the workspace root for cloned git repos and, for any repo that's neither tagged in domain_taxonomy nor listed in ignored_repos, asks the user to tag it (suggesting domains based on name/stack similarity to existing ones) or ignore it. Also invoked automatically by two hooks — at SessionStart when the current repo is unregistered, and right after a `git clone` lands a new top-level repo in the workspace. Trigger on "setup ainotes", "init ainotes config", "configure ainotes", "register new repos", "check for unregistered repos", or a hook nudge naming an unregistered repo.
 ---
 
-# ainotes-setup
+# ax-setup
 
 Owns `.config.yml` inside the notes repo (`<workspace>/<notes folder>/.config.yml`) — the one file
-every `ainotes-*` skill reads instead of hardcoding organization details. It starts with
+every `ax-*` skill reads instead of hardcoding organization details. It starts with
 `kind: ainotes-config`, the marker that distinguishes it from any other `.config.yml`. See
-`ainotes-notes` for the config-discovery rule; the notes repo's parent is the workspace root.
+`ax-notes` for the config-discovery rule; the notes repo's parent is the workspace root.
 This skill is how that file gets created in the first place, and how it stays current as repos get
 added to the workspace.
 
@@ -24,8 +24,8 @@ Run when no config is found by the discovery rule (walking up from the current d
    folder containing multiple sibling repos (e.g. it looks like you're already inside one specific
    repo). The notes repo will live directly under this directory.
 2. **Pick or create the notes repo first** (a folder directly under the workspace root, default
-   suggestion `notes`). It is its own separate git repo where `ainotes-notes`, `ainotes-task`,
-   `ainotes-report`, `ainotes-pr-tracker`, `ainotes-daily-plan`, and `ainotes-tasks` all store their
+   suggestion `notes`). It is its own separate git repo where `ax-notes`, `ax-task`,
+   `ax-report`, `ax-pr-tracker`, `ax-daily-plan`, and `ax-tasks` all store their
    notes, plans, PR ledger, task ledger, and daily plans, and it is where the config will live. Ask
    whether it already exists (point at it) or should be created fresh from the bundled template; if
    fresh, see **Creating the notes repo** below. There is no `notes_repo` setting: the config's
@@ -35,25 +35,32 @@ Run when no config is found by the discovery rule (walking up from the current d
    optional — an empty or missing setting should never block finishing setup.
 
    - **Org name** (`org_name`, optional): a human-readable name used in generated prose where it
-     reads naturally — the `ainotes-report` title and the intro line of an
-     `ainotes-pr-review-request` Slack message. Purely cosmetic.
+     reads naturally — the `ax-report` title and the intro line of an
+     `ax-pr-review-request` Slack message. Purely cosmetic.
    - **VCS org** (`vcs.org`, required if any GitHub-dependent skill will be used): the GitHub org or
      user the workspace's repos live under. Used by any skill that shells out to `gh`/`gh api`
-     (`ainotes-pr-tracker`, `ainotes-babysit-prs`, `ainotes-pr-review-request`).
+     (`ax-pr-tracker`, `ax-babysit-prs`, `ax-pr-review-request`).
    - **Jira** (`jira.project_key` / `jira.base_url`, optional): ask "Do you use Jira?" first. If
      yes, ask for the project key (e.g. `PROJ`) and the browse base URL (e.g.
-     `https://acme.atlassian.net/browse/`) — used by `ainotes-task` (getting/creating a ticket per
-     task), `ainotes-report` (linking keys), and the ledgers' `Jira` columns. If no (or a different
+     `https://acme.atlassian.net/browse/`) — used by `ax-task` (getting/creating a ticket per
+     task), `ax-report` (linking keys), and the ledgers' `Jira` columns. If no (or a different
      tracker), **omit the whole `jira` block** — every skill treats a missing block as "Jira
      disabled": no ticket step, no ticket questions, no Jira links.
    - **Slack PR review channel** (`slack.pr_review_channel`, optional): only relevant if
-     `ainotes-pr-review-request` will be used. Ask for the channel name (e.g. `#pr-review`), or
+     `ax-pr-review-request` will be used. Ask for the channel name (e.g. `#pr-review`), or
      write `null` if not wanted — that skill then reports itself disabled.
    - **CI deploy comment** (`ci.deploy_trigger_comment`, optional): if the team triggers deploys or
      preview environments by commenting on a PR (e.g. `/deploy`), ask for that exact comment text.
-     `ainotes-babysit-prs` only ever posts it after asking. Otherwise write `null` —
-     `ainotes-babysit-prs` then just reports a PR as ready and stops.
-   - **Task statuses** (`task_statuses`, optional): the workflow statuses `ainotes-tasks` uses. Show
+     `ax-babysit-prs` only ever posts it after asking. Otherwise write `null` —
+     `ax-babysit-prs` then just reports a PR as ready and stops.
+   - **Babysit extras** (optional, one brief question): "Want to tune `ax-babysit-prs`?" Only if
+     yes, mention the available keys in one line each and set what they pick: `review.bots` /
+     `review.bot_rerequest`, `ci.gate_check`, `ci.deploy_policy`, `review.ready_label`,
+     `merge.manual_repos` / `merge.queue_file`, `reminders`, `review_request.style`, `on_merge`. All
+     are off by default and documented in `config.example.yml`; never ask about them one by one.
+     For Slack mentions, tell them an optional `github-slack-people.yml` can be copied from
+     `templates/` into the notes repo.
+   - **Task statuses** (`task_statuses`, optional): the workflow statuses `ax-tasks` uses. Show
      the four defaults (`backlog` → `in-progress` → `done` / `dropped`, the last two closed) and ask
      one question: "keep these defaults?" If yes, write them as-is. If not, take the user's edits
      (rename, add, remove, reorder, change which are closed) in a single round — don't interview
@@ -63,7 +70,7 @@ Run when no config is found by the discovery rule (walking up from the current d
      at least one closed and one non-closed status.
    - **`ignored_repos`** and **`domain_taxonomy`**: don't ask about these as raw config — populate
      them via the **repo scan** below instead.
-   - **`preferred_epics`**: leave empty. It's explained in `ainotes-notes` as a living list grown
+   - **`preferred_epics`**: leave empty. It's explained in `ax-notes` as a living list grown
      over time as real epics are confirmed — don't seed it with guesses.
 
 4. **Run the repo scan** (below) to populate `ignored_repos` and `domain_taxonomy`.
@@ -71,12 +78,12 @@ Run when no config is found by the discovery rule (walking up from the current d
    it looks right.
 6. **Offer scheduled jobs.** Ask whether any of the toolkit's scripts should run on a schedule (the
    viewer's agents snapshot, the PRS.md refresh, automated PR reviews, worktree cleanup). If yes,
-   run the `ainotes-schedules` interview; it adds the `schedules:` section. If no, say they can do it
+   run the `ax-schedules` interview; it adds the `schedules:` section. If no, say they can do it
    any time with "configure schedules".
 
 ### Canonical config schema
 
-Write keys in this order, with these names — every `ainotes-*` skill and hook reads exactly these.
+Write keys in this order, with these names — every `ax-*` skill and hook reads exactly these.
 The file is git-tracked with the notes repo (workspace settings, no secrets) and always starts with
 the `kind` marker:
 
@@ -90,10 +97,12 @@ jira:                            # OPTIONAL. Omit the whole block to disable all
   base_url: https://acme.atlassian.net/browse/
 preferred_epics: []              # [{key, name}] suggestions only; grown as the user confirms epics
 slack:
-  pr_review_channel: null        # null/absent disables ainotes-pr-review-request
+  pr_review_channel: null        # null/absent disables ax-pr-review-request
 ci:
-  deploy_trigger_comment: null   # e.g. "/deploy"; null => ainotes-babysit-prs never posts a deploy comment
-task_statuses:                   # ainotes-tasks statuses; order matters: first = default for new tasks
+  deploy_trigger_comment: null   # e.g. "/deploy"; null => ax-babysit-prs never posts a deploy comment
+# OPTIONAL, all off by default (see config.example.yml): review, merge, reminders, on_merge,
+# review_request, and more ci.* keys used by ax-babysit-prs / ax-pr-review-request
+task_statuses:                   # ax-tasks statuses; order matters: first = default for new tasks
   - { key: backlog,     label: Backlog }
   - { key: in-progress, label: In progress }
   - { key: done,        label: Done,        closed: true }   # closed: true = finished
@@ -124,7 +133,7 @@ When the user wants the notes repo created fresh (the folder doesn't exist yet a
    ```
    That gives it `README.md`, `CLAUDE.md`, and `.gitignore` at the root (the config is written there
    afterwards, by the main flow), plus the data files
-   (the canonical layout defined in `ainotes-notes`): `INDEX.md`, `PRS.md`, `TASKS.md`
+   (the canonical layout defined in `ax-notes`): `INDEX.md`, `PRS.md`, `TASKS.md`
    (headers and empty tables only) and empty `notes/`, `plans/`, `tasks/`, `daily/`
    (each holding a `.gitkeep` so git tracks it). If the template directory can't be found, stop and tell the user
    rather than hand-writing a divergent skeleton.
@@ -146,7 +155,7 @@ are typical. After the rename:
 2. Alert the user, listing each one found, or say none were found.
 3. Jobs labelled `com.ainotes.<job>.<id>` (or crontab lines tagged `# ainotes-schedule:`) are
    ainotes's own: fix them all with `<workspace>/.claude/tools/schedule.sh apply`, which re-renders
-   them with the new paths (see `ainotes-schedules`). For any other job, offer to change it so it
+   them with the new paths (see `ax-schedules`). For any other job, offer to change it so it
    no longer hardcodes the notes repo: run the tool from the
    workspace root with no notes-repo path. `check-prs.sh` and `snapshot-agents.sh` find the notes
    repo through the config-discovery rule on every run. Reload a changed launchd job with

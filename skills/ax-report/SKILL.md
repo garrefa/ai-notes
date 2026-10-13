@@ -1,12 +1,12 @@
 ---
-name: ainotes-report
+name: ax-report
 description: Compile a work-review / weekly / monthly / quarterly report from the notes repo's accumulated notes, plans, and PRS.md / TASKS.md ledgers for a given date window. Produces a chronological note in the notes repo plus a visual dashboard (a published Artifact when a publishing tool is available, otherwise a self-contained HTML file next to the note). When Jira is configured, every Jira ticket mentioned anywhere in the report is rendered as a link, never a bare key. Trigger on "work review", "weekly report", "monthly report", "quarterly report", "performance review", or "compile my report".
 ---
 
 # Work Report
 
 Turns the raw material already accumulated in the notes repo (`<notes_repo>` — the folder
-holding the workspace's `.config.yml`; see the `ainotes-notes` skill for the
+holding the workspace's `.config.yml`; see the `ax-notes` skill for the
 config-discovery rule and the canonical layout) into a reviewable report for a requested window. This skill only compiles — it never invents work that
 isn't backed by a note, plan, PRS.md row, or TASKS.md row.
 
@@ -34,7 +34,7 @@ it were complete — don't silently pad it out.
 
 Gathering is a read-only sweep, so it runs on a Haiku agent and the main thread compiles from its
 output. Spawn the `notes-extractor` agent (named `ainotes:notes-extractor` when AINotes is installed
-as a plugin). If neither name is available, spawn a general-purpose agent with `model: haiku` and give
+as a plugin). If neither name is available, spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give
 it the contents of `<skill base dir>/../../agents/notes-extractor.md` as its instructions. Pass
 `{window_start, window_end, scope, notes_repo_path, jira_base_url?}`; it returns JSON
 `{items: [{file, date, type, repo, domain, epic, prs: [{url, ledger_status}], jira, tasks: [{file, status}],
@@ -111,7 +111,7 @@ table, metrics, open items — must be a markdown link, never a bare key:
 [PROJ-123](https://acme.atlassian.net/browse/PROJ-123)
 ```
 
-Base URL is `jira.base_url` from the workspace's `.config.yml` (see `ainotes-notes`
+Base URL is `jira.base_url` from the workspace's `.config.yml` (see `ax-notes`
 for the discovery rule), e.g. `https://acme.atlassian.net/browse/`.
 This applies to every ticket key format used in this workspace (`<jira.project_key>-XXXX`, e.g.
 `PROJ-123`, and any epic keys like `PROJ-100` that resolve to real Jira issues — link those the same
@@ -133,9 +133,9 @@ report — 2026-Q3"); otherwise just "Work report — <period>".
    section is included — never `career-ladder-checklist`, which belongs only to the checklist note
    itself, so reports never get mistaken for the checklist) with the **full compiled report as the body** — every section from Step 3,
    including career-ladder alignment, verbatim, not a trimmed-down pointer to the dashboard. Follow the
-   frontmatter schema from `ainotes-notes`. Hand the write to the `notetaker` agent (named
+   frontmatter schema from `ax-notes`. Hand the write to the `notetaker` agent (named
    `ainotes:notetaker` when AINotes is installed as a plugin; if neither name is available, spawn a
-   general-purpose agent with `model: haiku` and give it the contents of
+   general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
    `<skill base dir>/../../agents/notetaker.md` as its instructions) with
    `{type: note, slug, frontmatter fields, body, commit_message: "Add report: <period>"}`; it writes,
    indexes and commits on `main`, returning `{path, index_sections, sha, flags}`.

@@ -1,18 +1,18 @@
 ---
-name: ainotes-review-inbox
-description: Finds every open PR across the configured GitHub org (`vcs.org` in .config.yml) where your review is requested — not just PRs in repos checked out in this workspace — summarizes each one, flags which are stale, and assigns a priority (high/medium/low). Triage is cheap: a Haiku agent does the judgment calls, not the main thread. Trigger with "check my pr review queue", "what needs my review", "review inbox", or "pending my review". Plays well with `/loop` for a self-paced recurring check.
+name: ax-review-inbox
+description: "Finds every open PR across the configured GitHub org (`vcs.org` in .config.yml) where your review is requested — not just PRs in repos checked out in this workspace — summarizes each one, flags which are stale, and assigns a priority (high/medium/low). Triage is cheap: a Haiku agent does the judgment calls, not the main thread. Trigger with \"check my pr review queue\", \"what needs my review\", \"review inbox\", or \"pending my review\". Plays well with `/loop` for a self-paced recurring check."
 ---
 
 # Review Inbox
 
 Answers "what's pending my review, and what actually matters right now" across every repo in the
 org — not just the ones cloned into this workspace, since a GitHub review request can land
-anywhere. Distinct from `ainotes-pr-tracker` / `ainotes-babysit-prs`, which track PRs *you*
+anywhere. Distinct from `ax-pr-tracker` / `ax-babysit-prs`, which track PRs *you*
 opened; this is about PRs *someone else* opened that are waiting on you.
 
 ## Scope: which PRs
 
-Org-wide, via `vcs.org` in `.config.yml` (see `ainotes-notes` for the config-discovery
+Org-wide, via `vcs.org` in `.config.yml` (see `ax-notes` for the config-discovery
 rule) — every open PR with your review requested, regardless of repo. If the user names a
 specific repo ("what's pending my review in react-web"), scope to just that repo instead.
 
@@ -30,7 +30,7 @@ specific repo ("what's pending my review in react-web"), scope to just that repo
 2. **Triage in parallel batches — this is the only part that costs an LLM call.** Split the array
    into batches of ~25 PRs. Spawn one `review-inbox-poller` agent per batch (named
    `ainotes:review-inbox-poller` when AINotes is installed as a plugin; if neither name is
-   available, spawn a general-purpose agent with `model: haiku` and give it the contents of
+   available, spawn a general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
    `<skill base dir>/../../agents/review-inbox-poller.md` as its instructions) — all batches in
    **one message** so they run concurrently, not sequentially. Each agent call is pure
    text-in/text-out (no tool calls, no gh access) over the batch you hand it, and returns one YAML
@@ -52,7 +52,7 @@ specific repo ("what's pending my review in react-web"), scope to just that repo
 
 Plays well with `/loop check my pr review queue` for a self-paced recurring check. Review queues
 don't change second-to-second — schedule the next pass on the order of 20–30 minutes, not
-seconds. Deliberately stateless across passes (no ledger, unlike `ainotes-pr-tracker`'s PRS.md):
+seconds. Deliberately stateless across passes (no ledger, unlike `ax-pr-tracker`'s PRS.md):
 every pass reports the live, current state, so a PR that just went stale or was just
 re-requested resurfaces rather than being silently suppressed by a "already reported" filter.
 

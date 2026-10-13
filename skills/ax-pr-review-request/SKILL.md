@@ -1,20 +1,20 @@
 ---
-name: ainotes-pr-review-request
+name: ax-pr-review-request
 description: Post a kind review-request message to Slack (channel per `slack.pr_review_channel` in `.config.yml`; the skill is disabled when that key is unset) for one or more specified PRs — a short description of what each PR does, plus @mentions for its pending code owners. Trigger on "ask for review(s) on <PR(s)>", "request review for <PR>", or "send a slack message asking for review on <PR>".
 ---
 
-# PR Review Request (ainotes-pr-review-request)
+# PR Review Request (ax-pr-review-request)
 
 Posts a friendly ask-for-review message to Slack, one per PR, in the channel this workspace has
 configured for this. Always that channel; never ask which channel.
 
 (Read `slack.pr_review_channel`, `vcs.org`, and `org_name` from the workspace's `.config.yml`
-— see `ainotes-notes` for the config-discovery rule — before doing anything else. Below, `<channel>`,
+— see `ax-notes` for the config-discovery rule — before doing anything else. Below, `<channel>`,
 `<vcs.org>`, and `<org_name>` stand for those values, e.g. `#pr-review`, `acme`, and `Acme`.)
 
 **If `slack.pr_review_channel` is null or absent, stop here** — post nothing, and tell the user this
 skill is disabled until a channel is configured: set `slack.pr_review_channel: "#<channel-name>"` in
-`<notes_repo>/.config.yml` (by hand, or by running the `ainotes-setup` skill), then ask
+`<notes_repo>/.config.yml` (by hand, or by running the `ax-setup` skill), then ask
 again. This skill also needs a Slack integration (MCP tools such as `slack_search_channels`,
 `slack_search_users`, and a send-message tool); if none is available, say so and stop.
 
@@ -34,6 +34,13 @@ numbers if the repo is obvious from context). If the repo isn't clear for a give
    — these are the people/teams still owed a review. If `requested_reviewers` is empty but a team is
    still requested, name the team instead of digging up its members.
 4. **Resolve each pending reviewer's Slack identity** (GitHub login → Slack mention):
+   - **People map first.** If `<notes_repo>/github-slack-people.yml` exists (schema in
+     `<skill base dir>/../../templates/github-slack-people.example.yml`), look the login up in
+     `people:`. A hit with a `slack_id` becomes `<@slack_id>` with no further search (check it
+     isn't listed under `not:` for that login; a `not:` ID is never used, and the entry is then
+     treated as missing). `skip_review: true` means leave that person out of the message entirely.
+     Only logins that are missing from the map continue with the steps below. `teams:` is reference
+     only: don't derive anyone from it.
    - Try `slack_search_users` with the raw GitHub login first (some Slack display names match it).
    - If that misses, get the real name from GitHub: `gh api users/<login> --jq '{name}'`, then
      `slack_search_users` with that full name.
@@ -44,7 +51,13 @@ numbers if the repo is obvious from context). If the repo isn't clear for a give
      solid, write the person's real name plus `(GitHub: <login>)` as plain text instead of an
      `@mention` — never guess-tag someone in a public channel. List which ones you couldn't
      confidently resolve when reporting back to the user.
-5. **Compose and send** one Slack message per PR to `<channel>`:
+5. **Compose and send** one Slack message per PR to `<channel>`. Read `review_request.style` from the
+   config: `full` (default, also when absent) is the message below; `short` is a single line with no
+   summary (and step 2's description is skipped):
+   ```
+   Hey team :wave: could you please review <url|repo #n — title>? Pending code owners: <@USERID> <@USERID> Thanks! 🙏
+   ```
+   (with `Hey <org_name> team` when `org_name` is set, like the full style). The full message:
    ```
    Hey <org_name> team :wave: Could you please review [<repo> #<n> — <title>](<url>)?
 
@@ -59,7 +72,12 @@ numbers if the repo is obvious from context). If the repo isn't clear for a give
    `<url|text>` and bold as `*bold*` rather than the Markdown shown above. Send as separate
    top-level messages (not a thread) — one per PR, even when several PRs were requested together
    in one ask.
-6. **Report back**: the Slack message link for each PR sent, and call out explicitly any reviewer
+6. **Record the thread** for `ax-babysit-prs`: after each send, write the posted message to the PR's
+   state file `<notes_repo>/.state/babysit/<owner>-<repo>-<n>.json` as
+   `"review_request": {"channel": "<channel>", "ts": "<message ts>", "at": "<now, ISO 8601 UTC>"}`
+   (read-modify-write, keeping every other key; create `.state/babysit/` if needed). Review
+   reminders reply in that thread.
+7. **Report back**: the Slack message link for each PR sent, and call out explicitly any reviewer
    you couldn't confidently resolve to a Slack account (so the user can tag them manually if
    needed).
 

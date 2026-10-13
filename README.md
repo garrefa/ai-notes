@@ -50,15 +50,20 @@ Your notes repo (including its `.config.yml`) is left untouched.
 
 - **Notes and plans**: `note: ...` / `plan: ...` become dated, tagged Markdown files, indexed by tag
   and domain.
-- **Task workflow**: `ainotes-task` runs a change end to end: fresh worktree, a written plan, your
+- **Task workflow**: `ax-task` runs a change end to end: fresh worktree, a written plan, your
   approval, execution, an independent review. It never commits, pushes or opens a PR without asking.
 - **PR ledger**: `PRS.md` tracks every PR you open. `check prs` reconciles it with GitHub;
-  `babysit prs` keeps PRs moving (updates branches, reruns CI, handles review comments). It never
-  merges.
+  `babysit prs` keeps PRs moving (updates branches, reruns CI, handles review comments, including
+  bots' review-body nitpicks). Per-PR timers live in `<notes repo>/.state/babysit/`. Optional config
+  adds a readiness label and merge policy, a deploy-comment policy, environment-lock notices, review
+  reminders within office hours, post-merge hooks and a stale-bot-review re-request (see
+  `tools/config.example.yml`). It never merges.
 - **Tasks and daily plans**: `TASKS.md` for work that spans sessions, `daily/YYYY-MM-DD.md` for a
   checklist you tick off by hand.
 - **Reports**: weekly, monthly or quarterly reviews compiled from all of the above.
-- **Slack review requests** (optional): ask for reviews, @mentioning pending code owners.
+- **Slack review requests** (optional): ask for reviews (full message or a one-line `short` style),
+  @mentioning pending code owners. An optional `github-slack-people.yml` in the notes repo (template:
+  `templates/github-slack-people.example.yml`) maps GitHub logins to Slack IDs and is used first.
 - **Viewer**: browse and edit every workspace's notes, tasks, PRs and running agents in the browser.
 
 Workspaces stay fully separate — for example `~/work/` with Jira and Slack, `~/personal/`, and
@@ -72,7 +77,7 @@ the notes repo's `.config.yml`, so one toolkit serves them all.
 | The toolkit | Claude Code, `git`, the [GitHub CLI](https://cli.github.com/) (`gh`, authenticated), `jq`, `python3` |
 | The viewer and `npx` | Node.js 20.19+ or 22.12+, and a Chromium-based browser (Chrome, Edge, Arc, Brave) |
 | Optional | A Jira MCP connector (ticket creation) and a Slack MCP connector (review requests) |
-| PR auto-review (`ainotes-pr-review`) | The `claude` CLI on PATH (it runs headless `claude -p` reviews) |
+| PR auto-review (`ax-pr-review`) | The `claude` CLI on PATH (it runs headless `claude -p` reviews) |
 
 GitHub is the only supported VCS today.
 
@@ -86,7 +91,7 @@ GitHub is the only supported VCS today.
 ```
 
 One install serves every workspace, and it works wherever you launch Claude inside one. Update with
-`claude plugin update ainotes`. Skills and agents are namespaced (`ainotes:ainotes-setup`), but the
+`claude plugin update ainotes`. Skills and agents are namespaced (`ainotes:ax-setup`), but the
 plain names and trigger phrases work too. The plugin doesn't install the [tools](#tools) into your
 workspace or schedule them; the Tools section covers running them without an install.
 
@@ -127,7 +132,7 @@ elsewhere. You choose which ones, how often, and optionally an hours window and 
 The choices are saved in the `schedules:` section of `<notes repo>/.config.yml`. In an interactive
 terminal the installer asks about each job the first time, and on later runs shows them and offers
 to change them; it always re-applies them so the jobs run the freshly installed tools. Change them
-any time by saying "configure schedules" in Claude Code (`ainotes-schedules`), or with
+any time by saying "configure schedules" in Claude Code (`ax-schedules`), or with
 `.claude/tools/schedule.sh configure | set <job> <spec> | list`. Before the notes repo exists
 there's nothing to save them in, so "setup ainotes" offers them at the end. A snapshot job set up
 by an older install is kept as `snapshot-agents: every 1m`. Jobs you set up yourself are never
@@ -163,19 +168,19 @@ always go through worktrees and your normal review.
 
 | Skill | Say | Does |
 |---|---|---|
-| `ainotes-setup` | "setup ainotes", "register new repos" | Creates or updates the notes repo's `.config.yml` (and the notes repo itself) |
-| `ainotes-schedules` | "configure schedules", "what's scheduled", "only run reviews during working hours" | Picks which tools run on launchd/cron, how often and in which hours (the `schedules:` section) |
-| `ainotes-notes` | `note: ...`, `plan: ...` | Writes dated, tagged notes and plans; keeps `INDEX.md` current |
-| `ainotes-task` | "work on X in `<repo>`" | Worktree → plan → approve → execute → review → asks before committing |
-| `ainotes-tasks` | `new task: ...`, "what are my open tasks" | Cross-session task ledger |
-| `ainotes-daily-plan` | "daily plan: ...", "`<task>` is done" | One day's checklist, checked off by hand |
-| `ainotes-pr-tracker` | "check prs" | Reconciles `PRS.md` with GitHub |
-| `ainotes-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment; never merges |
-| `ainotes-review-inbox` | "review inbox", "what needs my review" | Org-wide: summarizes, flags stale, and prioritizes every PR pending your review |
-| `ainotes-pr-review` | "review my pending PRs", "review `<PR>`", "review spend" | Headless `/code-review` of the PRs requesting your review directly; approves on zero findings, else inline comments; monthly USD cap; files each review via `ainotes-review-notes` |
-| `ainotes-review-notes` | "note this review", "save a review note for `<PR>`" | Files a finished PR review as `reviews/<date>-<repo>-<n>.md` (one note per PR; re-reviews append); indexes and commits it |
-| `ainotes-pr-review-request` | "ask for review on `<PR>`" | Posts a review request to Slack (optional) |
-| `ainotes-report` | "weekly report", "work review" | Compiles a report for a date window |
+| `ax-setup` | "setup ainotes", "register new repos" | Creates or updates the notes repo's `.config.yml` (and the notes repo itself) |
+| `ax-schedules` | "configure schedules", "what's scheduled", "only run reviews during working hours" | Picks which tools run on launchd/cron, how often and in which hours (the `schedules:` section) |
+| `ax-notes` | `note: ...`, `plan: ...` | Writes dated, tagged notes and plans; keeps `INDEX.md` current |
+| `ax-task` | "work on X in `<repo>`" | Worktree → plan → approve → execute → review → asks before committing |
+| `ax-tasks` | `new task: ...`, "what are my open tasks" | Cross-session task ledger |
+| `ax-daily-plan` | "daily plan: ...", "`<task>` is done" | One day's checklist, checked off by hand |
+| `ax-pr-tracker` | "check prs" | Reconciles `PRS.md` with GitHub |
+| `ax-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment unless `ci.deploy_policy` says otherwise; never merges |
+| `ax-review-inbox` | "review inbox", "what needs my review" | Org-wide: summarizes, flags stale, and prioritizes every PR pending your review |
+| `ax-pr-review` | "review my pending PRs", "review `<PR>`", "review spend" | Headless `/code-review` of the PRs requesting your review directly; approves on zero findings, else inline comments; monthly USD cap; files each review via `ax-review-notes` |
+| `ax-review-notes` | "note this review", "save a review note for `<PR>`" | Files a finished PR review as `reviews/<date>-<repo>-<n>.md` (one note per PR; re-reviews append); indexes and commits it |
+| `ax-pr-review-request` | "ask for review on `<PR>`" | Posts a review request to Slack (optional) |
+| `ax-report` | "weekly report", "work review" | Compiles a report for a date window |
 
 ### Agents
 

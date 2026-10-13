@@ -1,8 +1,8 @@
 #!/bin/sh
-# SessionStart hook: nudge the ainotes-setup skill when the session's current repo is neither
+# SessionStart hook: nudge the ax-setup skill when the session's current repo is neither
 # tagged in domain_taxonomy nor listed in ignored_repos in the workspace's ainotes config
 # (<notes repo>/.config.yml). Does nothing if no ainotes config is found at all (not a managed
-# workspace, or ainotes-setup hasn't been run here yet) — this hook never suggests creating one
+# workspace, or ax-setup hasn't been run here yet) — this hook never suggests creating one
 # unprompted.
 #
 # The session directory is the hook input's `cwd`, falling back to $CLAUDE_PROJECT_DIR, then $PWD.
@@ -124,7 +124,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "This session started in '$repo_json', which isn't yet registered in this workspace's ainotes config ($config_json) (not tagged in domain_taxonomy, not in ignored_repos). Near the top of the conversation, invoke the ainotes-setup skill's repo-registration flow scoped to just this one repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the config accordingly. Don't scan or ask about any other unregistered repos in the same breath — just this one."
+    "additionalContext": "This session started in '$repo_json', which isn't yet registered in this workspace's ainotes config ($config_json) (not tagged in domain_taxonomy, not in ignored_repos). Near the top of the conversation, invoke the ax-setup skill's repo-registration flow scoped to just this one repo: ask the user whether to tag it with a domain (suggest based on name/stack similarity to existing domains) or mark it ignored, then update the config accordingly. Don't scan or ask about any other unregistered repos in the same breath — just this one."
   }
 }
 EOF

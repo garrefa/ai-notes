@@ -1,7 +1,7 @@
 // Reads the notes repo's notes/plans/daily/tasks/reviews frontmatter in the browser,
-// using the same conventions the ainotes-* skills write.
+// using the same conventions the ax-* skills write.
 
-// reviews/ holds one note per reviewed PR, written by ainotes-review-notes (tools/review-note.sh).
+// reviews/ holds one note per reviewed PR, written by ax-review-notes (tools/review-note.sh).
 export type NoteSource = "notes" | "plans" | "daily" | "tasks" | "reviews"
 
 export interface Note {
@@ -19,7 +19,7 @@ export interface Note {
   epic: string | null
   jira: string | null
   tags: string[]
-  // Tasks (ainotes-tasks) list their PRs as "org/repo#123" in a `prs:` frontmatter field.
+  // Tasks (ax-tasks) list their PRs as "org/repo#123" in a `prs:` frontmatter field.
   prs: string[]
   status: string | null
   // Tasks only: `deadline:` (YYYY-MM-DD), null when unset.
@@ -29,7 +29,7 @@ export interface Note {
   // The original "---\n...\n---\n" block, byte-for-byte. Saving an edited
   // body reuses this verbatim rather than re-serializing frontmatter from
   // the parsed object, so field order, quoting, and formatting the author
-  // (or the ainotes-notes skill) chose are never altered by an edit.
+  // (or the ax-notes skill) chose are never altered by an edit.
   rawFrontmatter: string
 }
 
@@ -138,7 +138,7 @@ function asStringArray(v: unknown): string[] {
 export function toNote(relPath: string, source: NoteSource, raw: string, mtime: number): Note {
   const { frontmatter, body, rawFrontmatter } = parseFrontmatter(raw)
   const isReview = source === "reviews"
-  // Tasks (ainotes-tasks) carry an explicit frontmatter title instead of a body heading. A review's
+  // Tasks (ax-tasks) carry an explicit frontmatter title instead of a body heading. A review's
   // `title:` is the PR's; its "# Review: repo#123 · ..." heading names the note itself.
   const frontmatterTitle = isReview ? null : asStringOrNull(frontmatter.title)
   const headingTitle = frontmatterTitle ? null : extractTitle(body)
@@ -172,7 +172,7 @@ export function toNote(relPath: string, source: NoteSource, raw: string, mtime: 
 
 // Rewrites just the `tags:` entry inside a raw frontmatter block, leaving every
 // other field (order, quoting, unrelated bracketed fields like `links:`)
-// untouched. Matches ainotes-notes' two possible list shapes: inline "[a, b]"
+// untouched. Matches ax-notes' two possible list shapes: inline "[a, b]"
 // (what every real note currently uses) and a multi-line "- item" block,
 // preserving whichever shape was already there. A note with no tags field
 // yet gets one appended, inline, just before the closing "---".
@@ -255,7 +255,7 @@ export function sortNotes(notes: Note[]): Note[] {
   })
 }
 
-// ainotes-notes tags an epic as "epic:PROJ-100" so it sorts/filters distinctly from
+// ax-notes tags an epic as "epic:PROJ-100" so it sorts/filters distinctly from
 // plain tags — the "epic:" half is bookkeeping, not something worth showing.
 const EPIC_TAG_RE = /^epic:/i
 
@@ -265,7 +265,7 @@ export function displayTag(tag: string): string {
 
 // A plan's lifecycle: "planned" until it's executed or abandoned, then "done"
 // (executed) or "dropped" (abandoned without executing) — shown as the more
-// familiar open/closed/dropped vocabulary. A task (ainotes-tasks) uses "open"/"done"
+// familiar open/closed/dropped vocabulary. A task (ax-tasks) uses "open"/"done"
 // directly, and maps onto the same Open/Closed labels. `n/a` (used by
 // notes/daily logs, which don't have a lifecycle) is hidden rather than relabeled.
 const STATUS_LABELS: Record<string, string> = {
@@ -273,7 +273,7 @@ const STATUS_LABELS: Record<string, string> = {
   open: "Open",
   done: "Closed",
   dropped: "Dropped",
-  // A review's verdict (ainotes-review-notes), shown as its status.
+  // A review's verdict (ax-review-notes), shown as its status.
   approved: "Approved",
   commented: "Commented",
   changes_requested: "Changes requested",

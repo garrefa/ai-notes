@@ -1,6 +1,6 @@
 ---
-name: ainotes-notes
-description: Capture notes and plans into the workspace's notes repo, a git-backed second brain for this workspace — dated, tagged, domain-classified, cross-referenced via INDEX.md. Use when a request starts with "note:", "Add a note ...", "plan:", or "Add a plan ...". Also the skill ainotes-task delegates to for writing/updating the plan note it records for every task.
+name: ax-notes
+description: Capture notes and plans into the workspace's notes repo, a git-backed second brain for this workspace — dated, tagged, domain-classified, cross-referenced via INDEX.md. Use when a request starts with "note:", "Add a note ...", "plan:", or "Add a plan ...". Also the skill ax-task delegates to for writing/updating the plan note it records for every task.
 ---
 
 # Notes (notes repo)
@@ -14,7 +14,7 @@ repo just records that process happened, so it stays lightweight. Commit directl
 branch (`main`) right after writing or updating a file.
 
 This skill owns *what* gets written, in what format, and the (simple) git commit for the notes repo.
-`ainotes-task` owns the actual engineering workflow (worktrees, Plan subagent, Jira) and calls into this
+`ax-task` owns the actual engineering workflow (worktrees, Plan subagent, Jira) and calls into this
 skill only to persist the plan note and later update it — it never touches the notes repo's git history
 itself.
 
@@ -24,7 +24,7 @@ marker that tells it apart from any other `.config.yml`. **Config-discovery rule
 current directory; at each directory, if it contains a `.config.yml` with `kind: ainotes-config`,
 that directory is the notes repo; otherwise, if one of its immediate subfolders does, that subfolder
 is the notes repo. The notes repo's parent is the **workspace root**. Never use a path hardcoded to one
-specific workspace, since one ainotes-* installation can serve several independent workspaces, each
+specific workspace, since one ainotes installation can serve several independent workspaces, each
 with its own notes repo. (A legacy `<workspace>/.ai-notes/config.yml` is still read as a fallback
 until `install.sh` migrates it.) The notes repo is identified by where the config lives, so there is
 no `notes_repo` key and renaming the notes folder needs no config edit. Read the config for
@@ -40,7 +40,7 @@ auto-reviewer's `.state/pr-review/`. Its spend ledger is tracked at `<notes_repo
 Every note/plan write, frontmatter update, `INDEX.md` append and commit goes through the `notetaker`
 agent — this is mandatory, not an optimization you can skip. Spawn the `notetaker` agent (named
 `ainotes:notetaker` when AINotes is installed as a plugin). If neither name is available, spawn a
-general-purpose agent with `model: haiku` and give it the contents of
+general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/notetaker.md` as its instructions.
 
 The main thread keeps what needs the conversation: it asks the epic question, picks domain/tags,
@@ -54,7 +54,7 @@ yourself (or tell the user) before moving on. If it returns an `error`, report i
 
 - **Note**: request starts with `Add a note ...` or `note: ...` — a freeform note, not tied to a
   specific code task.
-- **Plan**: request starts with `Add a plan ...` or `plan: ...`, or invoked internally by `ainotes-task`
+- **Plan**: request starts with `Add a plan ...` or `plan: ...`, or invoked internally by `ax-task`
   step 5 when a plan gets approved for execution in some repo.
 
 ## Layout
@@ -67,14 +67,14 @@ yourself (or tell the user) before moving on. If it returns an `error`, report i
   pr-reviews-ledger.jsonl          # PR auto-reviewer spend ledger (tracked)
   notes/YYYY-MM-DD-slug.md
   plans/YYYY-MM-DD-slug.md
-  tasks/YYYY-MM-DD-slug.md         # owned by ainotes-tasks
-  daily/YYYY-MM-DD.md              # owned by ainotes-daily-plan
+  tasks/YYYY-MM-DD-slug.md         # owned by ax-tasks
+  daily/YYYY-MM-DD.md              # owned by ax-daily-plan
   INDEX.md    # tag -> files map, kept up to date incrementally
-  PRS.md      # PR ledger, owned by ainotes-pr-tracker
-  TASKS.md    # task ledger, owned by ainotes-tasks
+  PRS.md      # PR ledger, owned by ax-pr-tracker
+  TASKS.md    # task ledger, owned by ax-tasks
 ```
 
-This is the canonical layout every `ainotes-*` skill and agent uses: all data paths are directly
+This is the canonical layout every `ax-*` skill and agent uses: all data paths are directly
 `<notes_repo>/...`, and git commands always run at that same notes repo root
 (`git -C <notes_repo> ...`). Links stored *inside* the data — in
 frontmatter `links:`, `INDEX.md`, `PRS.md`, `TASKS.md` — are relative to the repo root
@@ -86,7 +86,7 @@ nested one level under a `db/` folder (`db/notes/`, `db/plans/`, `db/tasks/`, `d
 don't silently write to either location — tell the user the repo uses the legacy layout and offer
 to migrate it: `git -C <notes_repo> mv` each entry out of `db/` up to the repo root, then remove the
 now-empty `db/` folder, committed as one commit (e.g. `"Flatten notes data out of db/"`). Links
-need no rewriting since they're already relative to the data root. The `ainotes-setup` skill can
+need no rewriting since they're already relative to the data root. The `ax-setup` skill can
 also perform this migration on request. Only proceed with the write once the layout is settled.
 
 Filenames are date-prefixed so `ls | sort` / a glob browses or range-filters by date without opening
@@ -102,7 +102,7 @@ repo: <repo or null>        # plans targeting a workspace repo set this; freefor
 domain: []                  # one or more tags from domain_taxonomy in `.config.yml`
 epic: null                  # epic key or name, if any — always ask, don't assume none (see preferred_epics below)
 tags: []                    # free-form, on top of domain/epic — required, at least one total across domain+tags
-jira: null                  # plans only, once ainotes-task step 6 gets/creates a ticket (stays null without a jira config block)
+jira: null                  # plans only, once ax-task step 6 gets/creates a ticket (stays null without a jira config block)
 worktree: null              # plans only: <repo>/.worktrees/<branch-name>
 status: n/a                 # notes: n/a. plans: planned -> in-progress -> done (or in-review)
 links: []                   # related notes/plans, relative to the repo root, e.g. "plans/2026-09-01-api-gateway-fix-token-expiry.md"
@@ -126,14 +126,14 @@ whether the root cause was confirmed or the note ends up blocked. This keeps eve
 greppable under one `INDEX.md` section without a separate folder.
 
 **Title**: every body starts with one `# <title>` line right after the frontmatter; the viewer,
-`ainotes-report` and anyone skimming `INDEX.md` paths read it as the file's title. Section headings
+`ax-report` and anyone skimming `INDEX.md` paths read it as the file's title. Section headings
 start at `##`. An approved plan's text usually begins at `## Task` or `## <title>` — pass `notetaker`
 a `title` along with it, and it adds or promotes the `# <title>` line without touching the rest (see
 its "Writing content" section).
 
 **Cost (optional)**: if token/cost figures for the work are known, a note may end with a `## Cost`
 section (tokens, tool calls, wall time; any USD figure flagged as directional) — the convention the
-`notetaker` agent follows and `ainotes-report` rolls up. Skip it when there's nothing to record.
+`notetaker` agent follows and `ax-report` rolls up. Skip it when there's nothing to record.
 
 If an epic is given, also add `epic:<key>` to `tags` so notes under the same epic are greppable
 together, in addition to the structured `epic:` field.
@@ -155,25 +155,25 @@ closed.
    `domain`/`tags` sections in `INDEX.md` (creating a section if new — never rewriting the whole
    file), and commits directly on `main` (`"Add note: <slug>"`).
 
-## Adding/updating a plan (including via ainotes-task)
+## Adding/updating a plan (including via ax-task)
 
 1. Ask about an epic if not already stated, same as step 1 above.
 2. Hand off to `notetaker` with `type: plan`, `status: planned`, `repo`/`worktree` filled in, the
    approved plan as the body, and a one-line `title` for it (e.g. `Plan: <what it changes>`). It writes `<notes_repo>/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
    `INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
-3. When `ainotes-task` reaches its step 6 (Jira ticket, if configured), hand `notetaker` a
+3. When `ax-task` reaches its step 6 (Jira ticket, if configured), hand `notetaker` a
    frontmatter-only update of the same plan (`jira` when a ticket exists, `status: in-progress`);
    it commits `"Update plan: <slug> (status -> in-progress)"`. The plan's body is never touched.
 
 Do not start executing a plan as part of writing it — plans are captured here, executed elsewhere via
-`ainotes-task`.
+`ax-task`.
 
-## When a plan is executed (ainotes-task step 10)
+## When a plan is executed (ax-task step 10)
 
 The plan file's body is **immutable** once written — it should always read exactly as originally
 approved, so it stays a reliable record of what was agreed. Never append results into it.
 
-Instead, when `ainotes-task` finishes a task:
+Instead, when `ax-task` finishes a task:
 
 1. Write the body of a **new** note (`type: note`) recording what happened: repo, branch/worktree,
    Jira ticket (if any), review outcome, whether it was committed, and any follow-ups. Give it the same

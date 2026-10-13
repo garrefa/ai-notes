@@ -1,4 +1,4 @@
-// Keeps INDEX.md (the tag → files map ainotes-notes maintains) in step with files the viewer
+// Keeps INDEX.md (the tag → files map ax-notes maintains) in step with files the viewer
 // creates or deletes. Same append-only convention as the skills: a new path goes at the end of its
 // "## <tag>" section (the section is appended when missing), nothing else is rewritten, and
 // fenced code blocks (the template's format example) are never touched.
@@ -9,7 +9,7 @@ export const INDEX_FILE = "INDEX.md"
 export const EMPTY_INDEX = `# Index
 
 Tag → files map. Append the relevant tag section whenever a note or plan is added; never regenerate
-this file from scratch. See the \`ainotes-notes\` skill for the full workflow.
+this file from scratch. See the \`ax-notes\` skill for the full workflow.
 `
 
 const FENCE_RE = /^\s*(```|~~~)/

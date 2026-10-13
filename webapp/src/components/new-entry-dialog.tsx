@@ -34,7 +34,7 @@ function Field({ label, htmlFor, hint, children }: { label: string; htmlFor: str
   )
 }
 
-// Creates a note, plan, daily plan or task in the open folder, laid out the way the ainotes-*
+// Creates a note, plan, daily plan or task in the open folder, laid out the way the ax-*
 // skills write them. The form is remounted each time the dialog opens, so it always starts fresh.
 export function NewEntryDialog({
   open,
