@@ -130,3 +130,37 @@ schedules:
 #   # The report then says "needs 1 more review" instead of "CI failing", and a gate failing only
 #   # on approvals is never rerun or treated as a CI failure.
 #   gate_check: "CI Gate"
+#   # --- deploy comment policy (applies only when deploy_trigger_comment is set) ---
+#   deploy_policy: ask               # ask (default) | auto_after_ready; at most one per head SHA
+#   deploy_excluded_repos: []        # repos where the deploy comment is never posted
+#   deployed_label: "deployed"       # PR already carries it => deploy comment skipped
+#   # A check whose output says no services are affected (a dependency-only PR) => no deploy comment.
+#   no_services_check: {check: "Affected services", pattern: "no services affected"}
+#   # --- environment lock (both unset = off) ---
+#   lock_label: "blocked:env-in-use"     # our PR is waiting for the environment
+#   holder_label: "env-in-use"           # the PR currently holding it
+#   lock_notice_template: "Hi {author}, {holder_pr} holds the deploy environment and {our_pr} is waiting. Could you /rollback or share an ETA?"
+#
+# review:                # (merge into the `review:` block above)
+#   ready_label: "ready-to-be-reviewed"  # a PR is ready only with this label on its current head;
+#                                        # when missing, a ship/PR-readiness skill is run if available
+#
+# merge:
+#   manual_repos: []         # repos the user merges by hand: never queued or suggested for merge
+#   queue_file: null         # path relative to the notes repo; commands a guard blocked (marking a
+#                            # PR ready, merging it) are appended there without the leading `gh`,
+#                            # one per line, e.g. "pr merge 42 --repo acme/api"
+#
+# Review reminders, only inside office hours. Unset = off.
+# reminders:
+#   after_min: 60            # since the review request or the last reminder
+#   tz: America/Argentina/Buenos_Aires
+#   days: [Mon, Tue, Wed, Thu, Fri]
+#   hours: "09:00-19:00"
+#   template: "Gentle reminder: could someone take a look at {pr}? Pending: {owners} Thanks!"
+#
+# Post-merge hooks, run once when a babysat PR is seen merged. Unset = off; each sub-key optional.
+# on_merge:
+#   jira_done_transition: true     # needs the jira block; moves the PR's ticket to Done
+#   check_cmd: "gh api repos/acme/{repo}/dependabot/alerts --jq '[.[]|select(.state==\"open\")]|length'"
+#   slack_thread: {channel: "#alerts", ts: "1760000000.000100", template: "Closed: {pr} ({jira})"}

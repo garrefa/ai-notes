@@ -49,6 +49,15 @@ reaches git). It is the loop's memory: timers and once-per-head rules live here,
   honoured, so rows built by hand keep working.
 - **Delete the file** when the PR leaves Pending (merged or closed), after any post-merge work.
 
+## Optional policies
+
+`<skill base dir>/policies.md` holds the behaviours that only apply when their config key is set:
+readiness label and merge policy, deploy comment policy, environment lock, review reminders with
+office hours, post-merge hooks, superseded bot PRs, and the stop/cadence rule. **All are off by
+default**; read that file only when one of those keys (`review.ready_label`, `merge.*`,
+`ci.deploy_policy`, `ci.lock_label`, `reminders`, `on_merge`) is configured, or a PR carries
+`supersedes`.
+
 ## One pass
 
 Polling is cheap and mechanical, so it runs on a Haiku agent; the main thread only spends effort on
@@ -59,7 +68,7 @@ what actually needs judgment.
    `model: haiku` (Haiku 5.5) and give it the contents of `<skill base dir>/../../agents/pr-poller.md` as its
    instructions. Pass it the pending rows as `[{repo, number, url, state_file, rerun_already?}]` (`repo`
    as `<vcs.org>/<repo>`; `state_file` as above — a non-null `known_blocker` in it stops reruns), and a
-   `config` object built from whichever of `review.bots`, `ci.gate_check` are set. It returns one YAML
+   `config` object built from whichever of `review.bots`, `ci.gate_check`, `ci.no_services_check` are set. It returns one YAML
    record per PR:
    `{pr, head_sha, labels, state, mergeable, behind, updated_branch, ci: {status, failed: [{job,
    run_id, log_tail}]}, rerun_done, unresolved_comments: [{id, author, gist_1line}], review:
@@ -107,12 +116,17 @@ what actually needs judgment.
      passed since the last one, until the bot approves or comments. Never post it while the bot has
      unresolved threads or while its latest review is on a head you haven't finished fixing.
    - **`ready_for_deploy: true`** → the PR is ready — this skill does not merge it or set auto-merge.
+     First apply the readiness gate and merge policy (`review.ready_label`, `merge.manual_repos`,
+     `merge.queue_file`), then:
      - If `ci.deploy_trigger_comment` is null or absent: report the PR as ready and stop there for
        this PR — never post any deploy comment.
-     - Otherwise, ask the user: *"PR #<n> (<repo>) is green and ready — want me to comment
-       `<deploy comment>` to deploy it?"* Only on an explicit yes, post it:
+     - Otherwise follow the deploy comment policy: by default (`ci.deploy_policy: ask`) ask the user,
+       *"PR #<n> (<repo>) is green and ready — want me to comment `<deploy comment>` to deploy it?"*,
+       and only on an explicit yes post it with
        `gh pr comment <number> --repo <vcs.org>/<repo> --body "<deploy comment>"`. Never post it
        speculatively or bundle multiple PRs' deploy questions into one assumed "yes" — ask per PR.
+   - **Lock labels, reminders, merged PRs** → see the matching sections of `policies.md`
+     (`ci.lock_label`, `reminders`, `on_merge`); each applies only when its key is configured.
 
 3. **Write the state file** for each PR you acted on (see above), then **update the ledger.** If any PR merged or closed this pass (or you want the Detail table
    refreshed after branch updates / reruns / comment fixes), spawn `ledger-keeper` once for the whole
@@ -126,6 +140,11 @@ After a full pass over every pending PR:
 
 - If every PR is now `MERGED`/`CLOSED` (the pending table is empty after this pass' updates), report
   the final summary and **stop** — don't schedule another wakeup.
+- If the only remaining blockers are human-only (approvals owed outside office hours, repos the user
+  merges manually, decisions only the user can make), stop or stretch the wakeup as described in
+  `policies.md` ("Stop and cadence") instead of polling every few minutes.
+- If any PR has `supersedes`, list those bot PRs in the report as "can now be closed" (never touch
+  them).
 - Otherwise, report what happened this pass (per PR: what got fixed, what's still blocking, what's
   waiting on the user) and schedule the next pass. Under `/loop`, that means calling `ScheduleWakeup`
   with a delay sized to what's actually being waited on (CI runs take minutes, not seconds — don't
@@ -133,11 +152,13 @@ After a full pass over every pending PR:
 
 ## What this skill will NOT do without asking first
 
-- Post the configured deploy comment (always a per-PR yes/no — see the `ready_for_deploy` bullet
-  under "One pass" above — never at all when `ci.deploy_trigger_comment` is unset).
+- Post the configured deploy comment (a per-PR yes/no by default — see the `ready_for_deploy` bullet
+  under "One pass" above; only `ci.deploy_policy: auto_after_ready` skips the question — and never at
+  all when `ci.deploy_trigger_comment` is unset).
 - Resolve a conflict where both sides touched real logic and the right merge isn't obvious.
 
 ## What this skill will never do
 
 - Force-push, rewrite history, or close/merge a PR directly — merging stays a human (or deploy
-  pipeline) action, never this skill's.
+  pipeline) action, never this skill's. At most it queues a guarded `gh pr ready`/`gh pr merge` line
+  for the user when `merge.queue_file` is set, and never for `merge.manual_repos`.
