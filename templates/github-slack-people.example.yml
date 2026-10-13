@@ -1,0 +1,22 @@
+# github-slack-people.yml — OPTIONAL map from GitHub logins to Slack identities.
+#
+# Copy to <notes repo>/github-slack-people.yml (tracked with the notes repo) and fill in your own
+# people. ax-pr-review-request and ax-babysit-prs (review reminders, environment-lock notices) use
+# it as the FIRST source for Slack @mentions; a login that isn't listed falls back to the usual
+# Slack user search with its confidence check. Keep it free of secrets.
+
+people:
+  octocat:
+    slack_id: U0123ABCDEF        # the Slack member ID (a profile's "Copy member ID")
+    name: Mona Lisa Octocat
+    email: mona@example.com
+    verified: true               # true once you've checked the ID against the Slack profile
+    # skip_review: true          # never tag this person in review requests or reminders
+
+# Slack IDs that were once matched to a login by mistake. They are never used for that login.
+not:
+  octocat: [U0WRONG0001]
+
+# Reference only (never read to decide anything): which people belong to which GitHub team.
+teams:
+  platform: [octocat]

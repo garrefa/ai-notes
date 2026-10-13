@@ -53,12 +53,17 @@ Your notes repo (including its `.config.yml`) is left untouched.
 - **Task workflow**: `ax-task` runs a change end to end: fresh worktree, a written plan, your
   approval, execution, an independent review. It never commits, pushes or opens a PR without asking.
 - **PR ledger**: `PRS.md` tracks every PR you open. `check prs` reconciles it with GitHub;
-  `babysit prs` keeps PRs moving (updates branches, reruns CI, handles review comments). It never
-  merges.
+  `babysit prs` keeps PRs moving (updates branches, reruns CI, handles review comments, including
+  bots' review-body nitpicks). Per-PR timers live in `<notes repo>/.state/babysit/`. Optional config
+  adds a readiness label and merge policy, a deploy-comment policy, environment-lock notices, review
+  reminders within office hours, post-merge hooks and a stale-bot-review re-request (see
+  `tools/config.example.yml`). It never merges.
 - **Tasks and daily plans**: `TASKS.md` for work that spans sessions, `daily/YYYY-MM-DD.md` for a
   checklist you tick off by hand.
 - **Reports**: weekly, monthly or quarterly reviews compiled from all of the above.
-- **Slack review requests** (optional): ask for reviews, @mentioning pending code owners.
+- **Slack review requests** (optional): ask for reviews (full message or a one-line `short` style),
+  @mentioning pending code owners. An optional `github-slack-people.yml` in the notes repo (template:
+  `templates/github-slack-people.example.yml`) maps GitHub logins to Slack IDs and is used first.
 - **Viewer**: browse and edit every workspace's notes, tasks, PRs and running agents in the browser.
 
 Workspaces stay fully separate — for example `~/work/` with Jira and Slack, `~/personal/`, and
@@ -170,7 +175,7 @@ always go through worktrees and your normal review.
 | `ax-tasks` | `new task: ...`, "what are my open tasks" | Cross-session task ledger |
 | `ax-daily-plan` | "daily plan: ...", "`<task>` is done" | One day's checklist, checked off by hand |
 | `ax-pr-tracker` | "check prs" | Reconciles `PRS.md` with GitHub |
-| `ax-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment; never merges |
+| `ax-babysit-prs` | `/loop babysit prs` | Pushes open PRs toward merge; asks before any deploy comment unless `ci.deploy_policy` says otherwise; never merges |
 | `ax-review-inbox` | "review inbox", "what needs my review" | Org-wide: summarizes, flags stale, and prioritizes every PR pending your review |
 | `ax-pr-review` | "review my pending PRs", "review `<PR>`", "review spend" | Headless `/code-review` of the PRs requesting your review directly; approves on zero findings, else inline comments; monthly USD cap; files each review via `ax-review-notes` |
 | `ax-review-notes` | "note this review", "save a review note for `<PR>`" | Files a finished PR review as `reviews/<date>-<repo>-<n>.md` (one note per PR; re-reviews append); indexes and commits it |

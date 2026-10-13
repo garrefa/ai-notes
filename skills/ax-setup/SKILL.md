@@ -53,6 +53,13 @@ Run when no config is found by the discovery rule (walking up from the current d
      preview environments by commenting on a PR (e.g. `/deploy`), ask for that exact comment text.
      `ax-babysit-prs` only ever posts it after asking. Otherwise write `null` —
      `ax-babysit-prs` then just reports a PR as ready and stops.
+   - **Babysit extras** (optional, one brief question): "Want to tune `ax-babysit-prs`?" Only if
+     yes, mention the available keys in one line each and set what they pick: `review.bots` /
+     `review.bot_rerequest`, `ci.gate_check`, `ci.deploy_policy`, `review.ready_label`,
+     `merge.manual_repos` / `merge.queue_file`, `reminders`, `review_request.style`, `on_merge`. All
+     are off by default and documented in `config.example.yml`; never ask about them one by one.
+     For Slack mentions, tell them an optional `github-slack-people.yml` can be copied from
+     `templates/` into the notes repo.
    - **Task statuses** (`task_statuses`, optional): the workflow statuses `ax-tasks` uses. Show
      the four defaults (`backlog` → `in-progress` → `done` / `dropped`, the last two closed) and ask
      one question: "keep these defaults?" If yes, write them as-is. If not, take the user's edits
@@ -93,6 +100,8 @@ slack:
   pr_review_channel: null        # null/absent disables ax-pr-review-request
 ci:
   deploy_trigger_comment: null   # e.g. "/deploy"; null => ax-babysit-prs never posts a deploy comment
+# OPTIONAL, all off by default (see config.example.yml): review, merge, reminders, on_merge,
+# review_request, and more ci.* keys used by ax-babysit-prs / ax-pr-review-request
 task_statuses:                   # ax-tasks statuses; order matters: first = default for new tasks
   - { key: backlog,     label: Backlog }
   - { key: in-progress, label: In progress }
