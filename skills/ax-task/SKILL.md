@@ -1,12 +1,12 @@
 ---
-name: ainotes-task
-description: Plan-then-execute workflow for a task in one of the git repos checked out under this workspace (the parent of the notes repo holding `.config.yml`). Creates a fresh worktree off the up-to-date default branch, plans with a Plan subagent, gets user approval, then executes with one or more subagents. Use when the user says "work on X in <repo>", "let's do a task in <repo>", or invokes /ainotes-task.
+name: ax-task
+description: Plan-then-execute workflow for a task in one of the git repos checked out under this workspace (the parent of the notes repo holding `.config.yml`). Creates a fresh worktree off the up-to-date default branch, plans with a Plan subagent, gets user approval, then executes with one or more subagents. Use when the user says "work on X in <repo>", "let's do a task in <repo>", or invokes /ax-task.
 ---
 
 # Task Workflow
 
 Orchestrates a single task end-to-end in one repo of this workspace (the workspace root is the
-parent of the notes repo (the folder holding `.config.yml`) — see the `ainotes-notes` skill for the discovery rule).
+parent of the notes repo (the folder holding `.config.yml`) — see the `ax-notes` skill for the discovery rule).
 You (the orchestrator) do the git/worktree setup and plan-approval yourself; subagents do the planning
 analysis and the execution.
 
@@ -14,7 +14,7 @@ analysis and the execution.
 
 ## Arguments: $ARGUMENTS
 
-Parse the user's message (after `/ainotes-task`, or their natural-language request) for:
+Parse the user's message (after `/ax-task`, or their natural-language request) for:
 - **repo**: which of the workspace's repos this targets. If ambiguous or missing, ask.
 - **task**: what they want done.
 
@@ -102,9 +102,9 @@ tweaks) and re-confirm.
 
 ### 5. Record the plan in the notes repo
 
-Invoke the `ainotes-notes` skill's "Adding/updating a plan" procedure to persist the approved plan as
+Invoke the `ax-notes` skill's "Adding/updating a plan" procedure to persist the approved plan as
 `<notes_repo>/plans/YYYY-MM-DD-<repo>-<slug>.md` (same date/repo/slug as the worktree/branch), including
-its epic question, domain tagging, and commit. `ainotes-notes` owns the frontmatter schema, domain
+its epic question, domain tagging, and commit. `ax-notes` owns the frontmatter schema, domain
 taxonomy, and the notes repo's git history — this step just triggers it with: the task, the repo, the
 worktree path, and the approved plan text. You ask the epic question and assemble the fields here;
 the write itself goes to the `notetaker` agent as that skill describes (named `ainotes:notetaker` when
@@ -128,7 +128,7 @@ they already have a ticket for this task, or should one be created?
 - With Jira configured, always ask this — even for a task that looks trivial.
 
 Hand `notetaker` a frontmatter-only update of the plan note (`{path, jira: <PROJECT_KEY>-<number>,
-status: in-progress}`); it commits. If `ainotes-tasks` has an active task for this session, also spawn
+status: in-progress}`); it commits. If `ax-tasks` has an active task for this session, also spawn
 `ledger-keeper` with `task_link {task, jira}` (same naming and fallback pattern, with
 `<skill base dir>/../../agents/ledger-keeper.md`; pass `notes_repo_path` and `toolkit_dir` =
 `<skill base dir>/../..`).
@@ -183,9 +183,9 @@ Only on their yes, commit the finished work on the branch with a proper title + 
 - Do **not** push or open a PR automatically — that's always a separate, explicit ask, regardless of
   how clean the review or how routine the task looks. If the user does ask and a PR gets opened,
   register it right away: spawn `ledger-keeper` with `register_pr {repo, number, url, title, jira?,
-  task_file?}` (see `ainotes-pr-tracker`; `task_file` = the session's active task, if any).
+  task_file?}` (see `ax-pr-tracker`; `task_file` = the session's active task, if any).
 - Mention the worktree path (and the Jira ticket key, if any) so they know where to look.
-- Invoke `ainotes-notes`'s "When a plan is executed" procedure: you write the outcome body, and one
+- Invoke `ax-notes`'s "When a plan is executed" procedure: you write the outcome body, and one
   `notetaker` call writes a **new** note recording it and flips the plan's `status` field (don't append
   results into the plan file yourself — the plan's body stays immutable).
 
@@ -197,8 +197,8 @@ Only on their yes, commit the finished work on the branch with a proper title + 
 - If the user wants a worktree cleaned up, use `git worktree remove` (from the main checkout) rather
   than deleting the directory by hand. Leave its plan/completion notes in `<notes_repo>/` as a
   historical record.
-- All notes-repo content, format, and git mechanics belong to the `ainotes-notes` skill (and, for
-  ledgers, `ainotes-pr-tracker`/`ainotes-tasks`) — don't write to `<notes_repo>/` directly from here;
+- All notes-repo content, format, and git mechanics belong to the `ax-notes` skill (and, for
+  ledgers, `ax-pr-tracker`/`ax-tasks`) — don't write to `<notes_repo>/` directly from here;
   every write goes through the `notetaker` or `ledger-keeper` agent, to keep one writer and one source
   of truth for each format.
 - Subagents are always spawned with an explicit `model`: `inherit` for the Plan, execution and review

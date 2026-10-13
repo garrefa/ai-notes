@@ -1,20 +1,20 @@
 ---
-name: ainotes-pr-review-request
+name: ax-pr-review-request
 description: Post a kind review-request message to Slack (channel per `slack.pr_review_channel` in `.config.yml`; the skill is disabled when that key is unset) for one or more specified PRs — a short description of what each PR does, plus @mentions for its pending code owners. Trigger on "ask for review(s) on <PR(s)>", "request review for <PR>", or "send a slack message asking for review on <PR>".
 ---
 
-# PR Review Request (ainotes-pr-review-request)
+# PR Review Request (ax-pr-review-request)
 
 Posts a friendly ask-for-review message to Slack, one per PR, in the channel this workspace has
 configured for this. Always that channel; never ask which channel.
 
 (Read `slack.pr_review_channel`, `vcs.org`, and `org_name` from the workspace's `.config.yml`
-— see `ainotes-notes` for the config-discovery rule — before doing anything else. Below, `<channel>`,
+— see `ax-notes` for the config-discovery rule — before doing anything else. Below, `<channel>`,
 `<vcs.org>`, and `<org_name>` stand for those values, e.g. `#pr-review`, `acme`, and `Acme`.)
 
 **If `slack.pr_review_channel` is null or absent, stop here** — post nothing, and tell the user this
 skill is disabled until a channel is configured: set `slack.pr_review_channel: "#<channel-name>"` in
-`<notes_repo>/.config.yml` (by hand, or by running the `ainotes-setup` skill), then ask
+`<notes_repo>/.config.yml` (by hand, or by running the `ax-setup` skill), then ask
 again. This skill also needs a Slack integration (MCP tools such as `slack_search_channels`,
 `slack_search_users`, and a send-message tool); if none is available, say so and stop.
 

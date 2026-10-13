@@ -17,7 +17,7 @@
 #   --no-bots           hide PRs opened by any bot (renovate, bitsobot-ii, cursor[bot], ...)
 #   --json              JSON instead of tables (each PR gets "direct": true|false)
 #   --review            after listing, run a headless Claude review on each listed PR via
-#                       pr-review.sh review (ainotes-pr-review): approve on zero findings, else inline comments. PRs
+#                       pr-review.sh review (ax-pr-review): approve on zero findings, else inline comments. PRs
 #                       already reviewed at their current commit are skipped; stops when the monthly
 #                       budget (pr_review: in <notes repo>/.config.yml) is spent. Claude is only started if the
 #                       list is non-empty, so a scheduled run with nothing pending costs $0.

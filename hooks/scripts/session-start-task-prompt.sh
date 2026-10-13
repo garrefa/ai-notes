@@ -1,5 +1,5 @@
 #!/bin/sh
-# SessionStart hook: nudge Claude to offer session-scoped task tracking (ainotes-tasks skill).
+# SessionStart hook: nudge Claude to offer session-scoped task tracking (ax-tasks skill).
 #
 # Only fires inside an ainotes-managed workspace: walks up from $CLAUDE_PROJECT_DIR (or $PWD) looking
 # for the ainotes config (<notes repo>/.config.yml), and exits 0 silently if none is found. The notes
@@ -55,7 +55,7 @@ cat <<EOF
 {
   "hookSpecificOutput": {
     "hookEventName": "SessionStart",
-    "additionalContext": "Near the top of this conversation (after understanding what the user is asking for, not before), ask whether they want to track this session's purpose as a task using the ainotes-tasks skill ($notes_repo/TASKS.md + $notes_repo/tasks/<slug>.md). Skip the ask if the session is clearly a trivial one-off question, or if a task-tracking skill (ainotes-task, ainotes-daily-plan, ainotes-tasks itself) already covers this session's purpose. If the user says yes, capture a short title and optional deadline and create the task per ainotes-tasks; since they're starting on it now, give it the second non-closed status from task_statuses in the ainotes config ($notes_repo/.config.yml; in-progress with the defaults) rather than the first. Status changes after that are only ever made when the user asks. If a Jira ticket or PR gets created later in this session for a task you created this way, update that task's file and TASKS.md row with the link before reporting it back to the user."
+    "additionalContext": "Near the top of this conversation (after understanding what the user is asking for, not before), ask whether they want to track this session's purpose as a task using the ax-tasks skill ($notes_repo/TASKS.md + $notes_repo/tasks/<slug>.md). Skip the ask if the session is clearly a trivial one-off question, or if a task-tracking skill (ax-task, ax-daily-plan, ax-tasks itself) already covers this session's purpose. If the user says yes, capture a short title and optional deadline and create the task per ax-tasks; since they're starting on it now, give it the second non-closed status from task_statuses in the ainotes config ($notes_repo/.config.yml; in-progress with the defaults) rather than the first. Status changes after that are only ever made when the user asks. If a Jira ticket or PR gets created later in this session for a task you created this way, update that task's file and TASKS.md row with the link before reporting it back to the user."
   }
 }
 EOF

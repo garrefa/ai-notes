@@ -1,7 +1,7 @@
 # AINotes viewer
 
 An optional, local browser viewer for AINotes notes repos. It lists and renders the notes, plans, daily plans, and tasks the
-`ainotes-*` skills write, lets you filter them by date range and tag, search them with a command
+`ax-*` skills write, lets you filter them by date range and tag, search them with a command
 palette (`Cmd/Ctrl+K`), create, edit, favorite and delete them in place, and browse the PRs
 tracked in `PRS.md` under **Pull requests**. Tasks show their status as a colored dot and can be moved between statuses from the
 viewer. You can track several notes repos at once and switch between them in one click.
@@ -141,8 +141,8 @@ Notes repos keep all their data directly at the repo root (see `templates/notes-
   plans/     dated plans
   daily/     daily plans (YYYY-MM-DD.md)
   tasks/     one file per task
-  reviews/   one note per reviewed PR (YYYY-MM-DD-<repo>-<number>.md, ainotes-review-notes)
-  INDEX.md   tag index (maintained by ainotes-notes)
+  reviews/   one note per reviewed PR (YYYY-MM-DD-<repo>-<number>.md, ax-review-notes)
+  INDEX.md   tag index (maintained by ax-notes)
   PRS.md     PR ledger: the "Pending (open)", "Merged" and "Closed (not merged)"
              tables, plus the optional "Pending — Detail" table that
              tools/check-prs.sh generates (shown in the Pull requests view)
@@ -175,7 +175,7 @@ favorite, say), the viewer moves to **All notes**.
 The **Date range** filter applies to **All notes**, **Notes**, **Plans**, **Daily** and **PR Reviews**
 only. Tasks, favorites, PRs and agents always list everything, whatever their date.
 
-**PR Reviews** lists `reviews/`, the notes `ainotes-review-notes` files for each PR you review. A
+**PR Reviews** lists `reviews/`, the notes `ax-review-notes` files for each PR you review. A
 review is titled by its `# Review: repo#123 · …` heading, shows its latest verdict (Approved,
 Commented or Changes requested) as its status, and is dated by its latest review (`last_reviewed:`),
 so a re-reviewed PR comes back up the list. The `<!-- review-history:end -->` marker in its body
@@ -198,9 +198,9 @@ runs git: commit the changes in your notes repo as usual.
 
 - **Create:** **New** in the header (or **New note, plan, daily plan or task…** in `Cmd/Ctrl+K`)
   opens a dialog preset to the current view's kind. It writes the file in the same shape the skills
-  do: `notes/` and `plans/` get `YYYY-MM-DD-<slug>.md` with the `ainotes-notes` frontmatter,
+  do: `notes/` and `plans/` get `YYYY-MM-DD-<slug>.md` with the `ax-notes` frontmatter,
   `daily/` gets `YYYY-MM-DD.md` (one per day; the dialog says so if it already exists), and
-  `tasks/` gets `YYYY-MM-DD-<slug>.md` with the `ainotes-tasks` frontmatter, a `## Purpose` and a
+  `tasks/` gets `YYYY-MM-DD-<slug>.md` with the `ax-tasks` frontmatter, a `## Purpose` and a
   `## Updates` section, in the first status. Notes and plans need at least one tag; dailies are
   tagged `daily-plan` and tasks `task` automatically. The path is added under each of its tags in
   `INDEX.md` (created if missing), and a new task gets a row in `TASKS.md`'s Open table (the ledger
@@ -213,7 +213,7 @@ runs git: commit the changes in your notes repo as usual.
   the note's `# heading` is shown once, at the top of the rendered note; a task's (its frontmatter
   `title:`) shows above the body. To change a note's title, edit its `# heading` in the body.
 - **Add task:** on every note, plan, daily plan, PR and agent, it opens the dialog as a task that
-  points back to the item, in the `ainotes-tasks` format. A note's path goes in the task's
+  points back to the item, in the `ax-tasks` format. A note's path goes in the task's
   `links:` and its tags become the task's starting tags. A PR goes in `prs:` and `TASKS.md`'s PRs
   cell, so the task shows under the PR's linked tasks. An agent's job, repo, worktree, state and
   last status are recorded, and any PRs it links to go in `prs:`. Each origin is also described in
@@ -280,7 +280,7 @@ detail panes the notes use.
 - **Search:** `Cmd/Ctrl+K` also finds PRs by title, repo, number or Jira key.
 
 The view updates live when `PRS.md` changes on disk. If the folder has no `PRS.md` (or no PRs in the
-chosen state), the list says so; `check prs` (the ainotes-pr-tracker skill) and
+chosen state), the list says so; `check prs` (the ax-pr-tracker skill) and
 `tools/check-prs.sh` maintain it.
 
 ## Task statuses

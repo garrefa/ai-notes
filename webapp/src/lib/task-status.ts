@@ -38,7 +38,7 @@ export function isBuiltinStatusKey(key: string): boolean {
   return BUILTIN_KEYS.has(key)
 }
 
-// Values older task files use (same mapping as the ainotes-tasks skill).
+// Values older task files use (same mapping as the ax-tasks skill).
 const LEGACY_STATUS_ALIASES: Record<string, string> = { open: "backlog", done: "done" }
 
 const HEX_COLOR_RE = /^#[0-9a-f]{6}$/i

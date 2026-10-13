@@ -1,7 +1,7 @@
 # PR Tracker
 
 Master ledger of every PR opened across this workspace's repos and its merge/close status. Kept
-in place (not dated) — see the `ainotes-pr-tracker` skill for how this file is maintained and how
+in place (not dated) — see the `ax-pr-tracker` skill for how this file is maintained and how
 "check prs" reconciles it against GitHub. Edit only the affected rows/section; never regenerate the
 whole file.
 
