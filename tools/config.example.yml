@@ -164,3 +164,10 @@ schedules:
 #   jira_done_transition: true     # needs the jira block; moves the PR's ticket to Done
 #   check_cmd: "gh api repos/acme/{repo}/dependabot/alerts --jq '[.[]|select(.state==\"open\")]|length'"
 #   slack_thread: {channel: "#alerts", ts: "1760000000.000100", template: "Closed: {pr} ({jira})"}
+
+# Optional: shape of the Slack message ax-pr-review-request posts. Default `full`.
+# `short` is one line, no summary: "Hey team :wave: could you please review <link|repo #n — title>?
+# Pending code owners: <@…> Thanks! 🙏". Slack mentions come first from the optional
+# <notes repo>/github-slack-people.yml (template: templates/github-slack-people.example.yml).
+# review_request:
+#   style: full            # full | short
