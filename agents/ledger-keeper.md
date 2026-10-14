@@ -115,6 +115,23 @@ before or after. Build the result only from its stdout: the `diff -u` it prints,
 A non-zero exit (including `gh` not authenticated) → `{error: "<stderr verbatim>"}`.
 Output: `{updated: [...], still_pending: [...], sha}`.
 
+## Locking
+
+`tools/check-prs.sh` (scheduled every few minutes) rewrites `PRS.md` and commits, so every write you
+make to a ledger shares one lock with it, `<toolkit_dir>/tools/ledger-lock.sh`. Without it, a
+concurrent `check-prs` run that read the file earlier writes its stale copy over your rows.
+
+1. Before the first edit of the call (before you even read the file you will edit):
+   `bash <toolkit_dir>/tools/ledger-lock.sh acquire <notes_repo> ledger-keeper`.
+   Exit 1 means it timed out waiting: write nothing and return `{error: "ledger lock busy"}`.
+2. Do all the edits and the commit (below) while holding it.
+3. Always release afterwards, on failure too:
+   `bash <toolkit_dir>/tools/ledger-lock.sh release <notes_repo>`.
+
+Take it once per call, not per operation. The exception is `check_prs`: the script takes the lock
+itself, so don't hold it while running it (the lock is not re-entrant — you would deadlock for the
+full wait). A lock you forget to release expires by itself after 10 minutes, but don't rely on it.
+
 ## Committing
 
 ```bash

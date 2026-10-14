@@ -29,6 +29,12 @@
 # If the config has a `jira.project_key`, the first matching ticket key in a
 # newly discovered PR's title fills its Jira column; otherwise it's "—".
 #
+# Concurrency: the run reads PRS.md up front and spends a while on gh calls, while the ledger-keeper
+# agent may edit and commit the same file. So it records a hash of PRS.md at the start and, right
+# before writing, takes the shared ledger lock (see ledger-lock.sh) and re-hashes: if the file
+# changed meanwhile it starts over from the fresh file (up to CHECK_PRS_MAX_ATTEMPTS, default 3),
+# then fails without writing. The lock is held through the commit.
+#
 # Exit status is 0 whether or not anything changed; check stdout / the git
 # log for that. Non-zero only on a genuine failure to run.
 
@@ -38,6 +44,7 @@ set -euo pipefail
 # Setup
 # ---------------------------------------------------------------------------
 
+ORIG_ARGS=("$@")
 DRY_RUN=0
 VERBOSE=0
 PRS_FILE=""
@@ -55,7 +62,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --org=*) ORG="${1#--org=}" ;;
     -h|--help)
-      sed -n '2,32p' "$0"
+      sed -n '2,38p' "$0"
       exit 0
       ;;
     -*) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -73,6 +80,8 @@ TODAY="$(date -u +%Y-%m-%d)"
 
 # shellcheck source=ainotes-config.sh
 source "$SCRIPT_DIR/ainotes-config.sh"
+# shellcheck source=ledger-lock.sh
+source "$SCRIPT_DIR/ledger-lock.sh"
 
 if [[ -n "$PRS_FILE" && -d "$(dirname "$PRS_FILE")" ]]; then
   CONFIG="$(find_ainotes_config "$(cd "$(dirname "$PRS_FILE")" && pwd)")" || CONFIG=""
@@ -117,7 +126,19 @@ if ! gh api user --jq '.login' >/dev/null 2>&1; then
 fi
 
 WORK="$(mktemp -d)"
-trap 'rm -rf "$WORK"' EXIT
+LEDGER_LOCK_HELD=0
+cleanup() {
+  rm -rf "$WORK"
+  [[ $LEDGER_LOCK_HELD -eq 1 ]] && ledger_lock_release "$NOTES_DIR"
+  return 0
+}
+trap cleanup EXIT
+
+# Content hash of the ledger, to notice another writer changing it during this run.
+ledger_hash() { cksum < "$PRS_FILE"; }
+START_HASH="$(ledger_hash)"
+ATTEMPT="${CHECK_PRS_ATTEMPT:-1}"
+MAX_ATTEMPTS="${CHECK_PRS_MAX_ATTEMPTS:-3}"
 
 PENDING_TSV="$WORK/pending.tsv"      # repo \t number \t opened \t jira \t lastchecked
 MERGED_TSV="$WORK/merged.tsv"        # repo \t number \t opened \t merged \t jira
@@ -284,13 +305,17 @@ done || true
 log "$(wc -l < "$PENDING_TSV" | tr -d ' ') pending row(s) loaded"
 
 # ---------------------------------------------------------------------------
-# Step 2 — org-wide discovery: open PRs authored by @me not already tracked
+# Step 2 — org-wide discovery: open PRs authored by or assigned to @me not already tracked
 # ---------------------------------------------------------------------------
 
-log "Searching $ORG org-wide for open PRs authored by @me (excluding archived repos)"
+log "Searching $ORG org-wide for open PRs authored by or assigned to @me (excluding archived repos)"
 
 discovered_json="$(gh_retry gh search prs --owner "$ORG" --author @me --state open --archived=false \
   --json number,repository,title,url,createdAt --limit 200)" || discovered_json="[]"
+assigned_json="$(gh_retry gh search prs --owner "$ORG" --assignee @me --state open --archived=false \
+  --json number,repository,title,url,createdAt --limit 200)" || assigned_json="[]"
+# Authored-by and assigned-to PRs, one entry per PR.
+discovered_json="$(jq -s 'add | unique_by(.url)' <(echo "$discovered_json") <(echo "$assigned_json"))"
 
 already_tracked() {
   awk -F'\t' -v r="$1" -v n="$2" '$1==r && $2==n {found=1} END{exit !found}' "$PENDING_TSV"
@@ -470,6 +495,26 @@ if [[ "$before_count" -ne "$after_count" ]]; then
   echo "check-prs: $after_count are accounted for across still-open/merged/closed. Aborting" >&2
   echo "check-prs: WITHOUT writing $PRS_FILE — this should never happen; treat it as a bug." >&2
   exit 1
+fi
+
+# ---------------------------------------------------------------------------
+# Step 4b — take the ledger lock; if PRS.md changed since this run read it, start over
+# ---------------------------------------------------------------------------
+
+if [[ $DRY_RUN -eq 0 ]]; then
+  ledger_lock_acquire "$NOTES_DIR" "check-prs" \
+    || { echo "check-prs: could not take the ledger lock — aborting without touching $PRS_FILE." >&2; exit 1; }
+  LEDGER_LOCK_HELD=1
+  if [[ "$(ledger_hash)" != "$START_HASH" ]]; then
+    if [[ $ATTEMPT -ge $MAX_ATTEMPTS ]]; then
+      echo "check-prs: $PRS_FILE changed under us on each of $MAX_ATTEMPTS attempts — aborting WITHOUT writing it (the next run will retry)." >&2
+      exit 1
+    fi
+    log "$PRS_FILE changed while this run was working — starting over (attempt $((ATTEMPT+1)) of $MAX_ATTEMPTS)"
+    cleanup; LEDGER_LOCK_HELD=0
+    trap - EXIT
+    CHECK_PRS_ATTEMPT=$((ATTEMPT+1)) exec bash "${BASH_SOURCE[0]}" ${ORIG_ARGS[@]+"${ORIG_ARGS[@]}"}
+  fi
 fi
 
 # ---------------------------------------------------------------------------

@@ -6,3 +6,6 @@ AGENTS.json.*
 # Untracked runtime state (caches, logs, rename tracker, the PR auto-reviewer's clone cache);
 # its tracked spend ledger is pr-reviews-ledger.jsonl at the root
 .state/
+
+# The lock directory ledger writers take around a PRS.md edit + commit (tools/ledger-lock.sh)
+.ledger.lock/

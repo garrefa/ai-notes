@@ -58,10 +58,10 @@ state_dir_of() {
 }
 
 # notes_gitignore_rules — the .gitignore lines every notes repo needs for its runtime state. All of
-# .state/ is local; tracked data (e.g. the PR auto-reviewer's pr-reviews-ledger.jsonl) lives at the
-# notes repo's root instead.
+# .state/ and the .ledger.lock/ directory (see ledger-lock.sh) are local; tracked data (e.g. the PR
+# auto-reviewer's pr-reviews-ledger.jsonl) lives at the notes repo's root instead.
 notes_gitignore_rules() {
-  printf '%s\n' '.state/'
+  printf '%s\n' '.state/' '.ledger.lock/'
 }
 
 # notes_gitignore_updated FILE — print FILE's content with the current notes_gitignore_rules
