@@ -215,29 +215,52 @@ cleanup_checkout() { local owner=$1 repo=$2 wt=$3
   git -C "$REPO_CACHE/$owner/$repo" worktree remove --force "$wt" >/dev/null 2>&1 || rm -rf "$wt"
 }
 
-# post_github_review <url> <sha> <review-json> — approve on zero findings, else inline COMMENT review
+# PII findings are blocking. The reviewer flags them (`pii: true`); this script, not the model, raises
+# them to at least major and asks for changes, so the rule can't be argued away in a prompt.
+normalize_review() {
+  jq -c '.findings |= map(if .pii and (.severity == "minor" or .severity == "nit") then .severity = "major" else . end)' <<<"$1"
+}
+
+# review_outcome <review-json> — the one decision behind the GitHub review event, the ledger result,
+# the console line and the note verdict: approved | commented | changes_requested
+review_outcome() {
+  jq -r 'if (.findings | length) == 0 then "approved"
+         elif any(.findings[]; .pii) then "changes_requested"
+         else "commented" end' <<<"$1"
+}
+
+# "[major · PII] title" — how a finding is labelled in the posted comments
+FINDING_LABEL_JQ='def finding_label:"[\(.severity)\(if .pii then " · PII" else "" end)] \(.title)";'
+
+# post_github_review <url> <sha> <review-json> — approve on zero findings, else an inline review:
+# a blocking one (event REQUEST_CHANGES) when a finding is about PII, a plain COMMENT otherwise
 post_github_review() {
-  local url=$1 sha=$2 review=$3 owner repo num count summary body
+  local url=$1 sha=$2 review=$3 owner repo num count summary body outcome event
   read -r owner repo num <<<"$(pr_parts "$url")"
   count=$(jq '.findings | length' <<<"$review")
   summary=$(jq -r '.summary' <<<"$review")
-  if (( count == 0 )); then
-    body=$summary
-    gh pr review "$url" --approve --body "$body" >>"$LOG" 2>&1
+  outcome=$(review_outcome "$review")
+  if [[ $outcome == approved ]]; then
+    gh pr review "$url" --approve --body "$summary" >>"$LOG" 2>&1
     return
   fi
   body="$summary"$'\n\n'"$count comment(s) inline."
+  event=COMMENT
+  if [[ $outcome == changes_requested ]]; then
+    event=REQUEST_CHANGES
+    body+=$'\n\n'"Changes requested: the PII findings below need to be resolved before this can merge."
+  fi
   local payload
-  payload=$(jq -c --arg sha "$sha" --arg body "$body" '{
-    commit_id: $sha, event: "COMMENT", body: $body,
-    comments: [.findings[] | {path, line, side: "RIGHT", body: "**[\(.severity)] \(.title)**\n\n\(.body)"}]
+  payload=$(jq -c --arg sha "$sha" --arg body "$body" --arg event "$event" "$FINDING_LABEL_JQ"'{
+    commit_id: $sha, event: $event, body: $body,
+    comments: [.findings[] | {path, line, side: "RIGHT", body: "**\(finding_label)**\n\n\(.body)"}]
   }' <<<"$review")
   if ! gh api "repos/$owner/$repo/pulls/$num/reviews" --input - <<<"$payload" >>"$LOG" 2>&1; then
     # A finding outside the diff makes GitHub reject the whole review; fall back to one body comment.
     log "inline review rejected for $url, falling back to body-only review"
-    payload=$(jq -c --arg sha "$sha" --arg body "$body" '{
-      commit_id: $sha, event: "COMMENT",
-      body: ($body + "\n\n" + ([.findings[] | "- **[\(.severity)] \(.title)** — `\(.path):\(.line)`\n  \(.body)"] | join("\n")))
+    payload=$(jq -c --arg sha "$sha" --arg body "$body" --arg event "$event" "$FINDING_LABEL_JQ"'{
+      commit_id: $sha, event: $event,
+      body: ($body + "\n\n" + ([.findings[] | "- **\(finding_label)** —`\(.path):\(.line)`\n  \(.body)"] | join("\n")))
     }' <<<"$review")
     gh api "repos/$owner/$repo/pulls/$num/reviews" --input - <<<"$payload" >>"$LOG" 2>&1
   fi
@@ -267,11 +290,11 @@ run_review() {
     log "review failed for $url: $(jq -r '.subtype // .result // "no output"' "$out" 2>/dev/null)"
     return 1
   fi
-  printf '%s' "$review"
+  normalize_review "$review"
 }
 
 # skip_reason <url> <pr-json> — prints why the PR needs no review and exits 0, or exits 1 if it does:
-#   closed:<state> | approved (by you, at head) | reviewed:<approved|commented> (by us, at head)
+#   closed:<state> | approved (by you, at head) | reviewed:<approved|commented|changes_requested> (by us, at head)
 skip_reason() {
   local url=$1 info=$2 state sha prev
   state=$(jq -r .state <<<"$info"); sha=$(jq -r .headRefOid <<<"$info")
@@ -298,7 +321,7 @@ publish_review() {
     record_spend review "$requester" "$url" "$sha" post-failed "$out"; return 1
   fi
   count=$(jq '.findings | length' <<<"$review")
-  result=$([[ $count -eq 0 ]] && echo approved || echo commented)
+  result=$(review_outcome "$review")
   record_spend review "$requester" "$url" "$sha" "$result" "$out"
   state_update '.reviews[$u] = {sha: $s, result: $r, findings: ($n|tonumber), at: $t}' \
     --arg u "$url" --arg s "$sha" --arg r "$result" --arg n "$count" --arg t "$(date -u +%FT%TZ)"
@@ -323,7 +346,7 @@ file_review_note() {
   [[ -x "$tool" ]] || { log "ainotes review-note tool not installed ($tool); no review note"; return 1; }
   jq -n --argjson info "$info" --argjson review "$review" --slurpfile out "$out" \
     --arg url "$url" --arg gh_review "$(my_latest_review_url "$url")" \
-    --arg model "$(cfg review_model)" --arg level "$(cfg review_level)" '
+    --arg model "$(cfg review_model)" --arg level "$(cfg review_level)" --arg verdict "$(review_outcome "$review")" '
     ($out[0] // {}) as $o
     | ([$info.statusCheckRollup[]? | (.conclusion // .state // "" | ascii_upcase)]) as $checks
     | {
@@ -336,7 +359,7 @@ file_review_note() {
                elif any($checks[]; IN("", "PENDING", "IN_PROGRESS", "QUEUED", "EXPECTED", "WAITING")) then "pending"
                else "success" end)
         },
-        review: ($review + {verdict: (if (($review.findings // []) | length) == 0 then "approved" else "commented" end)}),
+        review: ($review + {verdict: $verdict}),
         meta: {
           reviewer: {model: $model, level: $level},
           cost_usd: ($o.total_cost_usd // null),
@@ -361,7 +384,7 @@ cmd_spend() {
 }
 
 # review <pr-url> [--dry-run] — review one PR: skip rules, budget, read-only reviewer, then post the
-# approval or COMMENT review on GitHub. --dry-run posts nothing and ignores the skip rules.
+# approval, COMMENT review or (PII findings) blocking review on GitHub. --dry-run posts nothing and ignores the skip rules.
 # Exit codes: 0 reviewed or skipped, 1 failure, 3 monthly budget exhausted.
 cmd_review() {
   local url="" dry=false arg
@@ -379,15 +402,16 @@ cmd_review() {
   out="$RUN_DIR/review-$repo-$num.json"
   review=$(run_review cli "$url" "$info" "$budget" "$out") || die "review of $url failed (see $LOG)"
   local verdict cost
-  verdict=$(jq -r 'if (.findings|length)==0 then "approve" else "comment (\(.findings|length) findings)" end' <<<"$review")
+  verdict=$(review_outcome "$review")
+  [[ $verdict == approved ]] || verdict="${verdict//_/ } ($(jq '.findings | length' <<<"$review") findings)"
   cost=$(jq -r '.total_cost_usd * 100 | round / 100' "$out")
   if $dry; then
     record_spend review-dry-run cli "$url" "$sha" "would-$verdict" "$out"
-    echo "dry    $url would $verdict  \$$cost"; jq . <<<"$review"; return 0
+    echo "dry    $url would post: $verdict  \$$cost"; jq . <<<"$review"; return 0
   fi
   publish_review cli "$url" "$sha" "$review" "$out" || die "review of $url done but posting to GitHub failed (see $LOG)"
   local note; note=$(file_review_note "$url" "$info" "$review" "$out") || { log "review note for $url failed"; note=""; }
-  echo "done   $url $([[ $verdict == approve ]] && echo approved || echo "${verdict/comment/commented}")  \$$cost  — $title${note:+ (note: ${note#"$WORKSPACE"/})}"
+  echo "done   $url $verdict  \$$cost  — $title${note:+ (note: ${note#"$WORKSPACE"/})}"
 }
 
 cmd_status() {

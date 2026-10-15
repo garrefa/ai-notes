@@ -1,6 +1,6 @@
 ---
 name: ax-pr-review
-description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, free when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings or leaves a non-blocking inline COMMENT review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ax-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
+description: Headless Claude code reviews of the GitHub PRs waiting on your review, posted as you. `tools/check-pending-pr-reviews --review` lists the PRs requesting your review directly (gh only, free when nothing is pending) and runs `tools/pr-review.sh review` on each. That runs Claude Code's `/code-review` (default `high`, on Opus) against a private checkout, then approves with the review summary on zero findings, leaves an inline COMMENT review, or, when a finding is about personal data (PII), a blocking request-changes review. PRs already reviewed at their current commit, or approved by you there, are skipped. A monthly USD cap is enforced, every review's cost and tokens are logged, and each review is filed as a note via ax-review-notes. Trigger on "review my pending PRs", "review <PR>", "dry-run review <PR>", "review spend", "review status".
 ---
 
 # PR auto-review (ax-pr-review)
@@ -22,9 +22,11 @@ tools/check-pending-pr-reviews --review       # gh only: PRs requesting your rev
        ├─ private clone cache → detached worktree at the PR head (never your own checkouts)
        ├─ claude -p --model <review_model> --max-budget-usd min(per-review cap, remaining)
        │    → /code-review <review.level>; read-only tools, no MCP; structured output
-       │      {summary, key_changes, risk, follow_ups, findings[]}
-       ├─ zero findings → gh pr review --approve (summary as the body)
-       │  findings      → inline COMMENT review (falls back to body-only if GitHub rejects a line)
+       │      {summary, key_changes, risk, follow_ups, findings[] (each with a pii flag)}
+       ├─ zero findings      → gh pr review --approve (summary as the body)
+       │  findings           → inline COMMENT review (falls back to body-only if GitHub rejects a line)
+       │  any PII finding    → the same inline review, but blocking (request changes); PII findings
+       │                       are raised to at least major by the script
        ├─ pr-reviews-ledger.jsonl gets one line (PR, SHA, result, cost_usd, tokens); state.json records the SHA
        └─ review JSON piped to tools/review-note.sh (ax-review-notes) → <notes_repo>/reviews/
 ```
@@ -59,12 +61,28 @@ Run from anywhere in the workspace. `T=<workspace>/.claude/tools` (or the plugin
 Scheduling is optional and safe: it's the `pr-review` job of `ax-schedules` (for example
 `pr-review: every 30m 09:00-18:00 weekdays` under `schedules:`). With nothing pending a run costs nothing.
 
+## PII findings block the PR
+
+A finding about personal data is the one thing that makes the review blocking:
+
+- The reviewer marks a finding `pii: true` when it is about PII mishandling: personal or contact
+  data or auth secrets in logs, traces, metrics, error messages, analytics events or URLs; personal
+  data returned, stored or sent on without the project's classification, masking, encryption or
+  retention rules; or new personal-data fields left unclassified (`tools/pr-review.prompt.md`).
+- The script, not the model, then raises any `pii` finding below `major` to `major` (a `blocker`
+  stays a `blocker`), labels it `[major · PII]` in the posted comment, and posts the review as
+  request changes instead of a plain comment. The ledger result and the review note's verdict
+  are `changes_requested`.
+- The block lasts until you approve the PR or dismiss the review on GitHub. A new commit is not
+  re-reviewed on its own (the PR leaves your queue once you've reviewed it), so re-run
+  `pr-review.sh review <url>` or ask the author to re-request your review.
+
 ## What this skill will never do
 
 - Post anything with an automation tag. Reviews read as written by you, so only run `--review` on
-  PRs you're comfortable approving or commenting on in your own name.
+  PRs you're comfortable approving, commenting on or blocking in your own name.
 - Let the reviewer model write. It has no Edit/Write, no `gh pr review/comment/merge`, no
   `gh api`, no push and no MCP servers. Only the script publishes, using the model's structured
   output. PR content is treated as untrusted data in the prompt.
 - Review a PR again at a commit it already reviewed, or go past the monthly budget.
-- Merge, request changes (blocking), or touch your own checkouts.
+- Merge, touch your own checkouts, or block a PR for anything other than a PII finding.

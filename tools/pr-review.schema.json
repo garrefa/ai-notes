@@ -22,9 +22,10 @@
           "line": {"type": "integer", "minimum": 1},
           "severity": {"type": "string", "enum": ["blocker", "major", "minor", "nit"]},
           "title": {"type": "string", "maxLength": 80},
-          "body": {"type": "string"}
+          "body": {"type": "string"},
+          "pii": {"type": "boolean"}
         },
-        "required": ["path", "line", "severity", "title", "body"],
+        "required": ["path", "line", "severity", "title", "body", "pii"],
         "additionalProperties": false
       }
     }

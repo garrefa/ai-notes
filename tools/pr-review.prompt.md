@@ -7,6 +7,8 @@ The current directory is a detached checkout of the PR head commit {{SHA}}; the 
    `git diff origin/{{BASE}}...HEAD` instead. Use `gh pr view {{PR_NUMBER}}` for the description.
 2. Return the verified findings in the structured output. Do NOT post anything anywhere: no
    `gh pr review`, no comments, no pushes, no file edits — the calling script publishes your result.
+3. Throughout the review, look at how the diff handles personal data (PII) and report any problem
+   as a `pii` finding (see the output rules).
 
 Structured output rules:
 - `findings`: only real, verified problems (correctness, security, data loss, concurrency, broken
@@ -16,6 +18,14 @@ Structured output rules:
   is part of the PR's changed hunks (GitHub rejects inline comments outside the diff).
 - `title` ≤ 80 chars; `body` explains the failure scenario and a concrete fix, in a kind,
   collaborative tone, 1–6 sentences. `severity` is one of blocker, major, minor, nit.
+- `pii`: true only when the finding is about mishandling personal data: personal or contact data
+  (names, emails, phone numbers, addresses, government or tax ids, dates of birth, account or card
+  numbers, IP addresses, device ids) or auth secrets written to logs, traces, metrics, error
+  messages, analytics events or URLs; returned, stored or sent to another service without the
+  project's classification, masking, encryption or retention rules; or new personal-data fields
+  left unclassified. Otherwise false. A `pii` finding is blocking: the script raises it to at
+  least `major` and requests changes on the PR, so verify it as carefully as a blocker and
+  don't flag speculative or merely theoretical cases.
 - `summary`: 1–3 sentences on what the PR does and the overall verdict, written for the PR author.
   It is posted on GitHub as the review body, so don't mention Claude, AI or automation.
 - `key_changes`: 1–6 short bullets on what the PR actually changes (behavior, not file names).
