@@ -14,3 +14,9 @@
   - Each write commits only the files it touched and never pushes; `--no-commit` leaves it to you.
     `delete` needs `--yes`.
   - `--json` on `list`, `search` and `show`.
+  - Writes also take `--jira`, `--worktree`, `--add-link` and `--message`, and a `commit` command makes
+    one commit out of several `--no-commit` writes (an outcome note plus the plan's status flip).
+- `ax-notes` and the `notetaker` agent now write through `notes.sh` instead of creating files, editing
+  `INDEX.md` and running `git add -A` by hand. The agent's contract with `ax-task`, `ax-report` and
+  the other callers is unchanged. Looking up related notes uses `notes.sh list`/`search` instead of
+  grepping the folders.

@@ -189,7 +189,7 @@ anything user-facing stay on your main model.
 
 | Agent | Role |
 |---|---|
-| `notetaker` | The only writer for notes, plans and their `INDEX.md` entries |
+| `notetaker` | The only writer for notes, plans and their `INDEX.md` entries; it writes through `tools/notes.sh` |
 | `ledger-keeper` | The only writer for `PRS.md`, `TASKS.md`, task files and daily plans; runs `check-prs.sh` |
 | `pr-poller` | Polls open PRs for `babysit prs`; may rerun a failed job or update a stale branch; never comments, merges or pushes |
 | `review-inbox-poller` | Summarizes and prioritizes PRs for `review-inbox`; pure judgment over data it's given, makes no gh/API calls |

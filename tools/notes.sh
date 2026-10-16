@@ -14,10 +14,12 @@
 #   notes.sh show   REF [--json]
 #   notes.sh create --title TITLE [--type note|plan] [--slug SLUG] [--repo REPO] [--domain a,b]
 #                   [--tags a,b] [--epic KEY] [--status STATUS] [--link PATH]... [--body FILE|-]
-#                   [--date YYYY-MM-DD] [--no-commit]
+#                   [--date YYYY-MM-DD] [--jira KEY] [--worktree PATH] [--message MSG] [--no-commit]
 #   notes.sh update REF [--title TITLE] [--status STATUS] [--repo REPO] [--epic KEY] [--domain a,b]
-#                   [--tags a,b] [--add-tag TAG]... [--link PATH]... [--body FILE|-] [--no-commit]
-#   notes.sh delete REF --yes [--no-commit]
+#                   [--tags a,b] [--add-tag TAG]... [--link PATH]... [--add-link PATH]...
+#                   [--jira KEY] [--worktree PATH] [--body FILE|-] [--message MSG] [--no-commit]
+#   notes.sh delete REF --yes [--message MSG] [--no-commit]
+#   notes.sh commit --message MSG PATH...
 #
 #   KIND  where a file lives: the top-level folder (notes, plans, daily, reviews, tasks, support-kb,
 #         ...) or `root` for files directly in the notes repo (INDEX.md, PRS.md, ...); default all.
@@ -37,10 +39,14 @@
 #   - at least one tag across --domain and --tags is required (untagged files are invisible to
 #     INDEX.md); each tag gets the file appended under its `## tag` section, never a regenerated file;
 #   - a plan's body is immutable: `update --body` only works on notes (plans take frontmatter edits);
-#   - tag/domain/--link values REPLACE the field on update; --add-tag appends to `tags`;
+#   - tag/domain/--link values REPLACE the field on update; --add-tag and --add-link append;
 #   - every write is committed to the notes repo's current branch with only the files it touched
-#     (never `git add -A`, never a push); --no-commit leaves committing to the caller. INDEX.md is
-#     left alone (and said so on stderr) when it already has uncommitted edits.
+#     (never `git add -A`, never a push), message "Add|Update|Delete <type>: <slug>" unless
+#     --message is given. INDEX.md is left alone (and said so on stderr) when it already has
+#     uncommitted edits.
+#   - several changes in one commit: run each with --no-commit, then
+#     `notes.sh commit --message MSG <each touched path> INDEX.md` (commit takes only notes/*.md,
+#     plans/*.md and INDEX.md).
 #
 # Needs git; --json output needs jq. bash 3.2-safe.
 
@@ -98,9 +104,10 @@ fm_list() {
     index($0, key ":") == 1 {
       v = substr($0, length(key) + 2); sub(/^[ \t]+/, "", v)
       if (v ~ /^\[/) { gsub(/^\[|\]$/, "", v); n = split(v, a, /,[ \t]*/)
-                       for (i = 1; i <= n; i++) if (a[i] != "") print a[i]; exit }
+                       for (i = 1; i <= n; i++) { gsub(/^["\047]|["\047]$/, "", a[i]); if (a[i] != "") print a[i] }
+                       exit }
       inblock = 1; next }
-    inblock && /^[ \t]+-[ \t]/ { v = $0; sub(/^[ \t]+-[ \t]+/, "", v); print v; next }
+    inblock && /^[ \t]+-[ \t]/ { v = $0; sub(/^[ \t]+-[ \t]+/, "", v); gsub(/^["\047]|["\047]$/, "", v); print v; next }
     inblock { exit }'
 }
 
@@ -261,7 +268,7 @@ index_file() { echo "$NOTES_DIR/INDEX.md"; }
 # index_is_writable — INDEX.md exists and has no uncommitted edits that we would sweep into a commit
 index_is_writable() {
   [[ -f "$(index_file)" ]] || { warn "no INDEX.md; skipping indexing"; return 1; }
-  if in_git_repo && [[ -n "$(git -C "$NOTES_DIR" status --porcelain -- INDEX.md)" ]]; then
+  if [[ "$NO_COMMIT" != 1 ]] && in_git_repo && [[ -n "$(git -C "$NOTES_DIR" status --porcelain -- INDEX.md)" ]]; then
     warn "INDEX.md has uncommitted edits; not touching it (re-run indexing by hand)"
     return 1
   fi
@@ -325,9 +332,9 @@ index_tags() { { fm_list "$1" domain; fm_list "$1" tags; } | awk 'NF && !seen[$0
 # Git
 # ---------------------------------------------------------------------------------------------
 
-# commit MESSAGE PATH... — commit only these paths (relative to NOTES_DIR)
-commit() {
-  local message="$1"; shift
+# commit_paths DEFAULT_MESSAGE PATH... — commit only these paths (relative to NOTES_DIR); --message overrides the message
+commit_paths() {
+  local message="${MESSAGE:-$1}"; shift
   in_git_repo || return 0
   [[ "$NO_COMMIT" == 1 ]] && return 0
   git -C "$NOTES_DIR" add -A -- "$@"
@@ -464,7 +471,7 @@ slugify() { printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9]\{1,
 
 cmd_create() {
   local type=note title="" slug="" repo="" domain="" tags="" epic="" status="" date_="" bodyspec=""
-  local links=() bodyfile="" item
+  local jira="" worktree="" links=() bodyfile="" item
   NO_COMMIT=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -477,8 +484,11 @@ cmd_create() {
       --epic) epic="${2:?}"; shift 2 ;;
       --status) status="${2:?}"; shift 2 ;;
       --date) date_="${2:?}"; shift 2 ;;
+      --jira) jira="${2:?}"; shift 2 ;;
+      --worktree) worktree="${2:?}"; shift 2 ;;
       --link) links+=("${2:?}"); shift 2 ;;
       --body) bodyspec="${2:?}"; shift 2 ;;
+      --message) MESSAGE="${2:?}"; shift 2 ;;
       --no-commit) NO_COMMIT=1; shift ;;
       *) die "create: unknown option $1" ;;
     esac
@@ -509,7 +519,7 @@ cmd_create() {
     render_list_field domain "${domain_items[@]+"${domain_items[@]}"}"
     printf 'epic: %s\n' "${epic:-null}"
     render_list_field tags "${tag_items[@]+"${tag_items[@]}"}"
-    printf 'jira: null\nworktree: null\nstatus: %s\n' "$status"
+    printf 'jira: %s\nworktree: %s\nstatus: %s\n' "${jira:-null}" "${worktree:-null}" "$status"
     render_list_field links "${links[@]+"${links[@]}"}"
     printf -- '---\n\n'
     if [[ -n "$bodyfile" ]]; then
@@ -525,13 +535,13 @@ cmd_create() {
     while IFS= read -r item; do index_add "$item" "$rel"; done < <(index_tags "$file")
     paths+=(INDEX.md)
   fi
-  local sha; sha="$(commit "Add $type: $slug" "${paths[@]}")"
+  local sha; sha="$(commit_paths "Add $type: $slug" "${paths[@]}")"
   printf '%s%s\n' "$rel" "${sha:+ ($sha)}"
 }
 
 cmd_update() {
   local ref="" title="" status="" repo="" epic="" domain="" tags="" bodyspec="" set_domain=0 set_tags=0
-  local add_tags=() links=() set_links=0 item
+  local add_tags=() links=() add_links=() set_links=0 jira="" worktree="" item
   NO_COMMIT=0
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -543,7 +553,11 @@ cmd_update() {
       --tags) tags="${2:?}"; set_tags=1; shift 2 ;;
       --add-tag) add_tags+=("${2:?}"); shift 2 ;;
       --link) links+=("${2:?}"); set_links=1; shift 2 ;;
+      --add-link) add_links+=("${2:?}"); shift 2 ;;
+      --jira) jira="${2:?}"; shift 2 ;;
+      --worktree) worktree="${2:?}"; shift 2 ;;
       --body) bodyspec="${2:?}"; shift 2 ;;
+      --message) MESSAGE="${2:?}"; shift 2 ;;
       --no-commit) NO_COMMIT=1; shift ;;
       -*) die "update: unknown option $1" ;;
       *) [[ -z "$ref" ]] || die "update: one REF only"; ref="$1"; shift ;;
@@ -554,10 +568,13 @@ cmd_update() {
   rel="$(resolve_ref "$ref")"; require_editable "$rel"; file="$NOTES_DIR/$rel"
   type="$(fm_get "$file" type)"; slug="$(basename "$rel" .md)"
   if [[ -n "$bodyspec" && "$type" == plan ]]; then die "update: a plan's body is immutable; write a new note and --link it instead"; fi
-  if [[ -z "$title$status$repo$epic$bodyspec" && $set_domain$set_tags$set_links == 000 && ${#add_tags[@]} -eq 0 ]]; then
+  if [[ -z "$title$status$repo$epic$jira$worktree$bodyspec" && $set_domain$set_tags$set_links == 000 \
+        && ${#add_tags[@]} -eq 0 && ${#add_links[@]} -eq 0 ]]; then
     die "update: nothing to change"
   fi
-  for item in "${links[@]+"${links[@]}"}"; do [[ -f "$NOTES_DIR/$item" ]] || die "update: --link target not found: $item"; done
+  for item in "${links[@]+"${links[@]}"}" "${add_links[@]+"${add_links[@]}"}"; do
+    [[ -z "$item" || -f "$NOTES_DIR/$item" ]] || die "update: link target not found: $item"
+  done
 
   local old_tags original="$file"; old_tags="$(index_tags "$file")"
   file="$(mktemp "${TMPDIR:-/tmp}/notes.XXXXXX")"; cp "$original" "$file"
@@ -566,6 +583,8 @@ cmd_update() {
   [[ -z "$status" ]] || set_field "$file" status "status: $status"
   [[ -z "$repo" ]] || set_field "$file" repo "repo: $repo"
   [[ -z "$epic" ]] || set_field "$file" epic "epic: $epic"
+  [[ -z "$jira" ]] || set_field "$file" jira "jira: $jira"
+  [[ -z "$worktree" ]] || set_field "$file" worktree "worktree: $worktree"
 
   if [[ $set_domain == 1 ]]; then
     local d=(); while IFS= read -r item; do d+=("$item"); done < <(split_csv "$domain")
@@ -580,8 +599,13 @@ cmd_update() {
     local uniq=(); while IFS= read -r item; do uniq+=("$item"); done < <(printf '%s\n' "${t[@]+"${t[@]}"}" | awk 'NF && !seen[$0]++')
     set_field "$file" tags "$(render_list_field tags "${uniq[@]+"${uniq[@]}"}")"
   fi
-  if [[ $set_links == 1 ]]; then
-    set_field "$file" links "$(render_list_field links "${links[@]}")"
+  if [[ $set_links == 1 || ${#add_links[@]} -gt 0 ]]; then
+    local l=()
+    if [[ $set_links == 1 ]]; then l=("${links[@]}")
+    else while IFS= read -r item; do l+=("$item"); done < <(fm_list "$file" links); fi
+    for item in "${add_links[@]+"${add_links[@]}"}"; do l+=("$item"); done
+    local uniq_links=(); while IFS= read -r item; do uniq_links+=("$item"); done < <(printf '%s\n' "${l[@]+"${l[@]}"}" | awk 'NF && !seen[$0]++')
+    set_field "$file" links "$(render_list_field links "${uniq_links[@]+"${uniq_links[@]}"}")"
   fi
 
   if [[ -n "$bodyspec" ]]; then
@@ -603,7 +627,7 @@ cmd_update() {
     while IFS= read -r item; do index_add "$item" "$rel"; done < <(printf '%s\n' "$new_tags")
     paths+=(INDEX.md)
   fi
-  local sha; sha="$(commit "Update $type: $slug" "${paths[@]}")"
+  local sha; sha="$(commit_paths "Update $type: $slug" "${paths[@]}")"
   printf '%s%s\n' "$rel" "${sha:+ ($sha)}"
 }
 
@@ -637,6 +661,7 @@ cmd_delete() {
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --yes) yes=1; shift ;;
+      --message) MESSAGE="${2:?}"; shift 2 ;;
       --no-commit) NO_COMMIT=1; shift ;;
       -*) die "delete: unknown option $1" ;;
       *) [[ -z "$ref" ]] || die "delete: one REF only"; ref="$1"; shift ;;
@@ -650,8 +675,30 @@ cmd_delete() {
   rm -f "$NOTES_DIR/$rel"
   local paths=("$rel")
   if index_is_writable; then index_remove "$rel"; paths+=(INDEX.md); fi
-  local sha; sha="$(commit "Delete ${type:-note}: $slug" "${paths[@]}")"
+  local sha; sha="$(commit_paths "Delete ${type:-note}: $slug" "${paths[@]}")"
   printf 'deleted %s%s\n' "$rel" "${sha:+ ($sha)}"
+}
+
+# cmd_commit --message MSG PATH... — one commit for several --no-commit writes. Takes only the files
+# this tool writes (notes/*.md, plans/*.md, INDEX.md); deleted paths are fine.
+cmd_commit() {
+  local paths=() path
+  NO_COMMIT=0
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --message) MESSAGE="${2:?}"; shift 2 ;;
+      -*) die "commit: unknown option $1" ;;
+      *) path="${1#./}"
+         [[ "$path" != /* && "$path" != *..* ]] || die "commit: path must be inside the notes repo: $1"
+         [[ "$path" == INDEX.md ]] || require_editable "$path"
+         paths+=("$path"); shift ;;
+    esac
+  done
+  [[ -n "$MESSAGE" ]] || die "commit: --message is required"
+  [[ ${#paths[@]} -gt 0 ]] || die "commit: at least one PATH is required"
+  in_git_repo || die "commit: $NOTES_DIR is not a git repo"
+  [[ -n "$(git -C "$NOTES_DIR" status --porcelain -- "${paths[@]}")" ]] || die "commit: nothing to commit in the given paths"
+  printf 'committed %s\n' "$(commit_paths "" "${paths[@]}")"
 }
 
 main() {
@@ -661,7 +708,7 @@ main() {
   esac
   shift
   require_notes_dir
-  NO_COMMIT=0
+  NO_COMMIT=0; MESSAGE=""
   case "$cmd" in
     list|ls) cmd_list "$@" ;;
     search|grep|find) cmd_search "$@" ;;
@@ -669,7 +716,8 @@ main() {
     create|add|new) cmd_create "$@" ;;
     update|edit) cmd_update "$@" ;;
     delete|rm) cmd_delete "$@" ;;
-    *) die "unknown command '$cmd' (list, search, show, create, update, delete)" ;;
+    commit) cmd_commit "$@" ;;
+    *) die "unknown command '$cmd' (list, search, show, create, update, delete, commit)" ;;
   esac
 }
 
