@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 #
-# notes.sh — CRUD command line for the notes and plans in the workspace's notes repo.
+# notes.sh — command line for the notes repo: CRUD for notes and plans, plus listing, reading and
+# searching every other file in it (daily plans, reviews, tasks, the support KB, the ledgers).
 #
 # The notes repo is whatever directory the AINOTES_DIR environment variable names (the folder that
-# holds `.config.yml`, with `notes/`, `plans/` and `INDEX.md` directly inside). Nothing is
-# discovered from the current directory, so it works from anywhere and in scripts.
+# holds `.config.yml`). Nothing is discovered from the current directory, so it works from anywhere
+# and in scripts.
 #
 # Usage:
-#   notes.sh list   [--type note|plan|all] [--tag TAG] [--repo REPO] [--json]
+#   notes.sh list   [--kind KIND] [--type note|plan] [--tag TAG] [--repo REPO] [--name TEXT] [--json]
+#   notes.sh search PATTERN [--kind KIND] [--tag TAG] [--repo REPO] [--regex] [--case] [--files]
+#                   [--json]
 #   notes.sh show   REF [--json]
 #   notes.sh create --title TITLE [--type note|plan] [--slug SLUG] [--repo REPO] [--domain a,b]
 #                   [--tags a,b] [--epic KEY] [--status STATUS] [--link PATH]... [--body FILE|-]
@@ -16,10 +19,20 @@
 #                   [--tags a,b] [--add-tag TAG]... [--link PATH]... [--body FILE|-] [--no-commit]
 #   notes.sh delete REF --yes [--no-commit]
 #
-#   REF   a path relative to AINOTES_DIR (notes/2026-09-03-foo.md), or a filename / slug that
-#         matches exactly one note or plan (2026-09-03-foo, or just foo).
+#   KIND  where a file lives: the top-level folder (notes, plans, daily, reviews, tasks, support-kb,
+#         ...) or `root` for files directly in the notes repo (INDEX.md, PRS.md, ...); default all.
+#         `--type note|plan` matches the frontmatter `type:` instead (so it skips the html/json
+#         assets kept in notes/<name>-data/ folders).
+#   REF   a path relative to AINOTES_DIR (notes/2026-09-03-foo.md, INDEX.md), or a filename / slug
+#         that matches exactly one file (2026-09-03-foo, or just foo).
 #
-# Rules it keeps, the same ones the ax-notes skill documents:
+# list/search/show cover every file in the notes repo except .git/, .state/ and node_modules/.
+# search looks inside file contents: case-insensitive fixed text by default, --regex for an
+# extended regular expression, --case to match case, --files to print matching files only.
+# Rows show the file's `# title`, else its first heading, else its filename.
+#
+# create/update/delete only work on notes/ and plans/; the other folders and the ledgers belong to
+# ax-tasks, ax-daily-plan, ax-pr-tracker and ax-review-notes. They keep the ax-notes rules:
 #   - files are `<type>s/YYYY-MM-DD-slug.md` with the ax-notes frontmatter, and a `# title` line;
 #   - at least one tag across --domain and --tags is required (untagged files are invisible to
 #     INDEX.md); each tag gets the file appended under its `## tag` section, never a regenerated file;
@@ -29,13 +42,11 @@
 #     (never `git add -A`, never a push); --no-commit leaves committing to the caller. INDEX.md is
 #     left alone (and said so on stderr) when it already has uncommitted edits.
 #
-# Needs git; --json output needs jq. Task, daily and ledger files are not handled here (ax-tasks and
-# ax-daily-plan own them). bash 3.2-safe.
+# Needs git; --json output needs jq. bash 3.2-safe.
 
 set -euo pipefail
 
 PROG="$(basename "$0")"
-TYPES="note plan"
 
 die() { printf '%s: %s\n' "$PROG" "$*" >&2; exit 1; }
 warn() { printf '%s: %s\n' "$PROG" "$*" >&2; }
@@ -71,8 +82,8 @@ type_dir() {
 # frontmatter FILE — the lines between the first two `---` markers
 frontmatter() { awk 'NR==1 && $0!="---" {exit} NR>1 && $0=="---" {exit} NR>1 {print}' "$1"; }
 
-# body FILE — everything after the closing `---`
-body() { awk 'c>=2 {print; next} $0=="---" {c++}' "$1"; }
+# body FILE — everything after the closing `---` (the whole file when it has no frontmatter)
+body() { awk 'NR==1 && $0!="---" {c=2} c>=2 {print; next} $0=="---" {c++}' "$1"; }
 
 # fm_get FILE KEY — the field's value as written, quotes trimmed ([a, b] stays as a flow list)
 fm_get() {
@@ -93,8 +104,42 @@ fm_list() {
     inblock { exit }'
 }
 
-# note_title FILE — the first `# title` line of the body
-note_title() { body "$1" | awk '/^# / {sub(/^# /, ""); print; exit}'; }
+# file_row REL — a tab-separated row for the file at REL (relative to NOTES_DIR), read in one pass:
+# path, date, kind, type, status, repo, title. date/type/status/repo come from frontmatter (date falls
+# back to a YYYY-MM-DD filename prefix); the title is the first `# ` heading outside code fences, else
+# the first heading of any level, else the filename without its date prefix and extension.
+file_row() {
+  local rel="$1" kind base markdown=0
+  kind="$(kind_of "$rel")"
+  base="$(basename "$rel")"
+  # only markdown has headings; `# ...` in .yml/.gitignore is a comment, so those titles are the filename
+  case "$base" in *.md) markdown=1; base="${base%.md}" ;; esac
+  awk -v rel="$rel" -v kind="$kind" -v base="$base" -v markdown="$markdown" '
+    function trim(v) { sub(/^[ \t]+/, "", v); sub(/[ \t\r]+$/, "", v); gsub(/^["\047]|["\047]$/, "", v); return v }
+    NR == 1 && $0 == "---" { infm = 1; next }
+    infm && $0 == "---" { infm = 0; next }
+    infm {
+      for (i = 1; i <= 4; i++) {
+        key = (i == 1 ? "date" : i == 2 ? "type" : i == 3 ? "status" : "repo")
+        if (index($0, key ":") == 1) fm[key] = trim(substr($0, length(key) + 2))
+      }
+      next
+    }
+    !markdown { next }
+    /^(```|~~~)/ { fence = !fence; next }
+    fence { next }
+    /^# / && h1 == "" { h1 = $0; sub(/^# +/, "", h1); h1 = trim(h1); next }
+    /^#+ / && any == "" { any = $0; sub(/^#+ +/, "", any); any = trim(any) }
+    END {
+      date = fm["date"]
+      if (date == "" && base ~ /^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]/) date = substr(base, 1, 10)
+      title = (h1 != "" ? h1 : any != "" ? any : base)
+      if (h1 == "" && any == "") sub(/^[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-/, "", title)
+      if (fm["status"] == "null") fm["status"] = ""
+      if (fm["repo"] == "null") fm["repo"] = ""
+      printf "%s\t%s\t%s\t%s\t%s\t%s\t%s\n", rel, (date == "" ? "-" : date), kind, fm["type"], fm["status"], fm["repo"], title
+    }' "$NOTES_DIR/$rel"
+}
 
 # join_flow ITEM... — `[a, b]`
 join_flow() {
@@ -167,24 +212,42 @@ read_body() {
 # Resolving a REF to a file
 # ---------------------------------------------------------------------------------------------
 
-all_files() { ls -1 "$NOTES_DIR"/notes/*.md "$NOTES_DIR"/plans/*.md 2>/dev/null || true; }
+# all_files — every file in the notes repo (relative paths, sorted), minus .git/, .state/, node_modules/
+all_files() {
+  (cd "$NOTES_DIR" && find . \( -name .git -o -name .state -o -name node_modules \) -prune -o \
+    -type f ! -name .DS_Store -print | sed 's|^\./||' | sort)
+}
+
+# kind_of REL — the top-level folder a file lives in, or `root`
+kind_of() { case "$1" in */*) echo "${1%%/*}" ;; *) echo root ;; esac; }
+
+# require_editable REL — only notes/ and plans/ are written by this tool
+require_editable() {
+  case "$1" in
+    notes/*/*|plans/*/*) die "$1 is an asset inside a note's data folder; only notes/*.md and plans/*.md are editable" ;;
+    notes/*.md|plans/*.md) ;;
+    *) die "$1 is read-only here: create/update/delete only handle notes/ and plans/ (other folders and the ledgers are owned by their ax-* skills)" ;;
+  esac
+}
 
 # resolve_ref REF — prints the path relative to NOTES_DIR; dies if none or several match
 resolve_ref() {
-  local ref="$1" rel matches count
-  ref="${ref#./}"
-  if [[ "$ref" == notes/*.md || "$ref" == plans/*.md ]]; then
-    [[ "$ref" != *..* ]] || die "path may not contain '..': $ref"
-    [[ -f "$NOTES_DIR/$ref" ]] || die "no such file: $ref"
+  local ref="${1#./}" rel base matches count
+  [[ "$ref" != /* && "$ref" != *..* ]] || die "path must be inside the notes repo: $1"
+  case "$ref" in
+    .git|.git/*|.state|.state/*|node_modules/*) die "$ref is not a notes file" ;;
+  esac
+  if [[ -f "$NOTES_DIR/$ref" ]]; then
+    [[ ! -L "$NOTES_DIR/$ref" ]] || die "$ref is a symlink; refusing to follow it out of the notes repo"
     echo "$ref"; return
   fi
   ref="${ref%.md}"
   matches="$(all_files | while IFS= read -r rel; do
-    rel="${rel#"$NOTES_DIR"/}"; base="$(basename "$rel" .md)"
+    base="${rel##*/}"; base="${base%.*}"
     if [[ "$base" == "$ref" || "$base" == ????-??-??-"$ref" ]]; then echo "$rel"; fi
   done)"
   count="$(printf '%s' "$matches" | awk 'NF' | wc -l | tr -d ' ')"
-  [[ "$count" -ge 1 ]] || die "no note or plan matches '$ref'"
+  [[ "$count" -ge 1 ]] || die "no file matches '$ref'"
   [[ "$count" -eq 1 ]] || die "'$ref' is ambiguous; use a path:"$'\n'"$matches"
   echo "$matches"
 }
@@ -276,45 +339,103 @@ commit() {
 # Commands
 # ---------------------------------------------------------------------------------------------
 
-# list_row FILE — a tab-separated row: path, date, type, status, repo, title
-list_row() {
-  local file="$1" rel="${1#"$NOTES_DIR"/}"
-  printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$rel" "$(fm_get "$file" date)" "$(fm_get "$file" type)" \
-    "$(fm_get "$file" status)" "$(fm_get "$file" repo)" "$(note_title "$file")"
+# set_filter OPTION VALUE — record a list/search filter in F_KIND / F_TAG / F_REPO / F_NAME
+F_KIND=""; F_TYPE=""; F_TAG=""; F_REPO=""; F_NAME=""
+set_filter() {
+  case "$1" in
+    --kind) F_KIND="$2" ;;
+    --type)
+      case "$2" in
+        note|plan) F_TYPE="$2" ;;
+        all) F_TYPE="" ;;
+        *) die "--type must be note, plan or all (use --kind for other folders)" ;;
+      esac ;;
+    --tag) F_TAG="$2" ;;
+    --repo) F_REPO="$2" ;;
+    --name) F_NAME="$(printf '%s' "$2" | tr '[:upper:]' '[:lower:]')" ;;
+  esac
+}
+
+# select_rows — the file_row of every file matching the filters, oldest first
+select_rows() {
+  local rel row hits
+  while IFS= read -r rel; do
+    [[ -n "$rel" ]] || continue
+    [[ -z "$F_KIND" || "$F_KIND" == all || "$(kind_of "$rel")" == "$F_KIND" ]] || continue
+    if [[ -n "$F_NAME" ]]; then
+      [[ "$(printf '%s' "$rel" | tr '[:upper:]' '[:lower:]')" == *"$F_NAME"* ]] || continue
+    fi
+    row="$(file_row "$rel")"
+    [[ -z "$F_TYPE" || "$(printf '%s' "$row" | cut -f4)" == "$F_TYPE" ]] || continue
+    [[ -z "$F_REPO" || "$(printf '%s' "$row" | cut -f6)" == "$F_REPO" ]] || continue
+    if [[ -n "$F_TAG" ]]; then
+      hits="$(index_tags "$NOTES_DIR/$rel" | grep -cxF -- "$F_TAG" || true)"
+      [[ "$hits" -gt 0 ]] || continue
+    fi
+    printf '%s\n' "$row"
+  done < <(all_files) | sort -t$'\t' -k2,2 -k1,1
+}
+
+# print_rows JSON — render file_row lines from stdin, as JSON or as `date  kind  title` + path
+print_rows() {
+  if [[ "$1" == 1 ]]; then
+    command -v jq >/dev/null || die "--json needs jq on PATH"
+    jq -R -s 'split("\n") | map(select(length>0) | split("\t")
+      | {path: .[0], date: .[1], kind: .[2], type: .[3], status: .[4], repo: .[5], title: .[6]})'
+  else
+    awk -F'\t' '{printf "%-10s  %-10s  %s\n", $2, $3, $7; printf "                        %s\n", $1}'
+  fi
 }
 
 cmd_list() {
-  local type=all tag="" repo="" json=0 file rows="" items tag_hit
+  local json=0 rows
   while [[ $# -gt 0 ]]; do
     case "$1" in
-      --type) type="${2:?--type needs a value}"; shift 2 ;;
-      --tag) tag="${2:?--tag needs a value}"; shift 2 ;;
-      --repo) repo="${2:?--repo needs a value}"; shift 2 ;;
+      --kind|--type|--tag|--repo|--name) set_filter "$1" "${2:?$1 needs a value}"; shift 2 ;;
       --json) json=1; shift ;;
       *) die "list: unknown option $1" ;;
     esac
   done
-  case "$type" in all|note|plan) ;; *) die "list: --type must be note, plan or all" ;; esac
+  rows="$(select_rows)"
+  if [[ -n "$rows" ]]; then printf '%s\n' "$rows" | print_rows "$json"; elif [[ "$json" == 1 ]]; then echo '[]'; fi
+}
 
-  while IFS= read -r file; do
-    [[ -n "$file" ]] || continue
-    [[ "$type" == all || "$(fm_get "$file" type)" == "$type" ]] || continue
-    [[ -z "$repo" || "$(fm_get "$file" repo)" == "$repo" ]] || continue
-    if [[ -n "$tag" ]]; then
-      tag_hit="$(index_tags "$file" | grep -cxF -- "$tag" || true)"
-      [[ "$tag_hit" -gt 0 ]] || continue
-    fi
-    rows="${rows}$(list_row "$file")"$'\n'
-  done < <(all_files)
+cmd_search() {
+  local pattern="" regex=0 match_case=0 files_only=0 json=0 rows rels hits files flags mode
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+      --kind|--type|--tag|--repo|--name) set_filter "$1" "${2:?$1 needs a value}"; shift 2 ;;
+      --regex) regex=1; shift ;;
+      --case) match_case=1; shift ;;
+      --files) files_only=1; shift ;;
+      --json) json=1; shift ;;
+      -*) die "search: unknown option $1" ;;
+      *) [[ -z "$pattern" ]] || die "search: one PATTERN only (quote it if it has spaces)"; pattern="$1"; shift ;;
+    esac
+  done
+  [[ -n "$pattern" ]] || die "search: PATTERN required"
+  rows="$(select_rows)"
+  rels="$(printf '%s' "$rows" | cut -f1)"
+  hits=""
+  if [[ -n "$rels" ]]; then
+    flags="-InH"; [[ $match_case == 1 ]] || flags="${flags}i"
+    mode="-F"; [[ $regex == 0 ]] || mode="-E"
+    # xargs batches the file list; grep exits 1 on no match and xargs turns that into 123, hence `|| true`
+    hits="$(cd "$NOTES_DIR" && printf '%s\n' "$rels" | tr '\n' '\0' | xargs -0 grep "$flags" "$mode" -e "$pattern" -- || true)"
+  fi
+  files="$(printf '%s' "$hits" | cut -d: -f1 | awk 'NF && !seen[$0]++')"
+  printf '%s match(es) in %s file(s)\n' "$(printf '%s' "$hits" | awk 'NF' | wc -l | tr -d ' ')" \
+    "$(printf '%s' "$files" | awk 'NF' | wc -l | tr -d ' ')" >&2
+  [[ -n "$hits" ]] || { [[ $json == 1 ]] && echo '[]'; return 0; }
 
-  rows="$(printf '%s' "$rows" | sort -t$'\t' -k2,2 -k1,1)"
-  [[ -n "$rows" ]] || return 0
-  if [[ "$json" == 1 ]]; then
+  if [[ $files_only == 1 ]]; then
+    printf '%s\n' "$rows" | MATCHED="$files" awk -F'\t' 'BEGIN { n = split(ENVIRON["MATCHED"], a, "\n"); for (i = 1; i <= n; i++) m[a[i]] = 1 } ($1 in m)' | print_rows "$json"
+  elif [[ $json == 1 ]]; then
     command -v jq >/dev/null || die "--json needs jq on PATH"
-    printf '%s\n' "$rows" | jq -R -s 'split("\n") | map(select(length>0) | split("\t")
-      | {path: .[0], date: .[1], type: .[2], status: .[3], repo: .[4], title: .[5]})'
+    printf '%s\n' "$hits" | jq -R -s 'split("\n") | map(select(length>0)
+      | capture("^(?<path>[^:]+):(?<line>[0-9]+):(?<text>.*)$") | .line |= tonumber)'
   else
-    printf '%s\n' "$rows" | awk -F'\t' '{printf "%s  %-5s  %s\n", $2, $3, $6; printf "            %s\n", $1}'
+    printf '%s\n' "$hits" | awk '{ line = $0; if (length(line) > 220) line = substr(line, 1, 217) "..."; print line }'
   fi
 }
 
@@ -331,7 +452,7 @@ cmd_show() {
   rel="$(resolve_ref "$ref")"; file="$NOTES_DIR/$rel"
   if [[ "$json" == 1 ]]; then
     command -v jq >/dev/null || die "--json needs jq on PATH"
-    jq -n --arg path "$rel" --arg title "$(note_title "$file")" --arg frontmatter "$(frontmatter "$file")" \
+    jq -n --arg path "$rel" --arg title "$(file_row "$rel" | cut -f7)" --arg frontmatter "$(frontmatter "$file")" \
       --arg body "$(body "$file")" '{path: $path, title: $title, frontmatter: $frontmatter, body: $body}'
   else
     cat "$file"
@@ -430,7 +551,7 @@ cmd_update() {
   done
   [[ -n "$ref" ]] || die "update: REF required"
   local rel file type slug
-  rel="$(resolve_ref "$ref")"; file="$NOTES_DIR/$rel"
+  rel="$(resolve_ref "$ref")"; require_editable "$rel"; file="$NOTES_DIR/$rel"
   type="$(fm_get "$file" type)"; slug="$(basename "$rel" .md)"
   if [[ -n "$bodyspec" && "$type" == plan ]]; then die "update: a plan's body is immutable; write a new note and --link it instead"; fi
   if [[ -z "$title$status$repo$epic$bodyspec" && $set_domain$set_tags$set_links == 000 && ${#add_tags[@]} -eq 0 ]]; then
@@ -523,7 +644,7 @@ cmd_delete() {
   done
   [[ -n "$ref" ]] || die "delete: REF required"
   local rel type slug
-  rel="$(resolve_ref "$ref")"
+  rel="$(resolve_ref "$ref")"; require_editable "$rel"
   [[ $yes == 1 ]] || die "delete: pass --yes to delete $rel (it stays recoverable from git history)"
   type="$(fm_get "$NOTES_DIR/$rel" type)"; slug="$(basename "$rel" .md)"
   rm -f "$NOTES_DIR/$rel"
@@ -543,11 +664,12 @@ main() {
   NO_COMMIT=0
   case "$cmd" in
     list|ls) cmd_list "$@" ;;
+    search|grep|find) cmd_search "$@" ;;
     show|get|read) cmd_show "$@" ;;
     create|add|new) cmd_create "$@" ;;
     update|edit) cmd_update "$@" ;;
     delete|rm) cmd_delete "$@" ;;
-    *) die "unknown command '$cmd' (list, show, create, update, delete)" ;;
+    *) die "unknown command '$cmd' (list, search, show, create, update, delete)" ;;
   esac
 }
 
