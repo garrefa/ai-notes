@@ -6,6 +6,7 @@
 //   npx ainotes-viewer install ~/projects/my-workspace     (runs toolkit/install.sh)
 //   npx ainotes-viewer snapshot-agents                     (runs toolkit/tools/snapshot-agents.sh)
 //   npx ainotes-viewer check-prs                           (runs toolkit/tools/check-prs.sh)
+//   npx ainotes-viewer notes list                          (runs toolkit/tools/notes.sh)
 //
 // install.sh resolves everything relative to its own location ($SRC), so keeping the same layout
 // under toolkit/ is all it takes — install.sh itself is copied unmodified. npm's "files" field

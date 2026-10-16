@@ -35,10 +35,38 @@ optional — when it's absent, leave `jira: null` on every plan and never ask ab
 Untracked local runtime files live in `<notes_repo>/.state/` (gitignored), including the PR
 auto-reviewer's `.state/pr-review/`. Its spend ledger is tracked at `<notes_repo>/pr-reviews-ledger.jsonl`.
 
+## The `notes.sh` CLI
+
+Notes and plans are never written by editing files by hand. `tools/notes.sh` (installed at
+`<workspace>/.claude/tools/notes.sh`, or the plugin's `tools/notes.sh`) is the only writer for
+`notes/`, `plans/` and their `INDEX.md` entries: it builds the dated filename and the frontmatter,
+guarantees the `# title` line and at least one tag, appends the file under each tag in `INDEX.md`,
+refuses to change a plan's body, and commits only the files it touched. It finds the notes repo from
+the `AINOTES_DIR` environment variable, so set that to `<notes_repo>` first:
+
+```bash
+export AINOTES_DIR=<notes_repo>
+notes.sh list [--tag T] [--repo R] [--kind daily|reviews|tasks|support-kb|root|…] [--type note|plan] [--json]
+notes.sh search "<text>" [--regex] [--files] [--kind K] [--tag T]     # file contents, every folder
+notes.sh show <path|slug>
+notes.sh create --type note|plan --slug S --title "…" --domain a,b --tags x,y --body - <<'EOF' … EOF
+notes.sh update <path|slug> --status … --jira … --worktree … --add-link … [--add-tag …]
+notes.sh delete <path|slug> --yes
+notes.sh commit --message "…" <paths>       # one commit for several --no-commit writes
+```
+
+`list`, `search` and `show` read every file in the notes repo; `create`, `update`, `delete` and
+`commit` only touch `notes/*.md`, `plans/*.md` and `INDEX.md`. Ledgers (`PRS.md`, `TASKS.md`,
+`tasks/`, `daily/`) stay with `ledger-keeper`, and reviews with `review-note.sh`.
+
+**Reading:** to find related earlier work, use `notes.sh list --tag <tag> --repo <repo>` or
+`notes.sh search "<text>"` rather than grepping or opening files one by one.
+
 ## Who writes the file
 
 Every note/plan write, frontmatter update, `INDEX.md` append and commit goes through the `notetaker`
-agent — this is mandatory, not an optimization you can skip. Spawn the `notetaker` agent (named
+agent, and the agent does it by running `notes.sh` (see its "Writing: always through `notes.sh`") —
+this is mandatory, not an optimization you can skip. Spawn the `notetaker` agent (named
 `ainotes:notetaker` when AINotes is installed as a plugin). If neither name is available, spawn a
 general-purpose agent with `model: haiku` (Haiku 5.5) and give it the contents of
 `<skill base dir>/../../agents/notetaker.md` as its instructions.
@@ -148,22 +176,25 @@ closed.
 
 1. Ask about an epic if not already stated — offer `preferred_epics` from `.config.yml` as
    options, but accept anything the user actually says.
-2. Grep `<notes_repo>/` for matching `domain`/`epic`/`repo` (filenames only, `grep -l`) to find
-   related earlier notes, and link them via `links: []` if relevant.
+2. Find related earlier notes with `notes.sh list --tag <tag>` / `--repo <repo>` or
+   `notes.sh search "<text>"`, and link them via `links: []` if relevant.
 3. Write the body and hand off to `notetaker` with `type: note`, `status: n/a` and the frontmatter
-   above. It writes `<notes_repo>/notes/YYYY-MM-DD-slug.md`, appends the file under each of its
-   `domain`/`tags` sections in `INDEX.md` (creating a section if new — never rewriting the whole
-   file), and commits directly on `main` (`"Add note: <slug>"`).
+   above. It runs `notes.sh create`, which writes `<notes_repo>/notes/YYYY-MM-DD-slug.md`, appends the
+   file under each of its `domain`/`tags` sections in `INDEX.md` (creating a section if new — never
+   rewriting the whole file), and commits directly on `main` (`"Add note: <slug>"`).
 
 ## Adding/updating a plan (including via ax-task)
 
 1. Ask about an epic if not already stated, same as step 1 above.
 2. Hand off to `notetaker` with `type: plan`, `status: planned`, `repo`/`worktree` filled in, the
-   approved plan as the body, and a one-line `title` for it (e.g. `Plan: <what it changes>`). It writes `<notes_repo>/plans/YYYY-MM-DD-<repo>-slug.md`, appends it to
-   `INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
+   approved plan as the body, and a one-line `title` for it (e.g. `Plan: <what it changes>`). It runs
+   `notes.sh create --type plan`, which writes `<notes_repo>/plans/YYYY-MM-DD-<repo>-slug.md`, appends
+   it to `INDEX.md` under its tags, and commits on `main` (`"Add plan: <slug>"`).
 3. When `ax-task` reaches its step 6 (Jira ticket, if configured), hand `notetaker` a
    frontmatter-only update of the same plan (`jira` when a ticket exists, `status: in-progress`);
-   it commits `"Update plan: <slug> (status -> in-progress)"`. The plan's body is never touched.
+   it runs `notes.sh update --jira … --status in-progress` and commits
+   `"Update plan: <slug> (status -> in-progress)"`. The plan's body is never touched (the CLI refuses
+   to).
 
 Do not start executing a plan as part of writing it — plans are captured here, executed elsewhere via
 `ax-task`.
@@ -180,8 +211,9 @@ Instead, when `ax-task` finishes a task:
    `domain`/`epic` as the plan, plus `links: ["plans/<plan-filename>"]`.
 2. Hand `notetaker` both changes in one call: the new note, and a frontmatter-only update of the plan
    flipping `status` to `done` (or `in-review`) and adding the new note's filename to its `links: []`
-   (body untouched). It writes `<notes_repo>/notes/YYYY-MM-DD-slug.md`, appends the new note to
-   `INDEX.md` under its tags, and commits both on `main` (`"Complete plan: <slug>"`).
+   (body untouched). It runs `notes.sh create --no-commit` for the new note and
+   `notes.sh update --no-commit --status … --add-link …` for the plan, then one `notes.sh commit` that
+   takes both files plus `INDEX.md` on `main` (`"Complete plan: <slug>"`).
 
 ## INDEX.md format
 

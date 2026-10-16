@@ -47,7 +47,50 @@ Don't rewrite the body you're given beyond fixing formatting; don't ask the user
 
 Read `<notes_repo>/CLAUDE.md` and at least one or two existing files under `<notes_repo>/notes/`
 and `<notes_repo>/plans/` that look similar to what you're about to write, so your frontmatter
-and structure match established convention exactly rather than inventing a new shape.
+and structure match established convention exactly rather than inventing a new shape. To find
+related earlier files without opening them all, use `notes.sh list --tag <tag>`, `--repo <repo>` or
+`notes.sh search "<text>"` (see below).
+
+## Writing: always through `notes.sh`
+
+Never create, edit or delete a file under `notes/` or `plans/`, never touch `INDEX.md`, and never run
+`git add` / `git commit` for them yourself. `tools/notes.sh` does all of it — the filename, the
+frontmatter, the `# title` check, the `INDEX.md` entries and the commit of only the files it touched —
+so every write follows the same rules.
+
+```bash
+export AINOTES_DIR=<notes_repo>                          # the folder holding .config.yml
+NOTES=<workspace-root>/.claude/tools/notes.sh            # or <plugin root>/tools/notes.sh when installed as a plugin
+```
+
+| You need to | Run |
+|---|---|
+| write a note or plan | `$NOTES create --type note\|plan --slug <slug> --title "<title>" --repo <repo> --domain a,b --tags x,y [--epic KEY] [--jira KEY] [--worktree PATH] [--status S] [--link PATH]... [--date YYYY-MM-DD] --body - <<'EOF' … EOF` |
+| change frontmatter | `$NOTES update <path> [--status S] [--jira KEY] [--worktree PATH] [--add-link PATH]... [--repo R] [--add-tag T]...` (no `--body` for a plan; the CLI refuses it) |
+| change a note's body | `$NOTES update <path> --body - <<'EOF' … EOF` (notes only) |
+| delete | `$NOTES delete <path> --yes` — only when the caller explicitly asks |
+| several changes in one commit | run each with `--no-commit`, then `$NOTES commit --message "<msg>" <every touched path> INDEX.md` |
+| look something up | `$NOTES list [--tag T] [--repo R] [--kind K]`, `$NOTES search "<text>"`, `$NOTES show <path>` (all `--json`-able) |
+
+Details that matter:
+
+- `<slug>` is lowercase letters, digits and single dashes; for a plan targeting a repo, start it with the
+  repo name (`<repo>-<what>`). `--status` defaults to `n/a` for notes and `planned` for plans. Pass the
+  caller's `epic` as `--epic KEY` (it also adds the `epic:KEY` tag); if the key doesn't match the format
+  existing notes use for `epic:`, put it in `--tags epic:KEY` instead and say so in `flags`.
+- The body goes in on stdin with `--body -`, already shaped as "Writing content" below says, so it starts
+  with its own `# <title>` line (the CLI only adds one when the body has none).
+- Default commit messages are `Add <type>: <slug>` and `Update <type>: <slug>`. Use `--message` (or the
+  caller's `commit_message`) for anything else, e.g. `Update plan: <slug> (status -> in-progress)` or
+  `Complete plan: <slug>` on the combined commit.
+- The first line of output is `<path> (<short sha>)`; with `--no-commit` there's no sha until `commit`
+  runs (`committed <sha>`). Report those as your `path` and `sha`.
+- `index_sections` is every `domain` and `tag` of the file. If stderr says `INDEX.md has uncommitted
+  edits; not touching it`, the file was written but not indexed: put that in `flags` and leave `INDEX.md`
+  alone.
+- A non-zero exit means nothing was committed for that call: return stderr verbatim as `{error: …}`.
+- The one thing you still do by hand is a new `domain_taxonomy` entry in `.config.yml` (it isn't a note);
+  commit just that file on its own (`git -C <notes_repo> add .config.yml && git -C <notes_repo> commit …`).
 
 ## Frontmatter schema
 
@@ -102,8 +145,9 @@ only flip the plan's `status` frontmatter field (and append the new note's filen
 - notes/2026-09-03-worktree-notes.md
 - plans/2026-09-01-api-gateway-fix-token-expiry.md
 ```
-Edit only the affected tag sections when adding an entry — append, never regenerate the
-whole file from scratch. Create a new tag section only when no existing one fits.
+`notes.sh` maintains this: it appends the file under each of its `domain`/`tags` sections (creating a
+section for a new tag, never regenerating the file) and removes the entry when a note is deleted or
+loses a tag. Prefer an existing tag over a near-duplicate when choosing `--tags`.
 
 ## Writing content
 
@@ -128,11 +172,10 @@ directional, never a precise/billing-accurate figure).
 
 ## Committing
 
-```bash
-cd <workspace-root>/<notes_repo>
-git add -A && git commit -m "<Add|Update|Complete> <note|plan>: <short description>"
-```
-Always confirm `git status` is clean afterward and report the commit SHA.
+`notes.sh` commits for you: only the files it touched, to the notes repo's current branch, never a push
+(see "Writing: always through `notes.sh`" for messages and for combining several changes in one commit).
+Don't run `git add -A`: other writers (`ledger-keeper`, `review-note.sh`) may have uncommitted work in
+the same repo, and it must not be swept into your commit. Report the commit SHA the CLI printed.
 
 ## When something doesn't fit
 

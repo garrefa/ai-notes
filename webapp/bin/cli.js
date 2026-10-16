@@ -33,6 +33,8 @@ const SUBCOMMANDS = {
   // Both auto-discover the workspace from the current directory; run them from inside one.
   "snapshot-agents": "tools/snapshot-agents.sh",
   "check-prs": "tools/check-prs.sh",
+  // CRUD for notes and plans; reads the notes repo from the AINOTES_DIR environment variable.
+  notes: "tools/notes.sh",
 }
 
 const MIME_TYPES = {
@@ -135,6 +137,7 @@ async function main() {
         "       npx ainotes-viewer install --uninstall <workspace-dir>",
         "       npx ainotes-viewer snapshot-agents [args...]",
         "       npx ainotes-viewer check-prs [args...]",
+        "       npx ainotes-viewer notes <list|search|show|create|update|delete> [args...]",
         "",
         "  (no subcommand)  Serve the viewer on localhost and open it in the browser.",
         "  --port, -p       Port to serve on (default: 4173)",
@@ -145,6 +148,7 @@ async function main() {
         "                   into <workspace-dir>/.claude/ — same as ./install.sh from a clone.",
         "  snapshot-agents  Run tools/snapshot-agents.sh (writes AGENTS.json for the Agents view).",
         "  check-prs        Run tools/check-prs.sh (the mechanical part of \"check prs\").",
+        "  notes            Run tools/notes.sh (list, search and CRUD for the notes repo in $AINOTES_DIR).",
         "  All three need bash (plus python3 for install, jq for the other two) and take the same",
         "  arguments as running the script from a clone — pass --help to any of them for its usage.",
         "  Run snapshot-agents and check-prs from inside the workspace so they can find it.",
